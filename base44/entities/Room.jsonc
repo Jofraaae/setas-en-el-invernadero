@@ -1,0 +1,32 @@
+{
+  "name": "Room",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "player_count": {
+      "type": "number",
+      "default": 0
+    },
+    "max_players": {
+      "type": "number",
+      "default": 15
+    },
+    "min_players": {
+      "type": "number",
+      "default": 4
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "lobby",
+        "playing"
+      ],
+      "default": "lobby"
+    }
+  },
+  "required": [
+    "code"
+  ]
+}
