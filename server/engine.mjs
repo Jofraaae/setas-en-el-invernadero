@@ -1024,7 +1024,12 @@ class GameRoom {
       }
       case 'sabotage': {
         if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive) return;
-        if (this.frozen(p, now) || now < this.sabLockAt || now < this.rtLockAt || this.dark || this.reactor) return;
+        if (this.frozen(p, now)) return;
+        // Solo cuenta SU espera (la que enseña el botón, scd). Antes también exigía que hubiera
+        // acabado la del reactor, que al empezar es más larga: el botón se veía listo y la X
+        // no hacía nada hasta pasados unos segundos más.
+        if (this.dark || this.reactor) return conn.send({ t: 'error', msg: 'Ya hay un sabotaje en marcha.' });
+        if (now < this.sabLockAt) return conn.send({ t: 'error', msg: `El apagón aún se está recargando (${Math.ceil((this.sabLockAt - now) / 1000)} s).` });
         // el apagón no caduca: la luz no vuelve hasta que alguien repare el cuadro
         this.dark = true;
         this.lockSabotages(this.settings.sabCd * 1000, now);
@@ -1041,7 +1046,10 @@ class GameRoom {
       case 'reactor': {
         // sabotaje del reactor: un impostor vivo, un sabotaje a la vez y la espera compartida
         if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive) return;
-        if (this.frozen(p, now) || now < this.rtLockAt || now < this.sabLockAt || this.dark || this.reactor) return;
+        if (this.frozen(p, now)) return;
+        // igual que el apagón: solo cuenta su propia espera (rcd), la que enseña el botón
+        if (this.dark || this.reactor) return conn.send({ t: 'error', msg: 'Ya hay un sabotaje en marcha.' });
+        if (now < this.rtLockAt) return conn.send({ t: 'error', msg: `El reactor aún se está recargando (${Math.ceil((this.rtLockAt - now) / 1000)} s).` });
         this.reactor = { until: now + REACTOR_MS, a: null, b: null, hold: 0 };
         this.lockSabotages(this.settings.reactorCd * 1000, now);
         this.ensureLoop();

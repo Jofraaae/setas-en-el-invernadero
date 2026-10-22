@@ -202,7 +202,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 <button
                   className="pointer-events-auto min-w-[140px] rounded-xl bg-[#7b2cbf] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
                   onClick={() => { sfx('sabotage'); onSab(); }}
-                  disabled={frz || st.scd > 0 || !!st.dark || !g.me.alive}
+                  disabled={frz || st.scd > 0 || !!st.dark || !!st.rx || !g.me.alive}
                 >
                   {st.dark ? 'APAGÓN ACTIVO' : st.scd > 0 ? `APAGÓN (${Math.ceil(st.scd / 1000)})` : 'APAGÓN [X]'}
                 </button>

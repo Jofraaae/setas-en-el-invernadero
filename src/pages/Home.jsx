@@ -733,7 +733,7 @@ export default function Home() {
   }, [g]);
 
   const sabAction = useCallback(() => {
-    if (screenRef.current === 'playing' && g.role === 'impostor' && g.me.alive && g.st.scd <= 0 && !g.st.dark) send({ t: 'sabotage' });
+    if (screenRef.current === 'playing' && g.role === 'impostor' && g.me.alive && g.st.scd <= 0 && !g.st.dark && !g.st.rx) send({ t: 'sabotage' });
   }, [g, send]);
 
   const ventAction = useCallback(() => {
