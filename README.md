@@ -34,6 +34,22 @@ solo a `http://localhost:8787`. Si el servidor vive en otra máquina, compila co
 `VITE_GAME_SERVER=http://IP:8787 npm run html`. Un HTML solo no puede hospedar las salas
 multijugador: el servidor Node es quien las gestiona.
 
+## Jugar en la web (desplegar)
+
+El juego necesita un proceso Node que se mantenga encendido (WebSocket + partidas en memoria),
+así que **Vercel no puede alojar el servidor**: solo la parte visual. Dos opciones:
+
+**A) Todo en Render (lo más sencillo).** En https://render.com: *New > Blueprint* y elige este
+repositorio (usa `render.yaml`). Al acabar tienes el juego completo en `https://<nombre>.onrender.com`.
+El plan gratuito se duerme tras ~15 min sin uso (la primera visita tarda ~1 min en despertar) y las
+partidas viven en memoria, así que se pierden si el servicio se reinicia.
+
+**B) Vercel (pantalla) + Render (servidor).**
+1. Despliega el servidor en Render como en A y copia su URL.
+2. En Vercel: *Add New > Project*, importa el repositorio y, antes de desplegar, añade la variable de
+   entorno `VITE_GAME_SERVER` con la URL de Render (por ejemplo `https://setas.onrender.com`, sin `/` final).
+   Después de cambiarla hay que volver a desplegar, porque se incrusta al compilar.
+
 ## Producción
 
 ```bash

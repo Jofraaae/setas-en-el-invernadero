@@ -1,0 +1,15 @@
+# Render (https://render.com): todo el juego en un solo servicio (web + servidor de salas).
+# New + > Blueprint > elige este repositorio. Al terminar, el juego queda en
+# https://<nombre>.onrender.com, listo para jugar con amigos.
+services:
+  - type: web
+    name: setas-en-el-invernadero
+    runtime: node
+    plan: free
+    # --include=dev: Render pone NODE_ENV=production y Vite (para compilar) es una devDependency
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
