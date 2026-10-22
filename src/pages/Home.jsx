@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { connectRoom } from '@/lib/game/net';
 import { useToast } from '@/components/ui/use-toast';
 import { makeGrid } from '@/lib/game/grid';
 import { announceRoom, forgetRoom } from '@/lib/game/rooms';
@@ -338,7 +338,7 @@ export default function Home() {
       setError('No se ha podido conectar con la sala. Inténtalo otra vez.');
     }, CONNECT_MS);
     try {
-      const conn = base44.actors.GameRoom(roomCode).connect({ id: getConnId() });
+      const conn = connectRoom(roomCode, { id: getConnId() });
       connRef.current = conn;
       subRef.current = conn.subscribe((m) => handlerRef.current(m));
       conn.send({ t: kind, name: name || 'Seta', code: roomCode });

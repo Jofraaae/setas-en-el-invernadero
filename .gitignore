@@ -37,3 +37,20 @@ dist-ssr
 
 # Local link to a Base44 app, written by `base44 link`
 base44/.app.jsonc
+
+# node
+node_modules/
+dist/
+.output
+.wrangler
+logs/
+*.log
+
+# entorno y estado local del servidor de salas
+.env
+.env.*
+.saves/
+
+# artefactos locales (no forman parte del proyecto)
+menu_screenshot.png
+juego-setas-un-solo-archivo.html
