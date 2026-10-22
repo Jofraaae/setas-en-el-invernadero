@@ -54,7 +54,7 @@ export default function Home() {
   // datos del anuncio de la sala (se usan en el efecto y al salir)
   const lobbyCount = lobby && lobby.players ? lobby.players.length : 0;
   const lobbyMin = (lobby && lobby.min) || 4;
-  const lobbyMax = (lobby && lobby.max) || 10;
+  const lobbyMax = (lobby && lobby.max) || 15;
   const [tasks, setTasks] = useState([]);
   const [doneIds, setDoneIds] = useState([]);
   const [meeting, setMeeting] = useState(null);

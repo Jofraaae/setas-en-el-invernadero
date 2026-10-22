@@ -25,6 +25,18 @@ const SAVE_DIR = path.join(ROOT, '.saves');
 
 const store = new Map(); // code -> { get, put } por sala
 
+// Al arrancar se borran los guardados viejos: si el servidor se cae o se reinicia, las salas
+// abandonadas se quedarían en disco para siempre y sus códigos figurarían como ocupados.
+// Los recientes se conservan, así una partida en curso sobrevive a un reinicio rápido.
+const SAVE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+try {
+  for (const name of fs.readdirSync(SAVE_DIR)) {
+    if (!name.endsWith('.json')) continue;
+    const file = path.join(SAVE_DIR, name);
+    if (Date.now() - fs.statSync(file).mtimeMs > SAVE_MAX_AGE_MS) fs.unlinkSync(file);
+  }
+} catch (e) { /* aún no existe .saves: nada que limpiar */ }
+
 function makeStorage(code) {
   const file = path.join(SAVE_DIR, `${code}.json`);
   return {
@@ -208,6 +220,18 @@ wss.on('connection', (ws, req) => {
     }
   });
   ws.on('error', () => { /* el cierre se encarga de la limpieza */ });
+});
+
+// "ws" reenvía los errores del servidor HTTP: sin oyente en wss lanzaría una excepción
+wss.on('error', () => { /* se informa en server.on('error') */ });
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`✖ El puerto ${PORT} ya está en uso (¿hay otra copia del juego abierta?).`);
+    console.error(`  Ciérrala, o usa otro puerto:  PORT=${PORT + 1} npm run server`);
+  } else {
+    console.error('✖ Error del servidor:', e.message);
+  }
+  process.exit(1);
 });
 
 server.listen(PORT, () => {
