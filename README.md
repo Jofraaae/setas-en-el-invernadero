@@ -22,6 +22,18 @@ para poner tu nombre, crear una sala o unirte con un código.
 > No abras `index.html` con doble clic: es la plantilla de Vite y necesita el servidor.
 > Entra siempre por la URL `http://localhost:8787` (o `:5173` con `npm run dev`).
 
+## Un solo archivo HTML
+
+```bash
+npm run html     # genera setas.html (JS, CSS y mapas incluidos)
+npm run server   # el servidor de juego sigue haciendo falta
+```
+
+`setas.html` se abre con doble clic y muestra el menú; al estar abierto como archivo se conecta
+solo a `http://localhost:8787`. Si el servidor vive en otra máquina, compila con
+`VITE_GAME_SERVER=http://IP:8787 npm run html`. Un HTML solo no puede hospedar las salas
+multijugador: el servidor Node es quien las gestiona.
+
 ## Producción
 
 ```bash
