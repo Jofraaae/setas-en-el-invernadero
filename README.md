@@ -13,6 +13,15 @@ npm run dev        # levanta el servidor de juego (:8787) + Vite (:5173) con pro
 
 Abre http://localhost:5173 en varias pestañas/dispositivos, crea una sala y únete con su código.
 
+## Jugar sin complicaciones
+
+Doble clic en `jugar.bat` (Windows) o `./jugar.sh` (Mac/Linux), o bien `npm run play`.
+Compila el juego y lo sirve todo en **http://localhost:8787**: ahí se abre directamente el menú
+para poner tu nombre, crear una sala o unirte con un código.
+
+> No abras `index.html` con doble clic: es la plantilla de Vite y necesita el servidor.
+> Entra siempre por la URL `http://localhost:8787` (o `:5173` con `npm run dev`).
+
 ## Producción
 
 ```bash
