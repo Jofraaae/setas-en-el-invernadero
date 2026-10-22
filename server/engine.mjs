@@ -1,4 +1,3 @@
-import { Actor } from 'base44:runtime/actors';
 
 /* ================================================================
    Sala de partida de "Setas en el invernadero".
@@ -719,7 +718,51 @@ function stepPlayer(M, p, dt, speed, closed) {
   p.x = ay.x; p.y = ay.y;
 }
 
-export default class GameRoom extends Actor {
+/* ================================================================
+   Runtime propio (sin Base44): el servidor (server/index.js) crea una
+   sala por codigo y le pasa un entorno `rt` con:
+     rt.storage         -> { get(key), put(key, value) }  persistencia
+     rt.registry        -> anuncio de salas para el listado del menu
+                           { update(code,row), remove(code), list() }
+     rt.getConnections()-> [{ id, send(msg) }] conexiones WebSocket abiertas
+     rt.closeConn(id)   -> corta una conexion (kick/ban)
+     rt.schedule/cancelSchedule -> latidos diferidos (setTimeout)
+   El protocolo de mensajes es identico al del actor original.
+   ================================================================ */
+
+class GameRoom {
+  constructor(code, rt = {}) {
+    this.code = code || null;
+    this.rt = rt;
+    if (!rt.storage) {
+      const mem = new Map();
+      rt.storage = {
+        async get(k) { return mem.get(k) ?? null; },
+        async put(k, v) { mem.set(k, JSON.parse(JSON.stringify(v))); },
+      };
+    }
+    if (!rt.registry) {
+      const rooms = new Map();
+      rt.registry = {
+        update(code, row) { rooms.set(code, { ...row, updated_at: Date.now() }); },
+        remove(code) { rooms.delete(code); },
+        list() { return [...rooms.values()]; },
+      };
+    }
+    if (!rt.getConnections) rt.getConnections = () => [];
+    if (!rt.closeConn) rt.closeConn = () => {};
+    if (!rt.schedule) rt.schedule = (key, at) => setTimeout(() => this.handleWake(key), Math.max(0, at - Date.now()));
+    if (!rt.cancelSchedule) rt.cancelSchedule = () => {};
+  }
+
+  /* ---------- API del ciclo de vida que usa el servidor ---------- */
+
+  onOpen(conn) { return this.handleConnect(conn); }
+
+  onClose(conn) { return this.handleClose(conn); }
+
+  onMessage(conn, msg) { return this.handleMessage(conn, msg); }
+
   code = null;
   map = DEFAULT_MAP; // escenario elegido en la sala de espera: cada mapa trae sus salas, objetos, misiones y rejillas
   hostSeat = null;
@@ -819,6 +862,7 @@ export default class GameRoom extends Actor {
         return;
       case 'quit': {
         this.removePlayer(p);
+        this.rt.closeConn(conn.id); // el cliente ya pidió salir: se suelta el socket
         return this.save();
       }
       case 'color': {
@@ -885,6 +929,7 @@ export default class GameRoom extends Actor {
         const mode = msg.mode === 'ban' ? 'ban' : 'kick';
         if (mode === 'ban') this.banned.add(target.connId);
         this.sendTo(target, { t: 'kicked', ban: mode === 'ban' });
+        this.rt.closeConn(target.connId); // sin cortar el socket, el expulsado seguiría jugando
         this.removePlayer(target, mode);
         return this.save();
       }
@@ -1245,7 +1290,9 @@ export default class GameRoom extends Actor {
     if (this.findByConn(conn.id)) return;
     const code = String(msg.code || '').toUpperCase().trim();
     if (!CODE_RE.test(code)) return conn.send({ t: 'error', msg: 'Código de sala no válido.' });
-    if (this.players.size > 0) return conn.send({ t: 'error', msg: 'Ese código ya está ocupado. Generando otro…' });
+    // el registro global dice si otra sala viva tiene ese código
+    const other = this.rt.registry.list().find((r) => r.code === code && r.status !== 'gone');
+    if (other || this.players.size > 0) return conn.send({ t: 'error', msg: 'Ese código ya está ocupado. Generando otro…' });
     this.reset(code);
     this.addPlayer(conn, msg.name);
     await this.save();
@@ -1753,7 +1800,7 @@ export default class GameRoom extends Actor {
     if (want) this.armWatch();
   }
 
-  armWatch() { this.schedule('watch', Date.now() + WATCH_MS); }
+  armWatch() { this.rt.schedule('watch', Date.now() + WATCH_MS); }
 
   tick() {
     const now = Date.now();
@@ -2001,12 +2048,12 @@ export default class GameRoom extends Actor {
 
   async save() {
     this.savedAt = Date.now();
-    await this.storage.put('st', {
+    await this.rt.storage.put('st', {
       code: this.code, map: this.map, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
       settings: this.settings, bodies: this.bodies, taskDone: this.taskDone, taskTotal: this.taskTotal,
       dark: this.dark, reactor: this.reactor, resultUntil: this.resultUntil, rolesUntil: this.rolesUntil,
       sabLockAt: this.sabLockAt, rtLockAt: this.rtLockAt,
-      lastResult: this.lastResult, lastEnd: this.lastEnd, lobbyChat: this.lobbyChat, banned: [...this.banned], doorAt: [...this.doorAt], doorReady: [...this.doorReady],
+      lastResult: this.lastResult, lastEnd: this.lastEnd, lobbyChat: this.lobbyChat, banned: [...this.banned], doorAt: [...this.doorAt], doorReady: [...this.doorReady], savedAt: this.savedAt,
       meeting: this.meeting
         ? { votes: [...this.meeting.votes.entries()], discussUntil: this.meeting.discussUntil, voteUntil: this.meeting.voteUntil, open: this.meeting.open }
         : null,
@@ -2015,6 +2062,7 @@ export default class GameRoom extends Actor {
   }
 
   restore(s) {
+    this.savedAt = s.savedAt || 0;
     this.code = s.code || null;
     this.hostSeat = s.hostSeat || null;
     this.nextSeat = s.nextSeat || 1;
@@ -2072,14 +2120,14 @@ export default class GameRoom extends Actor {
     this.banned = new Set();
     this.doorAt.clear();
     this.doorReady.clear();
-    try { this.cancelSchedule('room'); } catch (e) { /* no había latido pendiente */ }
+    try { this.rt.cancelSchedule('room'); } catch (e) { /* no había latido pendiente */ }
     this.ensureLoop();
   }
 
   async hydrate() {
-    const s = await this.storage.get('st');
+    const s = await this.rt.storage.get('st');
     if (s) this.restore(s);
-    const live = new Map(this.getConnections().map((c) => [c.id, c]));
+    const live = new Map(this.rt.getConnections().map((c) => [c.id, c]));
     for (const p of this.players.values()) {
       const conn = live.get(p.connId);
       if (conn) {
@@ -2114,21 +2162,17 @@ export default class GameRoom extends Actor {
     this.roomSyncedAt = Date.now(); // se marca antes de escribir: evita ráfagas de llamadas
     try {
       if (!code) return;
-      const rooms = this.client.asServiceRole.entities.Room;
-      const found = await rooms.filter({ code }, { limit: 5 });
       if (this.players.size === 0 || this.phase === 'ended') {
-        for (const r of found.items) await rooms.delete(r.id);
+        this.rt.registry.remove(code);
         return;
       }
-      const row = {
+      this.rt.registry.update(code, {
         code,
         player_count: this.players.size,
         max_players: MAX_PLAYERS,
         min_players: MIN_PLAYERS,
         status: this.phase === 'lobby' ? 'lobby' : 'playing',
-      };
-      if (found.items.length) await rooms.update(found.items[0].id, row);
-      else await rooms.create(row);
+      });
       this.syncErr = null;
     } catch (e) {
       // el listado es informativo: un fallo aquí nunca debe tumbar la partida
@@ -2140,9 +2184,19 @@ export default class GameRoom extends Actor {
 
   armRoomSync() {
     try {
-      this.schedule('room', Date.now() + ROOM_SYNC_MS);
+      this.rt.schedule('room', Date.now() + ROOM_SYNC_MS);
     } catch (e) {
       // sin latido: el anuncio se refresca igual cada vez que cambia algo
+    }
+  }
+
+  /* ---------- envío a las conexiones WebSocket ---------- */
+
+  getConnections() { return this.rt.getConnections(); }
+
+  broadcast(msg) {
+    for (const c of this.getConnections()) {
+      try { c.send(msg); } catch (e) { /* conexión cerrada a media tanda */ }
     }
   }
 
@@ -2155,3 +2209,18 @@ export default class GameRoom extends Actor {
     for (const c of this.getConnections()) if (c.id === p.connId) { c.send(msg); return; }
   }
 }
+
+/* Ficha de la sala para el listado del menú (solo lectura: la autoridad sigue
+   siendo la propia sala, que decide la admisión en onJoin). */
+export function roomInfo(room) {
+  return {
+    code: room.code,
+    players: room.players.size,
+    max_players: MAX_PLAYERS,
+    min_players: MIN_PLAYERS,
+    status: room.phase === 'lobby' ? 'lobby' : (room.phase === 'ended' ? 'ended' : 'playing'),
+  };
+}
+
+export { MIN_PLAYERS, MAX_PLAYERS, CODE_RE };
+export default GameRoom;

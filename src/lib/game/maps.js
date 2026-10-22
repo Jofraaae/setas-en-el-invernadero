@@ -7,13 +7,13 @@ export const MAPS = [
     id: 'greenhouse',
     name: 'El Invernadero',
     blurb: 'Naves de cultivo, cámaras frías y maquinaria de laboratorio.',
-    thumb: 'https://media.base44.com/images/public/6ac5fbbda2ea6a18a74039f6/6b8b95d21_generated_image.png',
+    thumb: '/maps/greenhouse.svg',
   },
   {
     id: 'micelaria',
     name: 'Micelaria',
     blurb: 'Dentro de la seta madre, entre arroyos, cascadas y luciérnagas.',
-    thumb: 'https://media.base44.com/images/public/6ac5fbbda2ea6a18a74039f6/00487c454_generated_image.png',
+    thumb: '/maps/micelaria.svg',
   },
 ];
 

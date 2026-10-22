@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { fetchRooms, subscribeRooms } from '@/lib/game/net';
 import { lastRooms, rememberRooms } from '@/lib/game/rooms';
 import { sfx } from '@/lib/game/sound';
 
@@ -20,12 +20,14 @@ export default function RoomList({ onJoin, onClose }) {
     let alive = true;
     const load = async () => {
       try {
-        // Las fechas guardadas vienen en UTC sin sufijo de zona horaria. No deben
-        // interpretarse en el navegador: en Madrid eso envejecía una sala nueva 2 horas.
-        const { items } = await base44.entities.Room.filter(
-          { updated_date: { $gte: new Date(Date.now() - FRESH_MS).toISOString() } },
-          { sort: '-updated_date', limit: 30 }
-        );
+        // El servidor ya solo devuelve salas vivas (anuncio con caducidad), así que
+        // basta con pedir el listado y recortarlo a las más recientes.
+        const raw = await fetchRooms();
+        const fresh = raw
+          .filter((r) => !r.updated_date || Date.parse(r.updated_date) >= Date.now() - FRESH_MS)
+          .sort((a, b) => String(b.updated_date || '').localeCompare(String(a.updated_date || '')))
+          .slice(0, 30);
+        const items = fresh;
         if (!alive) return;
         const seen = new Map();
         for (const r of items) {
@@ -42,15 +44,8 @@ export default function RoomList({ onJoin, onClose }) {
       }
     };
     load();
-    let unsub = null;
-    try {
-      unsub = base44.entities.Room.subscribe(() => {
-        if (pending.current) return;
-        pending.current = setTimeout(() => { pending.current = null; load(); }, 400);
-      });
-    } catch (e) {
-      unsub = null; // avisos en vivo no disponibles: basta con el refresco periódico
-    }
+    // antes: realtime de Base44; ahora sondeo interno en subscribeRooms
+    const unsub = subscribeRooms(() => load());
     // La lista se refresca sola de todas formas: los avisos en vivo pueden no llegar, y
     // el listado no debe quedarse congelado con lo que hubiera al abrirlo.
     const poll = setInterval(load, 5000);
