@@ -24,7 +24,8 @@ export default function MapOverlay({ g, onClose, onDoors }) {
   const doors = g.doors || [];
   const isImp = g.role === 'impostor';
   const sab = !!(g.st.dark || g.st.rx);
-  const canClose = isImp && g.me.alive && !sab && !(g.vent && g.vent.in) && !(g.st.fz > 0);
+  // el impostor puede cerrar puertas también estando muerto
+  const canClose = isImp && !sab && !(g.vent && g.vent.in) && !(g.st.fz > 0);
 
   const sc = Math.min(
     Math.min(window.innerWidth * 0.9, 1180) / world.w,
@@ -33,7 +34,9 @@ export default function MapOverlay({ g, onClose, onDoors }) {
   const W = Math.round(world.w * sc);
   const H = Math.round(world.h * sc);
 
-  const closed = new Map((g.st.drs || []).map(([id, left]) => [id, left]));
+  // Las puertas cerradas solo las ven en el mapa los impostores (vivos o muertos): para la
+  // tripulación, viva o fantasma, el mapa no dice nada de ellas.
+  const closed = new Map(isImp ? (g.st.drs || []).map(([id, left]) => [id, left]) : []);
   const salas = floors.map((f, i) => ({ i, f })).filter((r) => r.f[5] && doors.some((d) => (d.rooms || []).includes(r.i)));
   const leftOf = (room) => {
     let best = 0;
@@ -148,7 +151,7 @@ export default function MapOverlay({ g, onClose, onDoors }) {
             ? sab
               ? 'Con un sabotaje en marcha no se pueden cerrar puertas.'
               : 'Toca el candado de una sala para cerrar sus puertas 10 s: nadie puede abrirlas antes y tardan 20 s en poder cerrarse otra vez.'
-            : 'Ves el mapa entero, con el nombre de cada zona y las puertas cerradas en rojo.'}
+            : 'Ves el mapa entero, con el nombre de cada zona.'}
           <div className="text-[11px]">Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia</div>
           {trk ? (
             <div className="text-[11px] font-bold text-[#cdf3ff]">

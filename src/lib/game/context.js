@@ -16,7 +16,8 @@ export function contextOf(g) {
   c.panel = g.st.dark && g.me.alive && Math.hypot(g.pnl.x - g.me.x, g.pnl.y - g.me.y) <= r;
   // con un sabotaje en marcha el botón no convoca reunión; reportar un cuerpo sí vale
   c.meetBlocked = !!(g.st.dark || g.st.rx);
-  // cada jugador tiene una sola reunión por partida (con el botón o reportando un cuerpo)
+  // cada jugador tiene una sola reunión por partida, y es la del BOTÓN central: reportar
+  // cuerpos no la gasta y se puede hacer todas las veces que haga falta
   c.meetUsed = !!g.meetUsed;
   // al empezar o tras una reunión, el botón central tarda 20 s en poder pulsarse
   c.btnCd = Math.max(0, g.st.bcd || 0);

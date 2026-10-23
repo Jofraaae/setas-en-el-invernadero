@@ -35,7 +35,6 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
               : 'USAR [E]';
   const canUse = !frz && !!(c.hold || c.panel || c.task || c.btn);
   const meetBlocked = c.meetBlocked;
-  const meetSpent = c.meetUsed;
   const angel = !!g.angel;
   // El Ángel solo puede escudar a quien tenga al lado; el servidor comprueba además que
   // sea un tripulante vivo, así que aquí basta con mirar quién anda cerca.
@@ -167,6 +166,29 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             >
               {useLabel}
             </button>
+            {isImp ? (
+              <>
+                <button
+                  className="pointer-events-auto min-w-[140px] rounded-xl bg-[#7b2cbf] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
+                  onClick={() => { sfx('sabotage'); onSab(); }}
+                  disabled={frz || st.scd > 0 || !!st.dark || !!st.rx}
+                >
+                  {st.dark ? 'APAGÓN ACTIVO' : st.scd > 0 ? `APAGÓN (${Math.ceil(st.scd / 1000)})` : 'APAGÓN [X]'}
+                </button>
+                {g.rmeta ? (
+                  <button
+                    className="pointer-events-auto min-w-[140px] rounded-xl bg-[#c9184a] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
+                    onClick={() => { sfx('switch'); onReactor(); }}
+                    disabled={frz || st.rcd > 0 || !!st.rx || st.dark}
+                  >
+                    {st.rcd > 0 ? `REACTOR (${Math.ceil(st.rcd / 1000)})` : 'REACTOR [C]'}
+                  </button>
+                ) : null}
+                <div className="rounded-xl bg-[rgba(10,22,16,.78)] px-3 py-2 text-center text-[12px] font-semibold text-[#c9b3ff]">
+                  Las puertas se cierran desde el mapa [M]
+                </div>
+              </>
+            ) : null}
             {angel ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#3aa0b8] px-4 py-3.5 text-[15px] font-bold text-[#04222a] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
@@ -234,9 +256,9 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#ff9f1c] px-4 py-3.5 text-[15px] font-bold text-[#2b1a03] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
               onClick={() => { sfx('button'); onRep(); }}
-              disabled={frz || !c.body || meetSpent}
+              disabled={frz || !c.body}
             >
-              {meetSpent ? 'YA USASTE TU REUNIÓN' : 'REPORTAR [R]'}
+              REPORTAR [R]
             </button>
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#e9c46a] px-4 py-3.5 text-[15px] font-bold text-[#261c05] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"

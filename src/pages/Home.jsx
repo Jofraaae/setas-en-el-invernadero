@@ -6,6 +6,7 @@ import { announceRoom, forgetRoom } from '@/lib/game/rooms';
 import { loop, sfx, stopLoop } from '@/lib/game/sound';
 import { buildWorld } from '@/lib/game/render';
 import { contextOf } from '@/lib/game/context';
+import { sendInput } from '@/lib/game/predict';
 import MenuScreen from '@/components/game/MenuScreen';
 import LobbyScreen from '@/components/game/LobbyScreen';
 import MeetingScreen from '@/components/game/MeetingScreen';
@@ -74,7 +75,8 @@ export default function Home() {
   if (!gRef.current) {
     gRef.current = {
       me: { x: 0, y: 0, alive: true, face: 1, moving: false },
-      srv: { x: 0, y: 0 },
+      srv: { x: 0, y: 0 }, srvB: null,
+      lastIn: { dx: 0, dy: 0 }, lastSend: 0, inMoving: false, lastEff: 0, frameT: 0,
       pend: [], inSeq: 0,
       others: new Map(), bodies: [],
       st: { prog: 0, dark: false, vr: 420, sr: 420, kcd: 0, scd: 0, rcd: 0, sq: 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 },
@@ -187,6 +189,8 @@ export default function Home() {
     g.snap = true;
     g.me.alive = m.alive !== false;
     g.pend = [];
+    g.srvB = null;
+    g.inMoving = false;
     g.inSeq = m.seq || 0; // al recargar se continúa la secuencia de la sala
     g.mini = null;
     g.miniOpen = false;
@@ -230,6 +234,8 @@ export default function Home() {
     // que van en camino la hace el lienzo, y nunca reemplaza una posición más nueva.
     g.srv.x = m.x;
     g.srv.y = m.y;
+    // punto donde empezó la orden en vigor: base de la reconciliación (ver predict.js)
+    g.srvB = Number.isFinite(m.bx) && Number.isFinite(m.by) ? { x: m.bx, y: m.by } : null;
     // Desfase con el reloj de la sala: el mínimo de (mi reloj − su marca) dice cuánto tarda
     // un estado en llegar. Con eso el lienzo sabe desde cuándo está vieja esa posición.
     if (m.tm) {
@@ -495,19 +501,27 @@ export default function Home() {
         setMapOpen(false);
         g.me.moving = false;
         g.pend = [];
-        g.inSeq += 1;
-        send({ t: 'input', dx: 0, dy: 0, seq: g.inSeq });
+        sendInput(g, send, 0, 0, g.frameT || performance.now());
         setMini(null);
         setShiftPick(null);
         setSci(false);
         setDeath({ name: m.name || 'Alguien', color: m.color || '#e63946' });
-        if (g.angel) toast({ description: 'Eres el Ángel Guardián: con [T] puedes escudar al tripulante que tengas al lado.', duration: 9000 });
+        // el rol de Ángel Guardián no se conoce en vida: se descubre aquí, al morir
+        if (m.angel) {
+          g.angel = true;
+          toast({ description: '¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.', duration: 9000 });
+        }
         window.setTimeout(() => {
           setDeath(null);
           g.inputLock = false;
         }, DEATH_MS);
         break;
       }
+      case 'angelOn':
+        // expulsado en una votación: también ahora descubre que es el Ángel Guardián
+        g.angel = true;
+        toast({ description: '¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.', duration: 9000 });
+        break;
       case 'alertDeath': {
         // el Alertador ha caído: todos ven una flecha que señala su cuerpo
         sfx('alert');
@@ -582,6 +596,7 @@ export default function Home() {
       case 'meeting':
         // una reunión cierra lo que hubiera abierto: un minijuego taparía la votación
         sfx('meeting');
+        stopLoop('blackout'); // el zumbido del apagón calla en la votación; si sigue, vuelve al reanudar
         g.miniOpen = false;
         g.inputLock = false;
         g.mini = null;
@@ -638,6 +653,7 @@ export default function Home() {
         break;
       case 'resume':
         sfx('begin');
+        if (g.st.dark) loop('blackout'); // las luces siguen apagadas tras la reunión
         g.snap = true;
         g.miniOpen = false;
         g.inputLock = false;
@@ -679,9 +695,7 @@ export default function Home() {
     g.miniOpen = true;
     g.inputLock = true;
     g.mini = ui;
-    g.inSeq += 1;
-    send({ t: 'input', dx: 0, dy: 0, seq: g.inSeq });
-    g.pend.push({ seq: g.inSeq, dx: 0, dy: 0, ms: performance.now() });
+    sendInput(g, send, 0, 0, g.frameT || performance.now());
     setMini(ui);
   }, [g, send]);
 
@@ -717,7 +731,7 @@ export default function Home() {
   const reportAction = useCallback(() => {
     if (screenRef.current !== 'playing') return;
     const c = contextOf(g);
-    if (c.body && !c.meetUsed) send({ t: 'report' }); // reportar vale aunque haya sabotaje
+    if (c.body) send({ t: 'report' }); // reportar cuerpos es ilimitado y vale aunque haya sabotaje
   }, [g, send]);
 
   // mapa: se abre y se cierra con la M (o con el botón), sin espera y para todo el mundo.
@@ -733,7 +747,8 @@ export default function Home() {
   }, [g]);
 
   const sabAction = useCallback(() => {
-    if (screenRef.current === 'playing' && g.role === 'impostor' && g.me.alive && g.st.scd <= 0 && !g.st.dark && !g.st.rx) send({ t: 'sabotage' });
+    // un impostor muerto sigue saboteando (apagón, reactor y puertas)
+    if (screenRef.current === 'playing' && g.role === 'impostor' && g.st.scd <= 0 && !g.st.dark && !g.st.rx) send({ t: 'sabotage' });
   }, [g, send]);
 
   const ventAction = useCallback(() => {
@@ -749,7 +764,7 @@ export default function Home() {
   }, [g, send]);
 
   const reactorAction = useCallback(() => {
-    if (screenRef.current !== 'playing' || g.role !== 'impostor' || !g.me.alive) return;
+    if (screenRef.current !== 'playing' || g.role !== 'impostor') return;
     if (g.st.rcd <= 0 && !g.st.rx && !g.st.dark) send({ t: 'reactor' });
   }, [g, send]);
 

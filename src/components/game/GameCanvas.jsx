@@ -3,6 +3,7 @@ import { drawFrame } from '@/lib/game/render';
 import { clamp, stepMove } from '@/lib/game/grid';
 import { dirKey, ventToward } from '@/lib/game/vents';
 import { sfx } from '@/lib/game/sound';
+import { pushInput, reconcile, resetInput, sendInput } from '@/lib/game/predict';
 
 // Los demás jugadores se dibujan con este pequeño retraso: da margen para interpolar entre
 // los dos últimos avisos de la sala sin quedarse corto cuando alguno llega con retraso. Es
@@ -38,8 +39,7 @@ export default function GameCanvas({ g, send }) {
     const keys = new Set();
     let joy = null;
     let joyV = null;
-    let lastIn = { dx: 9, dy: 9 };
-    let lastSend = 0;
+    resetInput(g); // lastIn / lastSend / duración de la orden en vigor: viven en g (también los usa Home)
     let lastPing = 0;
     let T = 0;
     let stepAcc = 0; // metros andados: un paso cada 62 px, como los pies del seta
@@ -75,12 +75,9 @@ export default function GameCanvas({ g, send }) {
       joy = null;
       joyV = null;
       showStick(false);
-      if (lastIn.dx || lastIn.dy) {
-        g.inSeq += 1;
-        send({ t: 'input', dx: 0, dy: 0, seq: g.inSeq });
-        g.pend.push({ seq: g.inSeq, dx: 0, dy: 0, ms: performance.now() });
-        lastIn = { dx: 0, dy: 0 };
-        lastSend = performance.now();
+      if (g.lastIn.dx || g.lastIn.dy) {
+        sendInput(g, send, 0, 0, g.frameT || performance.now());
+        g.lastSend = performance.now();
       }
     };
     const onBlur = () => stopInput();
@@ -141,7 +138,11 @@ export default function GameCanvas({ g, send }) {
       // el personaje se quedaba atrás y la reconciliación lo empujaba hacia delante, y eso se
       // veía como una aceleración. El tope alto solo evita el salto de una pestaña dormida.
       const dt = Math.min(0.25, (now - last) / 1000);
+      // El avance de este fotograma ya usa la orden de ahora, así que esa orden "empieza" en
+      // el fotograma anterior: es el instante que se manda a la sala (ver predict.js).
+      const prevT = last;
       last = now;
+      g.frameT = now;
       T += dt;
 
       const raw = joyV || keyVec();
@@ -160,19 +161,9 @@ export default function GameCanvas({ g, send }) {
       // congelado o transformándose: no se anda
       const locked = g.inputLock || (g.vent && g.vent.in) || g.st.fz > 0 || !!(g.st.form && g.st.form.morph);
       const iv = locked ? { dx: 0, dy: 0 } : raw;
-      const q = (n) => Math.round(n * 20) / 20;
-      const cur = { dx: q(iv.dx), dy: q(iv.dy) };
-      const changed = cur.dx !== lastIn.dx || cur.dy !== lastIn.dy;
-      // Se reenvía cada 150 ms aunque no cambie: así el servidor no te frena por silencio
-      // mientras sigues andando (eso era lo que provocaba el tirón hacia atrás).
-      if ((changed || now - lastSend > 150) && now - lastSend >= 40) {
-        g.inSeq += 1;
-        send({ t: 'input', dx: cur.dx, dy: cur.dy, seq: g.inSeq });
-        g.pend.push({ seq: g.inSeq, dx: cur.dx, dy: cur.dy, ms: now });
-        if (g.pend.length > 40) g.pend.shift();
-        lastIn = cur;
-        lastSend = now;
-      }
+      // Se reenvía cada 150 ms aunque no cambie (la sala no te frena por silencio) y una
+      // parada sale al instante. Cada orden lleva su duración: ver predict.js.
+      pushInput(g, send, iv, now, prevT);
       if (now - lastPing > 4000) { lastPing = now; send({ t: 'ping' }); }
 
       const l = Math.hypot(iv.dx, iv.dy);
@@ -192,60 +183,10 @@ export default function GameCanvas({ g, send }) {
         stepAcc += d;
         if (stepAcc > 62) { stepAcc = 0; sfx('step'); }
       } else stepAcc = 0;
-      // Reconciliación: se parte de la posición del servidor y se vuelven a aplicar las
-      // órdenes que aún no ha confirmado. Una posición vieja nunca pisa a la nueva, así
-      // que hacer una tarea (o ver subir su barra) no mueve al jugador hacia atrás.
-      const ack = g.st.sq;
-      let tx = g.srv.x, ty = g.srv.y;
-      if (ack >= 0) {
-        if (g.pend.length && g.pend[0].seq <= ack) g.pend = g.pend.filter((p) => p.seq > ack);
-        // Las órdenes pendientes se re-simulan igual que en la sala: los vivos con colisiones
-        // (así el destino nunca cae dentro de un muro y no hay tirones contra las paredes) y
-        // los fantasmas atravesando muros, como hace la sala. Sin esto, un fantasma que cruzaba
-        // una pared era arrastrado de vuelta junto al muro y se quedaba resbalando ahí.
-        for (let i = 0; i < g.pend.length; i++) {
-          const p = g.pend[i];
-          const pl = Math.hypot(p.dx, p.dy);
-          if (!pl) continue;
-          const ms = Math.min(400, (i + 1 < g.pend.length ? g.pend[i + 1].ms : now) - p.ms);
-          const d = g.cfg.speed * (ms / 1000);
-          if (g.me.alive) {
-            const m = stepMove(g.grid, tx, ty, (p.dx / pl) * d, (p.dy / pl) * d, g.cfg.radius);
-            tx = m.x;
-            ty = m.y;
-          } else {
-            tx = clamp(tx + (p.dx / pl) * d, g.cfg.radius, g.world.w - g.cfg.radius);
-            ty = clamp(ty + (p.dy / pl) * d, g.cfg.radius, g.world.h - g.cfg.radius);
-          }
-        }
-      }
-      const ex = tx - g.me.x, ey = ty - g.me.y;
-      const ed = Math.hypot(ex, ey);
-      // Parado, quieto y con las órdenes ya confirmadas por la sala: la vista se queda clavada
-      // donde estás. Antes se seguían arrastrando los últimos píxeles y, como la cámara va
-      // pegada al jugador, el suelo entero se deslizaba solo un poco al soltar la tecla.
-      const settled = !g.me.moving && !g.pend.length && ed < 40;
-      // La sala mueve a cada jugador a saltos de su tick (50 ms) y este cliente a cada
-      // fotograma: de ahí sale un desfase de unos pocos píxeles que va y viene. Andando no se
-      // persigue (si no, la velocidad temblaba a cada aviso): solo se corrige lo que se nota.
-      const dead = g.me.moving ? 10 : 3;
-      if (ed > dead && !settled) {
-        // El destino baila medio tick (la sala aplica las órdenes cada 50 ms), así que la
-        // corrección arrastra suave: con un arrastre fuerte ese baile se veía como acelerones
-        // y frenazos. Un desfase grande (recarga, teletransporte) se corrige de golpe.
-        const rate = ack >= 0 ? (ed > 80 ? 6 : 1.4) : (ed > 200 ? 9 : ed > 60 ? 2 : 0.35);
-        const kc = 1 - Math.exp(-dt * rate);
-        // Una corrección de red tampoco puede atravesar una esquina y dejar
-        // al jugador dentro de un obstáculo. Los teletransportes usan g.snap.
-        if (g.me.alive && !(g.vent && g.vent.in)) {
-          const m = stepMove(g.grid, g.me.x, g.me.y, ex * kc, ey * kc, g.cfg.radius);
-          g.me.x = m.x;
-          g.me.y = m.y;
-        } else {
-          g.me.x += ex * kc;
-          g.me.y += ey * kc;
-        }
-      }
+      // Reconciliación con la sala (ver predict.js): se parte de lo que ella dice y se vuelven
+      // a aplicar las órdenes que aún no ha confirmado. Una posición vieja nunca pisa a la
+      // nueva, así que hacer una tarea (o ver subir su barra) no mueve al jugador hacia atrás.
+      reconcile(g, now, dt);
 
       // Los demás se dibujan interpolando entre los dos últimos avisos de su posición. Antes
       // se les perseguía con un suavizado exponencial y, como los avisos llegan cada 50 ms y
@@ -287,8 +228,8 @@ export default function GameCanvas({ g, send }) {
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVis);
       g.pend = [];
-      g.inSeq += 1;
-      send({ t: 'input', dx: 0, dy: 0, seq: g.inSeq });
+      sendInput(g, send, 0, 0, g.frameT || performance.now());
+      g.pend = [];
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);

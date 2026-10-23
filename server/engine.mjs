@@ -21,6 +21,7 @@ const SCI_BATTERY_MS = 25000; // el panel del científico dura esto en total por
 const RESULT_MS = 9000;
 const ROLES_MS = 5000;        // pantalla de reparto de roles antes de jugar
 const INPUT_SILENCE_MS = 800; // si el cliente deja de mandar órdenes, el jugador se frena
+const MV_EXTRA_CAP = 300;     // ms de más sobre el reloj real que un cliente puede reclamar al mover
 const REACTOR_MS = 30000;     // tiempo para resolver el sabotaje del reactor
 const REACTOR_HOLD_MS = 5000; // hay que mantener las dos consolas a la vez
 const SHIFT_MORPH_MS = 1500;  // la transformación tarda un momento: hasta aquí la skin y el nombre son los tuyos
@@ -786,8 +787,8 @@ class GameRoom {
   timer = null;
   lastTick = 0;
   savedAt = 0;
-  sabLockAt = 0; // la espera del sabotaje es del equipo impostor, no de cada jugador
-  rtLockAt = 0;  // y apagón y reactor comparten la misma: usar uno deja el otro igual de listo
+  sabLockAt = 0; // espera del apagón: es del equipo impostor, no de cada jugador. Empieza al REPARAR las luces
+  rtLockAt = 0;  // espera del reactor: independiente de la del apagón
   lobbyChat = [];
   roomSyncedAt = 0;
   banned = new Set(); // conexiones baneadas por el anfitrión: no vuelven a esta sala
@@ -940,8 +941,7 @@ class GameRoom {
           if (seq <= (p.seq || 0)) return;
           p.seq = seq;
         }
-        p.dx = clamp(Number(msg.dx) || 0, -1, 1);
-        p.dy = clamp(Number(msg.dy) || 0, -1, 1);
+        this.applyInput(p, clamp(Number(msg.dx) || 0, -1, 1), clamp(Number(msg.dy) || 0, -1, 1), msg.ms, now);
         p.lastInputAt = now;
         return;
       }
@@ -988,7 +988,7 @@ class GameRoom {
         if (rot) this.broadcast({ t: 'venom', x: best.x, y: best.y, id: best.id, ms: VIPER_FX_MS });
         p.killReadyAt = now + this.settings.killCd * 1000;
         // aviso privado de muerte: solo lo recibe quien ha caído, y con quién lo ha matado
-        this.sendTo(best, { t: 'died', by: p.id, name: p.name, color: p.color });
+        this.sendTo(best, { t: 'died', by: p.id, name: p.name, color: p.color, angel: !!best.angel }); // si era el Ángel Guardián, se entera ahora
         // el Alertador avisa a todos al morir: una flecha señala dónde está su cuerpo
         if (best.alerter) this.broadcast({ t: 'alertDeath', x: best.x, y: best.y, name: best.name, color: best.color, ms: ALERT_MS });
         // y si alguien le tenía puesto el localizador, se apaga en el mismo instante de la muerte
@@ -1006,7 +1006,7 @@ class GameRoom {
         // Reportar un cuerpo sí se puede con un sabotaje en marcha: solo el botón de
         // emergencia queda bloqueado mientras hay luces apagadas o reactor.
         // Reportar cuerpos es libre: las veces que quieras. Solo el botón de emergencia
-        // gasta la reunión única por partida.
+        // gasta la reunión única por partida (meetUsed no se mira aquí).
         if (this.phase !== 'playing' || !p.alive || p.inVent || this.frozen(p, now)) return;
         const body = this.bodies.find((b) => dist(p, b) <= REPORT_RANGE);
         if (!body) return;
@@ -1023,16 +1023,16 @@ class GameRoom {
         return this.startMeeting(p, 'button', null);
       }
       case 'sabotage': {
-        if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive) return;
+        if (this.phase !== 'playing' || p.role !== 'impostor') return; // un impostor muerto sigue saboteando
         if (this.frozen(p, now)) return;
         // Solo cuenta SU espera (la que enseña el botón, scd). Antes también exigía que hubiera
         // acabado la del reactor, que al empezar es más larga: el botón se veía listo y la X
         // no hacía nada hasta pasados unos segundos más.
         if (this.dark || this.reactor) return conn.send({ t: 'error', msg: 'Ya hay un sabotaje en marcha.' });
         if (now < this.sabLockAt) return conn.send({ t: 'error', msg: `El apagón aún se está recargando (${Math.ceil((this.sabLockAt - now) / 1000)} s).` });
-        // el apagón no caduca: la luz no vuelve hasta que alguien repare el cuadro
+        // el apagón no caduca: la luz no vuelve hasta que alguien repare el cuadro. Su espera
+        // no corre mientras dura: empieza a contar cuando se arreglan las luces (case 'fix').
         this.dark = true;
-        this.lockSabotages(this.settings.sabCd * 1000, now);
         return this.save();
       }
       case 'fix': {
@@ -1041,24 +1041,25 @@ class GameRoom {
         if (this.phase !== 'playing' || !p.alive) return;
         if (!this.dark || dist(p, this.m.panel) > USE_RANGE + 20) return;
         this.dark = false;
+        this.sabLockAt = now + this.settings.sabCd * 1000; // la espera del apagón empieza ahora
         return this.save();
       }
       case 'reactor': {
         // sabotaje del reactor: un impostor vivo, un sabotaje a la vez y la espera compartida
-        if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive) return;
+        if (this.phase !== 'playing' || p.role !== 'impostor') return; // un impostor muerto sigue saboteando
         if (this.frozen(p, now)) return;
         // igual que el apagón: solo cuenta su propia espera (rcd), la que enseña el botón
         if (this.dark || this.reactor) return conn.send({ t: 'error', msg: 'Ya hay un sabotaje en marcha.' });
         if (now < this.rtLockAt) return conn.send({ t: 'error', msg: `El reactor aún se está recargando (${Math.ceil((this.rtLockAt - now) / 1000)} s).` });
         this.reactor = { until: now + REACTOR_MS, a: null, b: null, hold: 0 };
-        this.lockSabotages(this.settings.reactorCd * 1000, now);
+        this.rtLockAt = now + this.settings.reactorCd * 1000; // espera propia, sin tocar la del apagón
         this.ensureLoop();
         return this.save();
       }
       case 'doors': {
         // el impostor cierra desde el mapa todas las puertas de una sala: se abren solas a
         // los 10 s y no las abre nadie antes. Con un sabotaje en marcha no se pueden cerrar.
-        if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive) return;
+        if (this.phase !== 'playing' || p.role !== 'impostor') return; // un impostor muerto sigue saboteando
         if (this.frozen(p, now) || this.sabotageActive()) return conn.send({ t: 'error', msg: 'Con un sabotaje en marcha no se pueden cerrar puertas.' });
         const room = Math.round(Number(msg.room));
         const ids = this.m.byRoom.get(room);
@@ -1449,11 +1450,6 @@ class GameRoom {
       const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter);
       if (cw) cw.judge = true;
     }
-    // el Ángel Guardián es otro tripulante: solo actúa cuando su fantasma queda suelto
-    if (S.angel) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge);
-      if (cw) cw.angel = true;
-    }
     // el Científico es otro tripulante más: su panel enseña quién sigue vivo
     if (S.scientist) {
       const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge && !p.angel);
@@ -1469,6 +1465,15 @@ class GameRoom {
       const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge && !p.angel && !p.scientist && !p.detective);
       if (cw) cw.tracker = true;
     }
+    // El Ángel Guardián NO es un rol visible: se suma a un tripulante que ya tiene otro (ingeniero,
+    // localizador…) y su dueño no sabe que lo tiene hasta que muere. Solo si no hay ningún
+    // tripulante con otro rol se le da a uno corriente.
+    if (S.angel) {
+      const crew = list.filter((p) => p.role === 'crew');
+      const withRole = crew.filter((p) => p.engineer || p.alerter || p.judge || p.scientist || p.detective || p.tracker);
+      const pick = shuffle(withRole.length ? withRole : crew)[0];
+      if (pick) pick.angel = true;
+    }
     this.bodies = [];
     this.dark = false;
     this.reactor = null;
@@ -1483,7 +1488,7 @@ class GameRoom {
     for (const p of list) {
       this.sendTo(p, {
         t: 'start', role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
-        shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: !!p.angel, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
+        shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: false /* oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
         tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
         rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
         speed: SPEED * S.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
@@ -1578,18 +1583,48 @@ class GameRoom {
     return 3;
   }
 
-  // Apagón y reactor comparten una sola espera, y esa espera es de todo el equipo
-  // impostor: cualquiera de los dos sabotajes deja los dos en recarga para todos, así
-  // los impostores no pueden encadenarlos turnándose.
-  lockSabotages(ms, now) {
-    const until = now + ms;
-    this.sabLockAt = until;
-    this.rtLockAt = until;
-  }
-
   // con un sabotaje en marcha (luces o reactor) no se pueden convocar reuniones
   sabotageActive() {
     return this.dark || !!this.reactor;
+  }
+
+  /* ---------- movimiento ---------- */
+
+  // Marca el punto en el que empieza un tramo de movimiento (el tiempo que una orden lleva
+  // aplicada). La posición de ese punto es la que el cliente usa para reconciliarse.
+  markSeg(p, now) {
+    p.segX = p.x; p.segY = p.y; p.segT0 = now; p.intT = now;
+    p.lastIntX = p.x; p.lastIntY = p.y;
+  }
+
+  // Llega una orden nueva. El tramo anterior se cierra con la duración que midió el CLIENTE
+  // (msg.ms), no con el instante en que llega el mensaje: si no, la sala sigue moviendo al
+  // jugador durante todo el retardo de red y se pasa de donde soltó la tecla (eso era el
+  // "resbalón" al parar). Se rehace el tramo desde su inicio, así que tanto un exceso como
+  // un defecto quedan corregidos. Sin `ms` (clientes viejos) se cuenta hasta la llegada.
+  applyInput(p, dx, dy, ms, now) {
+    const moving = !!(p.dx || p.dy);
+    if (moving && this.phase === 'playing' && !p.inVent && !this.frozen(p, now)
+      && p.segT0 !== undefined && Math.hypot(p.x - p.lastIntX, p.y - p.lastIntY) <= 1) {
+      const byArrival = Math.max(0, Math.min(1000, now - p.segT0));
+      let owed = byArrival;
+      const claimed = Number(ms);
+      if (Number.isFinite(claimed) && claimed >= 0) {
+        // La suma de lo que el cliente dice de más sobre el reloj real tiene un tope: así no
+        // se puede ganar velocidad mandando duraciones infladas. Se va olvidando poco a poco.
+        const extra = clamp(Math.min(claimed, 400) - byArrival, -1000, MV_EXTRA_CAP - (p.mvExtra || 0));
+        p.mvExtra = (p.mvExtra || 0) + extra;
+        owed = Math.max(0, byArrival + extra);
+      }
+      p.x = p.segX; p.y = p.segY;
+      const closed = this.closedDoors(now);
+      const spd = SPEED * this.settings.speed / 100;
+      let rem = owed / 1000;
+      while (rem > 1e-6) { const h = Math.min(0.04, rem); stepPlayer(this.m, p, h, spd, closed); rem -= h; }
+    }
+    p.dx = dx;
+    p.dy = dy;
+    this.markSeg(p, now);
   }
 
   /* ---------- puertas de sala ---------- */
@@ -1649,8 +1684,9 @@ class GameRoom {
         this.sendTo(p, { t: 'vent', in: false });
       }
     }
-    this.reactor = null; // una reunión desactiva el sabotaje en curso
-    this.dark = false;   // y devuelve la luz
+    // Una reunión para el reactor, pero NO devuelve la luz: un apagón sigue hasta que alguien
+    // repare el cuadro, también después de reportar un cuerpo.
+    this.reactor = null;
     this.openAllDoors(); // y abre las puertas: nadie se queda encerrado durante la votación
     // Dos fases: primero deliberación (nadie vota) y después votación.
     const t0 = Date.now();
@@ -1676,7 +1712,7 @@ class GameRoom {
       return p.shifter ? 'Impostor · Cambiaformas' : p.viper ? 'Impostor · Víbora' : p.spectre ? 'Impostor · Espectro' : 'Impostor';
     }
     return p.engineer ? 'Tripulante · Ingeniero' : p.alerter ? 'Tripulante · Alertador' : p.judge ? 'Tripulante · Juez'
-      : p.angel ? 'Tripulante · Ángel Guardián' : p.scientist ? 'Tripulante · Científico' : p.detective ? 'Tripulante · Detective'
+      : p.scientist ? 'Tripulante · Científico' : p.detective ? 'Tripulante · Detective'
         : p.tracker ? 'Tripulante · Localizador' : 'Tripulante';
   }
 
@@ -1708,6 +1744,7 @@ class GameRoom {
       // acertó: se va el impostor señalado; falló: el Juez paga con su propia expulsión
       const ep = success ? target : judge;
       ep.alive = false;
+      if (ep.angel) this.sendTo(ep, { t: 'angelOn' }); // expulsado: ahora sabe que es el Ángel Guardián
       ejected = { id: ep.id, name: ep.name, color: ep.color, wasImpostor: ep.role === 'impostor' };
       judgeInfo = {
         judgeName: judge.name, judgeColor: judge.color,
@@ -1728,6 +1765,7 @@ class GameRoom {
         const ep = this.players.get(bestT[0]);
         if (ep) {
           ep.alive = false;
+          if (ep.angel) this.sendTo(ep, { t: 'angelOn' });
           ejected = { id: ep.id, name: ep.name, color: ep.color, wasImpostor: ep.role === 'impostor' };
         }
       }
@@ -1744,12 +1782,12 @@ class GameRoom {
 
   resume() {
     this.bodies = [];
-    this.dark = false;
+    // el apagón sobrevive a la reunión: las luces siguen apagadas hasta que se reparen
     this.reactor = null;
     this.openAllDoors();
     this.spawn();
     const now = Date.now();
-    this.sabLockAt = now + this.settings.sabCd * 1000;
+    if (!this.dark) this.sabLockAt = now + this.settings.sabCd * 1000;
     this.rtLockAt = now + this.settings.reactorCd * 1000;
     for (const p of this.players.values()) {
       p.killReadyAt = now + this.settings.killCd * 1000;
@@ -1928,11 +1966,18 @@ class GameRoom {
         p.dy = 0;
       }
     }
+    const prevTick = now - dtTotal * 1000;
     for (const p of this.players.values()) {
-      if (this.frozen(p, now)) { p.dx = 0; p.dy = 0; continue; } // congelado: quieto y sin acciones
+      if (p.mvExtra) p.mvExtra *= 0.998; // el margen de duraciones infladas se va olvidando
+      if (this.frozen(p, now)) { p.dx = 0; p.dy = 0; this.markSeg(p, now); continue; } // congelado: quieto y sin acciones
       if ((p.dx || p.dy) && now - (p.lastInputAt || 0) > INPUT_SILENCE_MS) { p.dx = 0; p.dy = 0; }
-      let rem = dtTotal;
+      // quieto, o movido por otra vía (aparecer, salir de una rejilla…): el tramo empieza aquí
+      if (!(p.dx || p.dy) || p.lastIntX === undefined || Math.hypot(p.x - p.lastIntX, p.y - p.lastIntY) > 1) this.markSeg(p, now);
+      // Se avanza desde que llegó su última orden, no desde el tick anterior: así cada orden
+      // cuenta justo el tiempo que ha estado en vigor.
+      let rem = Math.max(0, now - Math.max(p.intT || 0, prevTick)) / 1000;
       while (rem > 1e-6) { const h = Math.min(0.04, rem); stepPlayer(this.m, p, h, SPEED * this.settings.speed / 100, closed); rem -= h; }
+      p.intT = now; p.lastIntX = p.x; p.lastIntY = p.y;
     }
     const dark = this.dark;
     const rx = this.reactor;
@@ -1978,7 +2023,10 @@ class GameRoom {
       const b = [];
       for (const bd of this.bodies) if (seen(bd)) b.push([bd.id, Math.round(bd.x), Math.round(bd.y), bd.color, this.bodyPhase(bd, now)]);
       conn.send({
-        t: 's', x: p.x, y: p.y, a: p.alive ? 1 : 0, ps, b, prog, dark, vr, sr, vi: p.inVent ? 1 : 0,
+        // bx/by: dónde empezó la orden en vigor (sq). El cliente reconstruye su posición a
+        // partir de ahí con la duración de cada orden, igual que hace esta sala.
+        t: 's', x: p.x, y: p.y, bx: Math.round((p.segX ?? p.x) * 10) / 10, by: Math.round((p.segY ?? p.y) * 10) / 10,
+        a: p.alive ? 1 : 0, ps, b, prog, dark, vr, sr, vi: p.inVent ? 1 : 0,
         vleft: p.inVent && p.engineer ? Math.max(0, ENG_VENT_MS - (now - (p.ventAt || 0))) : 0,
         sciOn: p.sciOn ? 1 : 0,
         sciL: Math.max(0, p.sciLeft ?? SCI_BATTERY_MS),
@@ -2038,7 +2086,7 @@ class GameRoom {
     conn.send({
       t: 'start', resync: true, seq: p.seq || 0, alive: p.alive, dark: this.dark,
       you: [p.x, p.y], role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
-      shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: !!p.angel, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
+      shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: !!(p.angel && !p.alive) /* solo se sabe al morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
       tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
       rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
       speed: SPEED * this.settings.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
