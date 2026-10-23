@@ -1041,7 +1041,7 @@ class GameRoom {
         if (this.phase !== 'playing' || !p.alive) return;
         if (!this.dark || dist(p, this.m.panel) > USE_RANGE + 20) return;
         this.dark = false;
-        this.sabLockAt = now + this.settings.sabCd * 1000; // la espera del apagón empieza ahora
+        this.startSabCooldown(now); // al arreglar las luces empieza la espera de TODOS los sabotajes
         return this.save();
       }
       case 'reactor': {
@@ -1781,6 +1781,13 @@ class GameRoom {
     return this.save();
   }
 
+  /* Espera de los sabotajes: es del equipo impostor y compartida. Cuando se arregla uno (luces o
+     reactor) empieza a contar la de los dos, cada una con su duración de los ajustes de la sala. */
+  startSabCooldown(now) {
+    this.sabLockAt = now + this.settings.sabCd * 1000;
+    this.rtLockAt = now + this.settings.reactorCd * 1000;
+  }
+
   resume() {
     this.bodies = [];
     // el apagón sobrevive a la reunión: las luces siguen apagadas hasta que se reparen
@@ -1929,7 +1936,7 @@ class GameRoom {
         this.reactor.hold += TICK_MS;
         if (this.reactor.hold >= REACTOR_HOLD_MS) { // resuelto entre los dos
           this.reactor = null;
-          this.rtLockAt = now + this.settings.reactorCd * 1000; // la espera del reactor empieza ahora
+          this.startSabCooldown(now); // al resolver el reactor empieza la espera de TODOS los sabotajes
         }
       } else {
         this.reactor.hold = 0;
