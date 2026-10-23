@@ -1052,7 +1052,8 @@ class GameRoom {
         if (this.dark || this.reactor) return conn.send({ t: 'error', msg: 'Ya hay un sabotaje en marcha.' });
         if (now < this.rtLockAt) return conn.send({ t: 'error', msg: `El reactor aún se está recargando (${Math.ceil((this.rtLockAt - now) / 1000)} s).` });
         this.reactor = { until: now + REACTOR_MS, a: null, b: null, hold: 0 };
-        this.rtLockAt = now + this.settings.reactorCd * 1000; // espera propia, sin tocar la del apagón
+        // su espera no corre mientras está en marcha: empieza al resolverlo (como la del apagón)
+        this.rtLockAt = now;
         this.ensureLoop();
         return this.save();
       }
@@ -1926,7 +1927,10 @@ class GameRoom {
       }
       if (both && this.reactor.a && this.reactor.b && this.reactor.a !== this.reactor.b) {
         this.reactor.hold += TICK_MS;
-        if (this.reactor.hold >= REACTOR_HOLD_MS) this.reactor = null; // resuelto entre los dos
+        if (this.reactor.hold >= REACTOR_HOLD_MS) { // resuelto entre los dos
+          this.reactor = null;
+          this.rtLockAt = now + this.settings.reactorCd * 1000; // la espera del reactor empieza ahora
+        }
       } else {
         this.reactor.hold = 0;
       }
