@@ -12,8 +12,8 @@ export const MAPS = [
   {
     id: 'micelaria',
     name: 'Micelaria',
-    blurb: 'Dentro de la seta madre, entre arroyos, cascadas y luciérnagas.',
-    thumb: '/maps/micelaria.svg',
+    blurb: 'Una aldea de setas: casas con sombrero, plaza, arroyo, molino y cueva.',
+    thumb: '/maps/micelaria.jpg',
   },
 ];
 

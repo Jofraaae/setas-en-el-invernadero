@@ -66,22 +66,34 @@ export default function MapOverlay({ g, onClose, onDoors }) {
         <div className="relative overflow-hidden rounded-xl border-2 border-white/15 bg-[rgba(7,14,10,.35)]" style={{ width: W, height: H }}>
           {floors.map((f, i) => {
             const [x, y, w, h, col, name] = f;
+            const o = f[7] || {};
+            if (o.carve && !o.water) return null; // solo cierra celdas: no se dibuja
             const shut = name ? leftOf(i) > 0 : false;
+            // contorno libre (Micelaria): la caja se recorta con el propio polígono
+            const clip = o.poly
+              ? `polygon(${o.poly.map((q) => `${((q[0] - x) / w) * 100}% ${((q[1] - y) / h) * 100}%`).join(',')})`
+              : undefined;
+            const lx = o.label ? o.label[0] : x + w / 2;
+            const ly = o.label ? o.label[1] - 40 : y + 4;
             return (
-              <div
-                key={i}
-                className="absolute"
-                style={{
-                  left: x * sc,
-                  top: y * sc,
-                  width: w * sc,
-                  height: h * sc,
-                  background: fade(col, 0.5),
-                  boxShadow: shut ? 'inset 0 0 0 5px rgba(230,57,70,.85)' : name ? 'inset 0 0 0 1px rgba(255,255,255,.18)' : 'none',
-                }}
-              >
+              <div key={i}>
+                <div
+                  className="absolute"
+                  style={{
+                    left: x * sc,
+                    top: y * sc,
+                    width: w * sc,
+                    height: h * sc,
+                    clipPath: clip,
+                    background: shut ? 'rgba(230,57,70,.55)' : fade(col, o.poly ? 0.62 : 0.5),
+                    boxShadow: !o.poly ? (shut ? 'inset 0 0 0 5px rgba(230,57,70,.85)' : name ? 'inset 0 0 0 1px rgba(255,255,255,.18)' : 'none') : 'none',
+                  }}
+                />
                 {name ? (
-                  <span className="absolute left-0 right-0 top-1 px-1 text-center text-[13px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]">
+                  <span
+                    className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[13px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
+                    style={{ left: lx * sc, top: ly * sc }}
+                  >
                     {name}
                   </span>
                 ) : null}
@@ -103,12 +115,13 @@ export default function MapOverlay({ g, onClose, onDoors }) {
             // En la sala del botón de emergencia el candado se baja: puesto en el centro
             // caía justo encima del punto rojo y costaba acertarle.
             const onBtn = g.btn.x >= f[0] && g.btn.x <= f[0] + f[2] && g.btn.y >= f[1] && g.btn.y <= f[1] + f[3];
+            const lock = f[7] && f[7].lock ? f[7].lock : [f[0] + f[2] / 2, f[1] + f[3] / 2];
             return (
               <button
                 key={i}
                 title={`Puertas de ${f[5]}`}
                 className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/35 bg-[rgba(10,22,16,.92)] px-2 py-1 text-[13px] font-bold leading-none text-[#eaf5ec] shadow-[0_2px_6px_rgba(0,0,0,.5)] transition hover:bg-[#7b2cbf] disabled:cursor-not-allowed disabled:opacity-55 ${wait > 0 && left <= 0 ? 'text-[#ffd60a]' : ''}`}
-                style={{ left: onBtn ? g.btn.x * sc : (f[0] + f[2] / 2) * sc, top: onBtn ? g.btn.y * sc + 26 : (f[1] + f[3] / 2) * sc }}
+                style={{ left: onBtn ? g.btn.x * sc : lock[0] * sc, top: onBtn ? g.btn.y * sc + 26 : lock[1] * sc }}
                 disabled={!canClose || left > 0 || wait > 0}
                 onClick={() => { sfx('switch'); onDoors(i); }}
               >

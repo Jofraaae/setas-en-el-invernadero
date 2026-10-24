@@ -6,6 +6,8 @@
    envían órdenes (movimiento, tareas, votos...) y reciben su estado.
    ================================================================ */
 
+import { MICELARIA } from './mapMicelaria.mjs';
+
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 15;
 const TICK_MS = 50;
@@ -202,16 +204,6 @@ const REACTOR_PTS_BASE = [
    tamaño del mundo); el personaje, los objetos, los alcances y las velocidades
    conservan su tamaño, así que el juego se ve igual pero con mucho más sitio. */
 const SCALE = 1.2;
-const lo = (v) => Math.floor((v * SCALE) / 20) * 20; // borde que se aleja hacia arriba o la izquierda
-const hi = (v) => Math.ceil((v * SCALE) / 20) * 20;  // el borde opuesto: cada sala sale algo más grande
-const sRect = (r) => {                               // y siempre pegada a la cuadrícula de colisión
-  const x = lo(r[0]);
-  const y = lo(r[1]);
-  return [x, y, hi(r[0] + r[2]) - x, hi(r[1] + r[3]) - lo(r[1]), ...r.slice(4)];
-};
-// los objetos y los puntos de interés no cambian de tamaño: solo quedan más lejos
-const sBox = (o) => [(o[0] + o[2] / 2) * SCALE - o[2] / 2, (o[1] + o[3] / 2) * SCALE - o[3] / 2, o[2], o[3], o[4]];
-const sAt = (p) => ({ ...p, x: p.x * SCALE, y: p.y * SCALE });
 const SOLID_INSET = 11; // lo que se encoge el choque de un adorno por cada lado
 const solidBox = (o) => [o[0] + SOLID_INSET, o[1] + SOLID_INSET, Math.max(8, o[2] - SOLID_INSET * 2), Math.max(8, o[3] - SOLID_INSET * 2), o[4]];
 /* Todos los escenarios se arman igual: cada uno trae sus medidas base y buildMap las pasa a
@@ -271,231 +263,49 @@ const GREENHOUSE = {
   rpts: REACTOR_PTS_BASE,
 };
 
-/* Micelaria: una aldea de setas al otro lado del bosque. Va en medidas base, igual que el
-   invernadero, y buildMap la lleva a la misma escala, así que el personaje, los objetos, los
-   alcances y las velocidades no cambian. El arroyo parte la aldea en dos: solo se cruza por el
-   puente de las raíces o por el vado, y el corazón de micelio hace de reactor. */
-const MICELARIA_WORLD_BASE = { w: 3400, h: 2150 };
-const MICELARIA_FLOORS_BASE = [
-  // Corazón de Seta: el centro de la aldea, dentro del sombrero de la seta madre
-  [1200, 760, 820, 620, '#6d5a34', 'Corazón de Seta', 'gill'],
-  // Las dos casas seta, cada una con su tejado de sombrero
-  [1220, 240, 460, 340, '#7a5c38', 'Casa Seta'],
-  [2320, 260, 400, 320, '#7a5c38', 'Casa del Té'],
-  // La banda de la izquierda: bosque, pantano y huerto
-  [200, 900, 620, 480, '#3f5a37', 'Bosque de Micelio'],
-  [200, 260, 560, 420, '#40513f', 'Pantano de Esporas'],
-  [200, 1580, 640, 440, '#4a3a24', 'Huerto de Hongos'],
-  // La banda de la derecha: molino, cueva, almacén y estación de energía
-  [2360, 760, 460, 440, '#6b5638', 'Molino de Polvo de Seta'],
-  [2360, 1560, 440, 420, '#4a4a48', 'Cueva del Micelio'],
-  [1180, 1560, 620, 440, '#4f3f28', 'Almacén de la Aldea'],
-  [2900, 1120, 420, 560, '#2c4a48', 'Estación de Energía'],
-  // El puente de las raíces: llega de la orilla del bosque a la plaza, así que se cruza de
-  // una sala a otra sin hueco de por medio.
-  [820, 985, 470, 130, '#6f5433', 'Puente de las Raíces', 'planks'],
-  // La cascada, pegada a la casa del té, y el claro de luciérnagas, entre el almacén y la cueva
-  [2720, 260, 620, 380, '#38544a', 'Cascada de Esporas', 'shingle'],
-  [1860, 1620, 440, 420, '#3f5f3a', 'Claro de Luciérnagas', 'clover'],
-  // Pasos de tierra: sin nombre, porque no son salas (no llevan puertas). Cada uno mide justo
-  // lo que separa dos salas y no se mete dentro de ninguna: así no le pinta encima el suelo ni
-  // el canto de la sala a la que llega, y el hueco del muro queda del ancho del propio paso.
-  [1390, 580, 160, 180, '#6b5334', null, 'path'],   // Casa Seta → Corazón
-  [1680, 340, 640, 140, '#6b5334', null, 'path'],   // Casa Seta → Casa del Té
-  [2450, 580, 150, 180, '#6b5334', null, 'path'],   // Casa del Té → Molino
-  [2020, 900, 340, 140, '#6b5334', null, 'path'],   // Corazón → Molino
-  [2020, 1240, 880, 140, '#6b5334', null, 'path'],  // Corazón → Estación, por debajo del molino
-  [2480, 1200, 140, 360, '#6b5334', null, 'path'],  // Molino → Cueva
-  [1350, 1380, 150, 180, '#6b5334', null, 'path'],  // Corazón → Almacén
-  [300, 680, 140, 220, '#6b5334', null, 'path'],    // Pantano → Bosque
-  [320, 1380, 140, 200, '#6b5334', null, 'path'],   // Bosque → Huerto
-  [840, 1750, 340, 140, '#5b7a86', null, 'water'],  // el vado: se cruza a pie
-  [1800, 1870, 60, 140, '#6b5334', null, 'path'],   // Almacén → Claro
-  [2300, 1870, 60, 140, '#6b5334', null, 'path'],   // Claro → Cueva
-  [2800, 1540, 100, 140, '#6b5334', null, 'path'],  // Cueva → Estación
-  [2820, 1080, 80, 120, '#6b5334', null, 'path'],   // Molino → Estación
-  [2720, 640, 100, 120, '#6b5334', null, 'path'],   // Cascada → Molino
-];
-const MICELARIA_OBST_BASE = [
-  // El arroyo, que corta la aldea en dos: se cruza por el puente o por el vado
-  [860, 300, 320, 685, 'water'],
-  [860, 1115, 320, 635, 'water'],
-  // Corazón de Seta: en el centro sólo el tallo de la seta madre; el corro de setas, los
-  // faroles y el pozo van apartados de los pasos y de las puertas.
-  [1560, 900, 260, 220, 'stem'],
-  [1230, 790, 90, 90, 'mushring'],
-  [1220, 1280, 90, 90, 'glowshroom'],
-  [1780, 1140, 90, 90, 'glowshroom'],
-  [1200, 1160, 110, 80, 'tallgrass'],
-  [1820, 770, 100, 80, 'tallgrass'],
-  [1290, 1330, 40, 40, 'lantern'], [1985, 1160, 40, 40, 'lantern'],
-  [1700, 790, 90, 80, 'well'],
-  // Los tejados de las casas: cuelgan por fuera del muro de arriba
-  [1300, 110, 300, 130, 'cap'], [2400, 130, 260, 130, 'cap'],
-  // Casa Seta
-  [1300, 430, 140, 40, 'table'], [1400, 300, 70, 70, 'baskets'], [1240, 300, 90, 90, 'bonfire'],
-  // Casa del Té
-  [2450, 450, 120, 40, 'table'], [2600, 300, 60, 60, 'signpost'],
-  // Cascada de Esporas: el salto de agua, la poza y las peñas
-  [2870, 330, 220, 130, 'waterfall'], [3150, 300, 130, 110, 'rockpool'],
-  [2900, 470, 90, 90, 'mushring'], [3060, 550, 120, 70, 'tallgrass'],
-  [3260, 280, 60, 60, 'signpost'],
-  // Bosque de Micelio
-  [400, 1000, 160, 60, 'log'], [620, 1160, 150, 60, 'log'], [240, 1180, 120, 110, 'boulder'],
-  [500, 940, 130, 120, 'fern'], [560, 1250, 120, 120, 'fern'], [450, 1080, 100, 100, 'glowshroom'],
-  [620, 1120, 80, 90, 'vine'],
-  [700, 1290, 90, 90, 'stump'],
-  // Pantano de Esporas
-  [300, 400, 200, 120, 'water'], [560, 480, 150, 110, 'water'], [660, 620, 80, 80, 'stump'],
-  [680, 320, 90, 90, 'glowshroom'], [300, 300, 110, 110, 'fern'],
-  // Huerto de Hongos
-  [340, 1640, 360, 60, 'cropbed'], [340, 1760, 360, 60, 'cropbed'], [340, 1880, 360, 60, 'cropbed'],
-  [200, 1700, 120, 100, 'cart'], [680, 1940, 110, 90, 'haystack'],
-  // Claro de Luciérnagas: todo el borde de arriba, para dejar libre el centro de la pradera
-  [1900, 1660, 120, 90, 'mushring'], [2030, 1655, 100, 95, 'fern'], [2140, 1660, 110, 90, 'tallgrass'],
-  [1960, 1940, 120, 90, 'bonfire'], [2210, 1950, 85, 85, 'glowshroom'],
-  // Almacén de la Aldea (el cuadro de luces con colisión, como el del invernadero)
-  [1268, 1591, 64, 58, 'panel'], [1420, 1900, 90, 80, 'haystack'],
-  [1650, 1580, 100, 70, 'baskets'], [1620, 1900, 90, 70, 'haystack'],
-  // Molino de Polvo de Seta
-  [2660, 880, 130, 220, 'millwheel'], [2420, 1000, 110, 60, 'baskets'],
-  // Cueva del Micelio: los dos peñascos van separados, que juntos hacían tapón en el centro
-  [2460, 1640, 150, 100, 'boulder'], [2710, 1840, 90, 70, 'boulder'],
-  [2640, 1720, 120, 100, 'roots'], [2400, 1880, 130, 70, 'log'],
-  // Estación de Energía: el corazón de micelio con las dos consolas repartidas por la misma
-  // sala, para que se vea de un vistazo que las tres piezas son el reactor
-  [3040, 1420, 120, 60, 'core'], [3180, 1300, 110, 90, 'totem'],
-  [3060, 1150, 100, 70, 'glowshroom'], [3210, 1180, 90, 70, 'glowshroom'],
-  // Raíces que agarran el puente por sus dos cabezas
-  [890, 930, 130, 50, 'roots'], [1080, 1115, 130, 50, 'roots'],
-];
-const MICELARIA_TASKS_BASE = [
-  // Corazón de Seta: dentro del sombrero, alrededor del tallo
-  { id: 0, name: 'Encender los faroles del corazón', x: 1350, y: 950, game: 'order', kind: 'lamp' },
-  { id: 1, name: 'Repartir las esporas del día', x: 1460, y: 1010, game: 'sort', kind: 'tray' },
-  { id: 2, name: 'Afinar el carillón de setas', x: 1950, y: 1120, game: 'memory', kind: 'radio' },
-  { id: 3, name: 'Regar las jardineras de la plaza', x: 1400, y: 1200, game: 'hold', kind: 'valve' },
-  { id: 4, name: 'Colgar los farolillos nuevos', x: 1620, y: 1200, game: 'timing', kind: 'lamp' },
-  { id: 5, name: 'Marcar el mapa de la aldea', x: 1900, y: 1000, game: 'route', kind: 'panel' },
-  { id: 6, name: 'Contar las cestas del mercado', x: 1400, y: 1300, game: 'sort', kind: 'tray' },
-  // Casa Seta
-  { id: 7, name: 'Preparar la sopa de setas', x: 1420, y: 380, game: 'dose', kind: 'table' },
-  { id: 8, name: 'Tender la colada de esporas', x: 1520, y: 420, game: 'match', kind: 'bench' },
-  { id: 9, name: 'Ordenar los frascos de la alacena', x: 1600, y: 520, game: 'seq', kind: 'crate' },
-  { id: 10, name: 'Encender la chimenea', x: 1360, y: 520, game: 'hold', kind: 'valve' },
-  // Casa del Té
-  { id: 11, name: 'Servir el té de hongos', x: 2480, y: 400, game: 'dose', kind: 'table' },
-  { id: 12, name: 'Etiquetar las tazas', x: 2620, y: 400, game: 'type', kind: 'tray' },
-  { id: 13, name: 'Colgar la vajilla', x: 2480, y: 340, game: 'match', kind: 'bench' },
-  // Bosque de Micelio
-  { id: 14, name: 'Recoger leña del bosque', x: 300, y: 1050, game: 'seq', kind: 'crate' },
-  { id: 15, name: 'Podar los helechos', x: 260, y: 980, game: 'spots', kind: 'filter' },
-  { id: 16, name: 'Sellar las raíces huecas', x: 700, y: 1050, game: 'pipe', kind: 'valve' },
-  { id: 17, name: 'Atrapar luciérnagas', x: 420, y: 1250, game: 'timing', kind: 'lamp' },
-  { id: 18, name: 'Medir las setas del claro', x: 750, y: 1250, game: 'slider', kind: 'scale' },
-  // Pantano de Esporas
-  { id: 19, name: 'Filtrar el agua del pantano', x: 700, y: 460, game: 'pipe', kind: 'filter' },
-  { id: 20, name: 'Sondear el fondo del pantano', x: 250, y: 450, game: 'sonar', kind: 'terminal' },
-  { id: 21, name: 'Recoger setas luminosas', x: 520, y: 640, game: 'sort', kind: 'tray' },
-  { id: 22, name: 'Ajustar la humedad del pantano', x: 720, y: 290, game: 'slider', kind: 'panel' },
-  // Huerto de Hongos
-  { id: 23, name: 'Recoger la cosecha de setas', x: 260, y: 1620, game: 'harvest', kind: 'tray' },
-  { id: 24, name: 'Regar los caballones', x: 740, y: 1610, game: 'valves', kind: 'valve' },
-  { id: 25, name: 'Replantar los brotes', x: 260, y: 1850, game: 'match', kind: 'bench' },
-  { id: 26, name: 'Tapar los brotes nuevos', x: 780, y: 1660, game: 'memory', kind: 'crate' },
-  // Almacén de la Aldea
-  { id: 27, name: 'Inventariar las cajas', x: 1560, y: 1700, game: 'sort', kind: 'crate' },
-  { id: 28, name: 'Escribir el albarán', x: 1420, y: 1640, game: 'type', kind: 'panel' },
-  { id: 29, name: 'Atar los fardos de paja', x: 1350, y: 1800, game: 'seq', kind: 'bench' },
-  { id: 30, name: 'Limpiar el filtro de la cisterna', x: 1560, y: 1880, game: 'spots', kind: 'filter' },
-  { id: 31, name: 'Pesar los sacos de esporas', x: 1600, y: 1950, game: 'dose', kind: 'scale' },
-  // Molino de Polvo de Seta
-  { id: 32, name: 'Moler las setas secas', x: 2560, y: 900, game: 'hold', kind: 'valve' },
-  { id: 33, name: 'Cerner el polvo de seta', x: 2450, y: 940, game: 'dose', kind: 'scale' },
-  { id: 34, name: 'Engrasar los engranajes', x: 2500, y: 1090, game: 'pipe', kind: 'valve' },
-  { id: 35, name: 'Escribir el pedido del molino', x: 2720, y: 1130, game: 'type', kind: 'panel' },
-  // Cueva del Micelio
-  { id: 36, name: 'Sellar las grietas de la cueva', x: 2560, y: 1900, game: 'spots', kind: 'filter' },
-  { id: 37, name: 'Pintar las runas del fondo', x: 2700, y: 1620, game: 'code', kind: 'keypad' },
-  { id: 38, name: 'Recoger los cristales sueltos', x: 2660, y: 1900, game: 'sort', kind: 'tray' },
-  { id: 39, name: 'Despertar a las luciérnagas', x: 2600, y: 1920, game: 'order', kind: 'switchbox' },
-  // Estación de Energía
-  { id: 40, name: 'Alimentar el corazón de micelio', x: 2960, y: 1400, game: 'hold', kind: 'valve' },
-  { id: 41, name: 'Recargar las lámparas de esporas', x: 3260, y: 1500, game: 'seq', kind: 'lamp' },
-  { id: 42, name: 'Purgar las tuberías de savia', x: 3040, y: 1620, game: 'pipe', kind: 'valve' },
-  { id: 43, name: 'Sondear la red de raíces', x: 3100, y: 1620, game: 'sonar', kind: 'terminal' },
-  // Cascada de Esporas
-  { id: 44, name: 'Canalizar la cascada', x: 2980, y: 600, game: 'valves', kind: 'valve' },
-  { id: 45, name: 'Recoger agua de la poza', x: 3260, y: 470, game: 'hold', kind: 'valve' },
-  { id: 46, name: 'Contar los saltos de agua', x: 2850, y: 590, game: 'sonar', kind: 'terminal' },
-  { id: 47, name: 'Ajustar el cauce', x: 3200, y: 615, game: 'slider', kind: 'panel' },
-  // Claro de Luciérnagas
-  { id: 48, name: 'Atrapar luciérnagas en el claro', x: 2050, y: 1780, game: 'timing', kind: 'lamp' },
-  { id: 49, name: 'Encender el corro de luces', x: 2100, y: 1850, game: 'order', kind: 'switchbox' },
-  { id: 50, name: 'Sembrar tréboles', x: 2200, y: 1920, game: 'spots', kind: 'tray' },
-  { id: 51, name: 'Colgar los farolillos del claro', x: 1900, y: 1780, game: 'match', kind: 'bench' },
-];
-const MICELARIA_VENTS_BASE = [
-  { id: 0, net: 'A', name: 'Molino', x: 2760, y: 800 },
-  { id: 1, net: 'A', name: 'Huerto', x: 250, y: 1990 },
-  { id: 2, net: 'A', name: 'Almacén', x: 1300, y: 1960 },
-  { id: 3, net: 'B', name: 'Corazón', x: 1400, y: 880 },
-  { id: 4, net: 'B', name: 'Casa Seta', x: 1260, y: 280 },
-  { id: 5, net: 'B', name: 'Cueva', x: 2400, y: 1620 },
-  { id: 6, net: 'C', name: 'Estación', x: 3300, y: 1140 },
-  { id: 7, net: 'C', name: 'Pantano', x: 600, y: 340 },
-  { id: 8, net: 'C', name: 'Bosque', x: 250, y: 940 },
-  { id: 9, net: 'C', name: 'Cascada', x: 2850, y: 470 },
-  { id: 10, net: 'A', name: 'Claro', x: 2200, y: 1850 },
-];
-const BUTTON_M = { x: 1610, y: 1260 };
-const PANEL_M = { x: 1300, y: 1620 };
-// El reactor de Micelaria vive entero en la Estación de Energía: el corazón en el centro y
-// las dos consolas a sus lados, a un paso la una de la otra (antes la B cruzaba el mapa).
-const REACTOR_M = { x: 3100, y: 1450 };
-const REACTOR_PTS_M = [
-  { side: 'a', name: 'Consola A', x: 2970, y: 1230 },
-  { side: 'b', name: 'Consola B', x: 3230, y: 1620 },
-];
-const MICELARIA = {
-  world: MICELARIA_WORLD_BASE,
-  floors: MICELARIA_FLOORS_BASE,
-  // en el bosque cada adorno frena un poco menos de lo que ocupa (ver solidBox)
-  softCollide: true,
-  obst: MICELARIA_OBST_BASE,
-  tasks: MICELARIA_TASKS_BASE,
-  vents: MICELARIA_VENTS_BASE,
-  button: BUTTON_M,
-  panel: PANEL_M,
-  reactor: REACTOR_M,
-  rpts: REACTOR_PTS_M,
-};
-
 /* Arma un escenario: misma escala para todos, salas ajustadas a la rejilla de colisión,
    rejillas de paso y de luz, puertas y las cajas con las que se dibuja cada objeto. */
 function buildMap(def) {
-  const world = { w: hi(def.world.w), h: hi(def.world.h) };
-  const floors = def.floors.map(sRect);
-  const tasks = def.tasks.map(sAt);
-  const obst = def.obst.map(sBox);
+  // el invernadero va en medidas base y se escala; Micelaria ya viene a su tamaño (scale: 1)
+  const k = def.scale || SCALE;
+  const lo2 = (v) => Math.floor((v * k) / 20) * 20, hi2 = (v) => Math.ceil((v * k) / 20) * 20;
+  const rect = (r) => { const x = lo2(r[0]), y = lo2(r[1]); return [x, y, hi2(r[0] + r[2]) - x, hi2(r[1] + r[3]) - lo2(r[1]), ...r.slice(4)]; };
+  const at = (p) => ({ ...p, x: p.x * k, y: p.y * k });
+  const box = (o) => [(o[0] + o[2] / 2) * k - o[2] / 2, (o[1] + o[3] / 2) * k - o[3] / 2, o[2], o[3], o[4]];
+  const world = { w: hi2(def.world.w), h: hi2(def.world.h) };
+  const floors = def.floors.map(rect);
+  const tasks = def.tasks.map(at);
+  const obst = def.obst.map(box);
   // Los adornos del bosque frenan un poco menos de lo que ocupan: el seta pasa por los huecos
   // entre dos troncos y no se queda enganchado en las esquinas del dibujo. El invernadero
   // conserva su choque de siempre, que allí las cajas son muebles y miden lo que se ve.
   const solid = def.softCollide ? obst.map(solidBox) : obst;
   return {
     id: def.id, name: def.name, world, floors, tasks, obst,
-    vents: def.vents.map(sAt),
-    button: sAt(def.button),
-    panel: sAt(def.panel),
-    reactor: sAt(def.reactor),
-    rpts: def.rpts.map(sAt),
-    props: tasks.map(propBox),
+    vents: def.vents.map(at),
+    button: at(def.button),
+    spawn: def.spawn ? at(def.spawn) : null, // dónde se reparte a los jugadores; por defecto, junto al botón
+    panel: at(def.panel),
+    reactor: at(def.reactor),
+    rpts: def.rpts.map(at),
+    props: tasks.map((t) => propBox(t, def.propScale || 1)),
     grid: makeGrid(world, floors, solid),
     sight: makeGrid(world, floors, []),
     doors: [], byRoom: new Map(),
+    explicitDoors: def.doors || null, // Micelaria dice dónde están sus puertas; el invernadero las deduce
   };
 }
 function withDoors(M) {
+  if (M.explicitDoors) {
+    // puertas dibujadas a mano: cada una dice a qué salas (índices de suelo) pertenece
+    M.doors = M.explicitDoors.map((d, id) => ({ id, x: d.x, y: d.y, w: d.w, h: d.h, rooms: d.rooms.slice() }));
+    M.byRoom = new Map();
+    for (const d of M.doors) for (const r of d.rooms) {
+      if (!M.byRoom.has(r)) M.byRoom.set(r, []);
+      M.byRoom.get(r).push(d.id);
+    }
+    return M;
+  }
   const d = makeDoors(M.floors, M.sight);
   M.doors = d.doors;
   M.byRoom = d.byRoom;
@@ -512,6 +322,27 @@ const CODE_RE = /^[A-Z]{4}$/;
 
 // Rejilla de 20 px: 1 = suelo, 0 = muro o caja. Los rectángulos se ajustan a la
 // cuadrícula para que ninguno se quede sin colisión por no estar alineado a 20 px.
+// Un suelo puede traer, como octavo elemento, un objeto de opciones (solo Micelaria):
+//   poly   contorno libre en vez de rectángulo (el rectángulo x, y, w, h es su caja)
+//   carve  en vez de abrir suelo, lo cierra (ríos, estanques)
+//   room   el contorno es el exterior de un edificio: los 2 anillos de celdas del borde son
+//          muro y lo de dentro, suelo. El cliente repite exactamente lo mismo (grid.js).
+function polyHas(pts, px, py) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function erodeMask(m, w, h) {
+  const out = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    if (m[i] && m[i - 1] && m[i + 1] && m[i - w] && m[i + w] && m[i - w - 1] && m[i - w + 1] && m[i + w - 1] && m[i + w + 1]) out[i] = 1;
+  }
+  return out;
+}
 function makeGrid(world, floors, obst) {
   const gw = Math.ceil(world.w / 20), gh = Math.ceil(world.h / 20), cells = new Uint8Array(gw * gh);
   const fill = (r, v) => {
@@ -519,7 +350,28 @@ function makeGrid(world, floors, obst) {
     const ty0 = Math.max(0, Math.floor(r[1] / 20)), ty1 = Math.min(gh, Math.ceil((r[1] + r[3]) / 20));
     for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) cells[ty * gw + tx] = v;
   };
-  floors.forEach((r) => fill(r, 1));
+  floors.forEach((r) => {
+    const o = r[7];
+    if (!o) { fill(r, 1); return; }
+    if (!o.poly) { fill(r, o.carve ? 0 : 1); return; }
+    // contorno libre: una celda es del suelo si su centro cae dentro del polígono
+    const tx0 = Math.max(0, Math.floor(r[0] / 20) - 1), tx1 = Math.min(gw, Math.ceil((r[0] + r[2]) / 20) + 1);
+    const ty0 = Math.max(0, Math.floor(r[1] / 20) - 1), ty1 = Math.min(gh, Math.ceil((r[1] + r[3]) / 20) + 1);
+    const mw = tx1 - tx0, mh = ty1 - ty0;
+    const m = new Uint8Array(mw * mh);
+    for (let ty = ty0; ty < ty1; ty++) for (let tx = tx0; tx < tx1; tx++) if (polyHas(o.poly, tx * 20 + 10, ty * 20 + 10)) m[(ty - ty0) * mw + (tx - tx0)] = 1;
+    if (o.room) {
+      let inner = m;
+      for (let k = 0; k < (o.wallT || 2); k++) inner = erodeMask(inner, mw, mh);
+      for (let i = 0; i < m.length; i++) {
+        if (!m[i]) continue;
+        cells[(ty0 + Math.floor(i / mw)) * gw + tx0 + (i % mw)] = inner[i] ? 1 : 0;
+      }
+      return;
+    }
+    const v = o.carve ? 0 : 1;
+    for (let i = 0; i < m.length; i++) if (m[i]) cells[(ty0 + Math.floor(i / mw)) * gw + tx0 + (i % mw)] = v;
+  });
   obst.forEach((r) => fill(r, 0));
   return { gw, gh, cells };
 }
@@ -540,9 +392,13 @@ const PROP_SIZE = {
   terminal: [60, 48], panel: [64, 36], lamp: [40, 64], switchbox: [48, 40], scale: [56, 44],
   keypad: [44, 56], machine: [76, 54], bench: [70, 40], table: [64, 40], radio: [48, 40],
   glass: [72, 28], compost: [64, 48],
+  // objetos propios de las tareas de Micelaria
+  cauldron: [64, 56], teaset: [60, 44], clothesline: [96, 36], jars: [60, 48], hearth: [70, 56],
+  mortar: [52, 48], sprouts: [64, 48], chime: [48, 60],
 };
-function propBox(t) {
-  const [w, h] = PROP_SIZE[t.kind] || [56, 44];
+function propBox(t, k = 1) {
+  const [w0, h0] = PROP_SIZE[t.kind] || [56, 44];
+  const w = Math.round(w0 * k), h = Math.round(h0 * k);
   return [Math.round(t.x - w / 2), Math.round(t.y - h / 2), w, h, 'prop'];
 }
 /* Los dos escenarios, ya armados: la sala elige uno y todo lo que dibuja y choca sale de ahí. */
@@ -1529,7 +1385,7 @@ class GameRoom {
      hueco. Así nadie nace dentro de un adorno ni encima de otro jugador, que era lo que
      pasaba al apretarse todos en el mismo corro de siempre. */
   spawnSpot(n, taken, closed) {
-    const c = this.m.button;
+    const c = this.m.spawn || this.m.button;
     const steps = Math.max(8, n * 2 + 4);
     for (let ring = 0; ring < 5; ring++) {
       const rad = 150 + ring * 74;

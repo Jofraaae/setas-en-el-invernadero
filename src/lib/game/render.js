@@ -9,6 +9,7 @@ import {
 import {
   MICELARIA_FOREST_WALL, MICELARIA_OBST_EXTRA, MICELARIA_PROPS_EXTRA, micelariaGround,
 } from './micelariaNature';
+import { VILLAGE_TEX, VILLAGE_OBST, VILLAGE_PROPS, villageDecor, villageOverlay } from './micelariaVillage';
 
 function rr(c, x, y, w, h, r) {
   c.beginPath();
@@ -211,8 +212,9 @@ function paintWalls(c, world, floors, W) {
     if (e) c.fillRect(x + 20, y, 6, 20);
     // escenarios naturales: el muro es arboleda, no una masa maciza (se pinta en dos pasadas)
     if (W.kind === 'nature') {
-      border.push([x, y, n, so, w, e]);
-      W.cell(c, x, y, { n, so, w, e }, rnd);
+      const style = W.styleAt ? W.styleAt(floors, x + 10, y + 10) : 'forest';
+      border.push([x, y, n, so, w, e, style]);
+      W.cell(c, x, y, { n, so, w, e }, rnd, style);
       continue;
     }
     c.fillStyle = W.base;
@@ -591,12 +593,14 @@ const ART_SETS = {
     btnGlow: 'rgba(255,225,170,.07)',
     labelBg: 'rgba(28,18,8,.5)',
     labelFg: 'rgba(255,246,225,.62)',
-    paint: MICELARIA_TEX,
+    paint: { ...MICELARIA_TEX, ...VILLAGE_TEX },
+    decor: villageDecor,     // alfombras, empedrados y raíces luminosas bajo los objetos
+    overlay: villageOverlay, // orillas, barandillas del puente y piedras del vado
     roomTex: MICELARIA_ROOM_TEX,
     defaultTex: MICELARIA_DEFAULT_TEX,
     wall: MICELARIA_FOREST_WALL,
-    obst: { ...OBST_ART, ...MICELARIA_OBST, ...MICELARIA_OBST_EXTRA },
-    prop: { ...ART, ...MICELARIA_PROPS, ...MICELARIA_PROPS_EXTRA },
+    obst: { ...OBST_ART, ...MICELARIA_OBST, ...MICELARIA_OBST_EXTRA, ...VILLAGE_OBST },
+    prop: { ...ART, ...MICELARIA_PROPS, ...MICELARIA_PROPS_EXTRA, ...VILLAGE_PROPS },
     panel: micelariaPanel,
     reactor: micelariaReactor,
     reactorLive: micelariaReactorLive,
@@ -604,6 +608,16 @@ const ART_SETS = {
     button: micelariaButton,
   },
 };
+
+/* Trazo de un suelo: rectángulo, o el contorno libre de las salas de Micelaria (8.º elemento). */
+function floorPath(c, f) {
+  const o = f[7];
+  c.beginPath();
+  if (o && o.poly) {
+    o.poly.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])));
+    c.closePath();
+  } else c.rect(f[0], f[1], f[2], f[3]);
+}
 
 export function buildWorld(world, floors, obst, btn, vents, extra) {
   const A = (extra && ART_SETS[extra.map]) || ART_SETS.greenhouse;
@@ -618,22 +632,26 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
   // suelos: color base + textura propia de cada sala
   floors.forEach((f, i) => {
     const [x, y, w, h, col, name] = f;
+    const o = f[7] || {};
+    if (o.carve && !o.water) return; // solo cierra celdas: el muro lo pinta paintWalls
+    const paint = A.paint[f[6] || A.roomTex[name] || A.defaultTex];
+    c.save();
+    floorPath(c, f);
+    c.clip();
     c.fillStyle = col;
     c.fillRect(x, y, w, h);
-    const paint = A.paint[f[6] || A.roomTex[name] || A.defaultTex];
-    if (paint) {
-      c.save();
-      c.beginPath();
-      c.rect(x, y, w, h);
-      c.clip();
-      paint(c, x, y, w, h, rng(i * 7919 + 13));
-      c.restore();
-    }
+    if (paint) paint(c, x, y, w, h, rng(i * 7919 + 13));
+    c.restore();
   });
 
   // volumen: luz arriba, sombra abajo y junta perimetral
   for (const f of floors) {
     const [x, y, w, h] = f;
+    const o = f[7] || {};
+    if (o.carve) continue;
+    c.save();
+    floorPath(c, f);
+    c.clip();
     const g2 = c.createLinearGradient(0, y, 0, y + h);
     g2.addColorStop(0, 'rgba(255,255,255,.09)');
     g2.addColorStop(0.14, 'rgba(255,255,255,0)');
@@ -641,25 +659,36 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
     g2.addColorStop(1, 'rgba(0,0,0,.3)');
     c.fillStyle = g2;
     c.fillRect(x, y, w, h);
+    c.restore();
     // canto de la sala: duro en el invernadero, difuminado contra la hierba en el bosque
     c.strokeStyle = A.softEdge ? 'rgba(8,18,12,.2)' : 'rgba(0,0,0,.38)';
     c.lineWidth = A.softEdge ? 11 : 3;
-    const pe = A.softEdge ? 5.5 : 1.5;
-    c.strokeRect(x + pe, y + pe, w - pe * 2, h - pe * 2);
+    if (o.poly) {
+      if (!o.noEdge) { floorPath(c, f); c.stroke(); }
+    } else {
+      const pe = A.softEdge ? 5.5 : 1.5;
+      c.strokeRect(x + pe, y + pe, w - pe * 2, h - pe * 2);
+    }
   }
 
-  // etiquetas de sala
+  // adornos del suelo propios del escenario (alfombras, empedrados...), debajo de los objetos
+  if (A.decor) A.decor(c, floors, rng(777));
+
+  // etiquetas de sala (las de contorno libre traen su sitio en las opciones)
   c.font = '700 28px system-ui';
   c.textAlign = 'center';
   for (const f of floors) {
     if (!f[5]) continue;
     const [x, y, w, h, , name] = f;
+    const o = f[7] || {};
+    const lx = o.label ? o.label[0] : x + w / 2;
+    const ly = o.label ? o.label[1] : y + h - 23;
     const tw = c.measureText(name).width;
     c.fillStyle = A.labelBg;
-    rr(c, x + w / 2 - tw / 2 - 18, y + h - 48, tw + 36, 34, 8);
+    rr(c, lx - tw / 2 - 18, ly - 25, tw + 36, 34, 8);
     c.fill();
     c.fillStyle = A.labelFg;
-    c.fillText(name, x + w / 2, y + h - 23);
+    c.fillText(name, lx, ly);
   }
 
   // botón de emergencia
@@ -673,6 +702,9 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
 
   // cajas, setas gigantes y demás objetos: cada uno con su propio dibujo
   obst.forEach((o) => drawObstacle(c, o, A.obst, A.soft));
+
+  // lo que va por encima de objetos y tareas: orillas, barandillas, piedras del vado
+  if (A.overlay) A.overlay(c, floors, obst, rng(4242));
 
   // rejillas de ventilación
   for (const v of vents || []) drawVent(c, v.x, v.y, false);
@@ -691,7 +723,16 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
   const m = miniC.getContext('2d');
   m.fillStyle = A.miniBg;
   m.fillRect(0, 0, miniC.width, miniC.height);
-  for (const f of floors) { m.fillStyle = f[4]; m.fillRect(f[0] * sc, f[1] * sc, f[2] * sc, f[3] * sc); }
+  m.save();
+  m.scale(sc, sc);
+  for (const f of floors) {
+    const o = f[7] || {};
+    if (o.carve && !o.water) continue;
+    m.fillStyle = f[4];
+    floorPath(m, f);
+    m.fill();
+  }
+  m.restore();
   m.fillStyle = A.miniObst || 'rgba(0,0,0,.5)';
   for (const o of obst) m.fillRect(o[0] * sc, o[1] * sc, o[2] * sc, o[3] * sc);
   return { mapC, miniC };

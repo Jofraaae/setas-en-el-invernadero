@@ -5,6 +5,7 @@
    del juego ni la colisión (cada objeto se dibuja dentro de la caja que le da la sala). */
 
 import { blob, blade, dome, moss } from './micelariaArt';
+import { villageWallCell, villageWallTop, wallStyleAt } from './micelariaVillage';
 
 const TAU = Math.PI * 2;
 const HOJA = ['#a83f36', '#c9573f', '#7b4b8f', '#d9a15a'];
@@ -59,7 +60,8 @@ export function micelariaGround(c, world, r) {
 /* Cada celda de muro pegada a un camino es hierba apretada; encima, en una segunda pasada,
    van las copas de los árboles, corridas hacia el lado que no da al camino para no comerse
    la calle. Los troncos asoman justo en el borde, que es lo que marca dónde se choca. */
-export function micelariaWallCell(c, x, y, s, r) {
+export function micelariaWallCell(c, x, y, s, r, style = 'forest') {
+  if (style !== 'forest') return villageWallCell(c, x, y, s, r, style);
   c.fillStyle = '#1b2f20';
   c.fillRect(x, y, 20, 20);
   c.fillStyle = r() > 0.5 ? 'rgba(255,255,255,.02)' : 'rgba(0,0,0,.06)';
@@ -72,7 +74,10 @@ export function micelariaWallCell(c, x, y, s, r) {
 }
 
 export function micelariaCanopy(c, border, r) {
-  for (const [x, y, n, so, w, e] of border) {
+  // las salas con muro propio (casas, cueva, empalizada...) se pintan aparte
+  villageWallTop(c, border.filter((b) => b[6] && b[6] !== 'forest'), r);
+  for (const [x, y, n, so, w, e, style] of border) {
+    if (style && style !== 'forest') continue;
     const cx = x + 10 + (w ? 7 : e ? -7 : 0), cy = y + 10 + (n ? 7 : so ? -7 : 0);
     const pick = r();
     if (pick < 0.5) {
@@ -136,6 +141,7 @@ export function micelariaCanopy(c, border, r) {
 
 export const MICELARIA_FOREST_WALL = {
   kind: 'nature',
+  styleAt: wallStyleAt,
   cell: micelariaWallCell,
   canopy: micelariaCanopy,
 };

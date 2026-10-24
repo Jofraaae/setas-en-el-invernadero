@@ -19,6 +19,10 @@ import Dose from './minigames/Dose';
 import Sonar from './minigames/Sonar';
 import Valves from './minigames/Valves';
 import Puzzle from './minigames/Puzzle';
+import Brew from './minigames/Brew';
+import Sprout from './minigames/Sprout';
+import Count from './minigames/Count';
+import Scramble from './minigames/Scramble';
 
 const GAMES = {
   seq: Seq,
@@ -40,6 +44,11 @@ const GAMES = {
   sonar: Sonar,
   valves: Valves,
   puzzle: Puzzle,
+  // minijuegos propios de la aldea de Micelaria
+  brew: Brew,
+  sprout: Sprout,
+  count: Count,
+  scramble: Scramble,
 };
 
 export default function MiniGame({ task, onFinish, onCancel }) {
