@@ -7,7 +7,8 @@ import { MICELARIA_ART as ART } from '../../../server/mapMicelaria.mjs';
 import { blob, blade, dome, rr } from './micelariaArt';
 
 const TAU = Math.PI * 2;
-const { OUTDOORS, RIVER, POND, DOOR_DEFS, PATHS, CAPTIONS, WATERS, PLAZA } = ART;
+const { OUTDOORS, RIVER, POND, DOOR_DEFS, PATHS, CAPTIONS, WATERS, PLAZA, PLAZA_R, S, WORLD } = ART;
+const W = WORLD.w, H = WORLD.h;
 const inWater = (x, y, m = 0) => WATERS.some((w) => inPoly(w, x, y) || (m && polyDist(w, x, y) < m));
 
 /* ---------------- utilidades de geometría ---------------- */
@@ -94,8 +95,8 @@ export function treeSprite(c, x, y, R, pal, seed = 1) {
 
 function deepForest(c, r, floors) {
   const rooms = roomsOf(floors).map((f) => f[7].poly);
-  for (let i = 0; i < 900; i++) {
-    const x = r() * 4400, y = r() * 2800, R = 26 + r() * 22;
+  for (let i = 0; i < 650; i++) {
+    const x = r() * W, y = r() * H, R = 26 + r() * 22;
     if (inPoly(OUTDOORS, x, y) || polyDist(OUTDOORS, x, y) < 36) continue;
     if (inWater(x, y, R + 30)) continue;
     if (rooms.some((p) => inPoly(p, x, y) || polyDist(p, x, y) < R + 70)) continue;
@@ -109,22 +110,22 @@ function meadow(c, r, floors) {
   const rooms = roomsOf(floors).map((f) => f[7].poly);
   const ok = (x, y, m = 0) => inPoly(OUTDOORS, x, y) && !inWater(x, y, m) && !rooms.some((p) => inPoly(p, x, y) || polyDist(p, x, y) < m);
   // manchas grandes de tonos distintos: claros, sombras de árbol, trébol
-  for (let i = 0; i < 150; i++) {
-    const x = 200 + r() * 4000, y = 200 + r() * 2400;
+  for (let i = 0; i < 110; i++) {
+    const x = W * 0.05 + r() * W * 0.9, y = H * 0.07 + r() * H * 0.86;
     if (!ok(x, y, 20)) continue;
     c.fillStyle = i % 3 === 0 ? 'rgba(30,70,38,.22)' : i % 3 === 1 ? 'rgba(150,190,96,.14)' : 'rgba(88,140,70,.2)';
     blob(c, x, y, 70 + r() * 150, 10, i * 2.3, 0.7); c.fill();
   }
   // matas altas
-  for (let i = 0; i < 380; i++) {
-    const x = 200 + r() * 4000, y = 200 + r() * 2400;
+  for (let i = 0; i < 280; i++) {
+    const x = W * 0.05 + r() * W * 0.9, y = H * 0.07 + r() * H * 0.86;
     if (!ok(x, y, 30)) continue;
     for (let k = 0; k < 5; k++) blade(c, x + (r() - 0.5) * 26, y + (r() - 0.5) * 16, 5 + r() * 8, r() > 0.5);
   }
   // flores y tréboles en corros
   const cols = ['#f3e8b0', '#e8a6d0', '#b4e0ff', '#ffd27a', '#ffffff'];
-  for (let i = 0; i < 90; i++) {
-    const x = 220 + r() * 3960, y = 240 + r() * 2320;
+  for (let i = 0; i < 65; i++) {
+    const x = W * 0.05 + r() * W * 0.9, y = H * 0.08 + r() * H * 0.84;
     if (!ok(x, y, 40)) continue;
     const col = cols[Math.floor(r() * cols.length)];
     for (let k = 0; k < 9; k++) {
@@ -135,8 +136,8 @@ function meadow(c, r, floors) {
     }
   }
   // piedras sueltas
-  for (let i = 0; i < 160; i++) {
-    const x = 200 + r() * 4000, y = 200 + r() * 2400;
+  for (let i = 0; i < 120; i++) {
+    const x = W * 0.05 + r() * W * 0.9, y = H * 0.07 + r() * H * 0.86;
     if (!ok(x, y, 36)) continue;
     const R = 5 + r() * 9;
     c.fillStyle = 'rgba(0,0,0,.22)'; blob(c, x + 2, y + 3, R, 7, i, 0.7); c.fill();
@@ -144,8 +145,8 @@ function meadow(c, r, floors) {
     c.fillStyle = 'rgba(255,255,255,.2)'; blob(c, x - R * 0.2, y - R * 0.3, R * 0.5, 6, i, 0.7); c.fill();
   }
   // corros de setas
-  for (let i = 0; i < 26; i++) {
-    const x = 260 + r() * 3880, y = 280 + r() * 2240;
+  for (let i = 0; i < 20; i++) {
+    const x = W * 0.06 + r() * W * 0.88, y = H * 0.1 + r() * H * 0.8;
     if (!ok(x, y, 90)) continue;
     const R = 26 + r() * 14;
     for (let k = 0; k < 9; k++) {
@@ -163,8 +164,8 @@ function paths(c, r, floors) {
   c.save();
   // los caminos no pisan plazas, edificios ni agua: se cortan en sus bordes
   c.beginPath();
-  c.rect(0, 0, 4400, 2800);
-  c.arc(PLAZA.x, PLAZA.y, 336, 0, TAU);
+  c.rect(0, 0, W, H);
+  c.arc(PLAZA.x, PLAZA.y, PLAZA_R - 4, 0, TAU);
   for (const f of roomsOf(floors)) f[7].poly.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])));
   c.clip('evenodd');
   c.lineCap = 'round'; c.lineJoin = 'round';
@@ -206,7 +207,10 @@ function paths(c, r, floors) {
 /* ---------------- la plaza de la Asamblea y su tarima ---------------- */
 
 function plaza(c, r) {
-  const { x, y } = PLAZA;
+  c.save();
+  c.translate(PLAZA.x, PLAZA.y);
+  c.scale(S, S);
+  const x = 0, y = 0;
   // resplandor cálido alrededor de la tarima
   let g = c.createRadialGradient(x, y, 40, x, y, 330);
   g.addColorStop(0, 'rgba(255,214,140,.30)'); g.addColorStop(1, 'rgba(255,214,140,0)');
@@ -275,6 +279,7 @@ function plaza(c, r) {
     c.fillText(txt[i], 0, 0); c.restore();
   }
   c.restore();
+  c.restore();
 }
 
 /* ---------------- adornos por sala ---------------- */
@@ -314,6 +319,8 @@ function pallet(c, x, y, w, h) {
 }
 
 function interiors(c, floors, r) {
+  c.save();
+  c.scale(S, S);
   let f;
   if ((f = flr(floors, 'casaSeta'))) rugRound(c, 905, 885, 150, '#8c3a34', '#d9a95a');
   if ((f = flr(floors, 'casaTe'))) rugRect(c, 2265, 640, 320, 150, '#46508c', '#e0c27a');
@@ -372,11 +379,14 @@ function interiors(c, floors, r) {
   if ((f = flr(floors, 'cueva'))) {
     for (const [x, y, s, col] of [[3480, 1900, 34, '#52e3d2'], [3920, 1820, 30, '#a07df0'], [3470, 2200, 28, '#a07df0'], [3950, 2090, 32, '#52e3d2'], [3690, 1780, 24, '#52e3d2'], [3630, 2120, 26, '#a07df0']]) crystal(c, x, y, s, col);
   }
+  c.restore();
 }
 
 /* ---------------- ambientes del exterior ---------------- */
 
 function zones(c, r) {
+  c.save();
+  c.scale(S, S);
   // pantano: barro oscuro y charcos
   for (const [x, y, R] of [[400, 470, 150], [690, 400, 115], [520, 600, 110], [790, 500, 80]]) {
     c.fillStyle = 'rgba(46,38,22,.5)'; blob(c, x, y, R, 12, x, 0.72); c.fill();
@@ -395,7 +405,7 @@ function zones(c, r) {
   // cascada: piedras mojadas a la orilla
   for (let i = 0; i < 30; i++) {
     const x = 2900 + r() * 200, y = 340 + r() * 480, R = 8 + r() * 14;
-    if (inWater(x, y, 20)) continue;
+    if (inWater(x * S, y * S, 20)) continue;
     c.fillStyle = 'rgba(20,40,44,.4)'; blob(c, x + 2, y + 3, R, 7, i, 0.7); c.fill();
     c.fillStyle = r() > 0.5 ? '#5f6a66' : '#6f7a75'; blob(c, x, y, R, 7, i, 0.72); c.fill();
     c.fillStyle = 'rgba(160,220,225,.25)'; blob(c, x - R * 0.2, y - R * 0.3, R * 0.5, 6, i, 0.7); c.fill();
@@ -403,10 +413,11 @@ function zones(c, r) {
   // hojarasca del bosque del oeste
   for (let i = 0; i < 200; i++) {
     const x = 250 + r() * 420, y = 800 + r() * 560;
-    if (!inPoly(OUTDOORS, x, y)) continue;
+    if (!inPoly(OUTDOORS, x * S, y * S)) continue;
     c.fillStyle = ['rgba(168,63,54,.35)', 'rgba(217,161,90,.32)', 'rgba(123,75,143,.28)'][i % 3];
     c.beginPath(); c.ellipse(x, y, 4 + r() * 4, 2 + r() * 2, r() * TAU, 0, TAU); c.fill();
   }
+  c.restore();
 }
 
 function captions(c) {
@@ -505,7 +516,7 @@ function banks(c, r, floors) {
   c.save();
   const cut = ['puente', 'vado'].map((k) => flr(floors, k)).filter(Boolean);
   c.beginPath();
-  c.rect(0, 0, 4400, 2800);
+  c.rect(0, 0, W, H);
   for (const f of cut) c.rect(f[0], f[1], f[2], f[3]);
   c.clip('evenodd');
   for (const pts of WATERS) {
@@ -548,6 +559,8 @@ function banks(c, r, floors) {
 
 // cabecera del arroyo: la roca de la que cae la cascada, y la salida por el sur
 function headwaters(c, r) {
+  c.save();
+  c.scale(S, S);
   const x0 = 3300;
   c.fillStyle = 'rgba(0,0,0,.3)'; blob(c, x0 + 4, 120, 250, 14, 2.2, 0.38); c.fill();
   for (let i = 0; i < 16; i++) {
@@ -566,6 +579,7 @@ function headwaters(c, r) {
   const g2 = c.createRadialGradient(x0, 196, 6, x0, 196, 90);
   g2.addColorStop(0, 'rgba(235,252,252,.7)'); g2.addColorStop(1, 'rgba(235,252,252,0)');
   c.fillStyle = g2; c.beginPath(); c.arc(x0, 196, 90, 0, TAU); c.fill();
+  c.restore();
 }
 
 export function villageOverlay(c, floors, obst, r) {
