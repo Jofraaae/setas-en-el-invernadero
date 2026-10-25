@@ -152,7 +152,7 @@ const FLOORS = [
   floor('molino', MOLINO, '#7d6340', 'Molino de Setas', 'mill', { room: true, wall: 'timber', label: [2705, 1386] }),
   floor('almacen', ALMACEN, '#6b5236', 'Almacén de la Aldea', 'dirt', { room: true, wall: 'timber', label: [2190, 2510] }),
   floor('taller', TALLER, '#7a5c38', 'Taller de Esporas', 'planks', { room: true, wall: 'capOrange', label: [680, 1690] }),
-  floor('observatorio', OBSERVATORIO, '#3d4a6b', 'Observatorio', 'stars', { room: true, wall: 'capBlue', label: [1292, 1982] }),
+  floor('observatorio', OBSERVATORIO, '#3d4a6b', 'Observatorio', 'stars', { room: true, wall: 'capBlue', label: [1280, 1992] }),
   floor('estacion', ESTACION, '#2a6a68', 'Estación de Energía', 'glow', { room: true, wall: 'glow', label: [3750, 842] }),
   floor('cueva', CUEVA, '#555a58', 'Cueva del Micelio', 'cave', { room: true, wall: 'rock', label: [3640, 2200] }),
   floor('huerto', HUERTO, '#5a4228', 'Huerto de Hongos', 'crop', { room: true, wall: 'fence', label: [790, 2495] }),
@@ -393,17 +393,17 @@ const TASKS = [
 
 /* ---------------- rejillas de ventilación ---------------- */
 const VENTS = [
-  { id: 0, net: 'A', name: 'Molino', x: 2845, y: 1335 },
+  { id: 0, net: 'A', name: 'Molino', x: 2630, y: 1205 },
   { id: 1, net: 'A', name: 'Huerto', x: 900, y: 2370 },
-  { id: 2, net: 'A', name: 'Almacén', x: 2400, y: 2475 },
-  { id: 3, net: 'B', name: 'Observatorio', x: 1170, y: 1730 },
-  { id: 4, net: 'B', name: 'Casa Seta', x: 700, y: 960 },
-  { id: 5, net: 'B', name: 'Cueva', x: 3830, y: 2170 },
-  { id: 6, net: 'C', name: 'Estación', x: 3960, y: 1060 },
+  { id: 2, net: 'A', name: 'Almacén', x: 2380, y: 2410 },
+  { id: 3, net: 'B', name: 'Observatorio', x: 1390, y: 1930 },
+  { id: 4, net: 'B', name: 'Casa Seta', x: 690, y: 940 },
+  { id: 5, net: 'B', name: 'Cueva', x: 3760, y: 1900 },
+  { id: 6, net: 'C', name: 'Estación', x: 3730, y: 1085 },
   { id: 7, net: 'C', name: 'Pantano', x: 330, y: 760 },
   { id: 8, net: 'C', name: 'Bosque', x: 240, y: 1500 },
-  { id: 9, net: 'C', name: 'Cascada', x: 3480, y: 340 },
-  { id: 10, net: 'A', name: 'Casa del Té', x: 2660, y: 820 },
+  { id: 9, net: 'C', name: 'Cascada', x: 3550, y: 390 },
+  { id: 10, net: 'A', name: 'Casa del Té', x: 2500, y: 680 },
 ].map((v) => ({ ...v, x: R(v.x * S), y: R(v.y * S) }));
 
 /* Rótulos de las zonas del exterior (las salas ya traen el suyo en el suelo). */

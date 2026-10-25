@@ -1,5 +1,20 @@
 const NOTHING = { task: null, panel: false, btn: false, atBtn: false, body: false, target: false, vent: false, hold: null, meetBlocked: false, meetUsed: false };
 
+// ¿hay muro (o puerta cerrada) entre el jugador y un punto? Igual que en el servidor.
+function walled(g, a, b) {
+  const sg = g.sightGrid;
+  if (!sg) return false;
+  const d = Math.hypot(b.x - a.x, b.y - a.y);
+  const steps = Math.max(1, Math.ceil(d / 8));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const tx = Math.floor((a.x + (b.x - a.x) * t) / 20), ty = Math.floor((a.y + (b.y - a.y) * t) / 20);
+    if (tx < 0 || ty < 0 || tx >= sg.gw || ty >= sg.gh) continue;
+    if (!sg.cells[ty * sg.gw + tx]) return true;
+  }
+  return false;
+}
+
 export function contextOf(g) {
   const r = g.cfg.useRange;
   if (g.vent && g.vent.in) return NOTHING;
@@ -36,7 +51,7 @@ export function contextOf(g) {
     ([, o]) => o.alive && Math.hypot(o.tx - g.me.x, o.ty - g.me.y) <= g.cfg.trackRange,
   );
   c.vent = (g.role === 'impostor' || g.engineer) && g.me.alive && (g.vents || []).some(
-    (v) => Math.hypot(v.x - g.me.x, v.y - g.me.y) <= r,
+    (v) => Math.hypot(v.x - g.me.x, v.y - g.me.y) <= r && !walled(g, g.me, v),
   );
   // consola del reactor: cualquier jugador vivo con el sabotaje en marcha (el impostor también)
   c.hold = null;

@@ -947,9 +947,11 @@ class GameRoom {
         if (this.phase !== 'playing' || !this.canVent(p) || !p.alive || p.inVent || this.frozen(p, now) || (p.invisUntil || 0) > now) return;
         if (now < (p.ventReadyAt || 0)) return; // tras salir, el ingeniero espera antes de volver a entrar
         let vent = null, bd = USE_RANGE;
+        const shut = this.closedDoors(now);
         for (const v of this.m.vents) {
           const d = Math.hypot(v.x - p.x, v.y - p.y);
-          if (d <= bd) { bd = d; vent = v; }
+          // con un muro (o una puerta cerrada) por medio no se llega a la rejilla: solo desde su misma sala
+          if (d <= bd && sees(this.m, p, v, USE_RANGE, shut)) { bd = d; vent = v; }
         }
         if (!vent) return;
         p.inVent = true;
