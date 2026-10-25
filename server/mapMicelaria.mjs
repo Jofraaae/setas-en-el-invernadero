@@ -268,6 +268,7 @@ put(2520, 780, 90, 50, 'planter'); put(2310, 430, 70, 70, 'baskets');
 
 /* ---- Molino de Setas ---- */
 put(2755, 1210, 100, 130, 'millwheel');
+put(2680, 1180, 46, 46, 'sacks');
 
 /* ---- Almacén de la Aldea ---- */
 put(1690, 2090, 64, 58, 'panel');

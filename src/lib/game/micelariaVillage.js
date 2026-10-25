@@ -179,6 +179,31 @@ export const VILLAGE_TEX = {
     }
     for (let i = 0; i < (w * h) / 7000; i++) blade(c, x + r() * w, y + r() * h, 3 + r() * 4, r() > 0.5);
   },
+  crop(c, x, y, w, h, r) { // huerto: tierra labrada y seca, con surcos finos. Sin setas: las setas son de los bancales
+    c.fillStyle = '#8f7350';
+    c.fillRect(x, y, w, h);
+    for (let i = 0; i < (w * h) / 900; i++) { // terrones claros y oscuros
+      c.fillStyle = r() > 0.5 ? 'rgba(255,236,196,.07)' : 'rgba(50,30,12,.10)';
+      c.beginPath(); c.ellipse(x + r() * w, y + r() * h, 6 + r() * 14, 3 + r() * 6, r() * 3, 0, TAU); c.fill();
+    }
+    c.lineCap = 'round';
+    for (let ry = y + 14; ry < y + h - 10; ry += 30) { // surcos ondulados, a trozos
+      let px = x + 8 + r() * 30;
+      while (px < x + w - 20) {
+        const len = 50 + r() * 90, wob = (r() - 0.5) * 8;
+        c.strokeStyle = 'rgba(55,34,14,.30)'; c.lineWidth = 4;
+        c.beginPath(); c.moveTo(px, ry); c.quadraticCurveTo(px + len / 2, ry + wob, px + len, ry); c.stroke();
+        c.strokeStyle = 'rgba(255,238,200,.12)'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(px, ry + 4); c.quadraticCurveTo(px + len / 2, ry + 4 + wob, px + len, ry + 4); c.stroke();
+        px += len + 18 + r() * 40;
+      }
+    }
+    for (let i = 0; i < (w * h) / 5200; i++) { // guijarros y briznas de paja
+      const px = x + r() * w, py = y + r() * h;
+      if (r() > 0.45) { c.fillStyle = 'rgba(150,140,125,.6)'; c.beginPath(); c.ellipse(px, py, 3 + r() * 3, 2 + r() * 2, 0, 0, TAU); c.fill(); }
+      else { c.strokeStyle = 'rgba(214,190,120,.6)'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(px, py); c.lineTo(px + 8 + r() * 6, py - 2 + r() * 4); c.stroke(); }
+    }
+  },
   planks(c, x, y, w, h, r) { // entarimado: tablas claras con nudos, juntas y clavos
     const ph = 40;
     for (let ry = y; ry < y + h; ry += ph) {
@@ -347,6 +372,22 @@ export const VILLAGE_OBST = {
     c.fillStyle = '#a8302c'; rr(c, -w / 2 + w * 0.3, -h / 2 + 6, w * 0.7 - 8, h - 12, 7); c.fill();
     c.fillStyle = 'rgba(255,244,222,.85)';
     for (const [px, py] of [[0.42, 0.3], [0.62, 0.65], [0.8, 0.32], [0.55, 0.45], [0.88, 0.7]]) { c.beginPath(); c.arc(-w / 2 + px * w, -h / 2 + py * h, 4.4, 0, TAU); c.fill(); }
+  },
+  cropbed(c, w, h) { // bancal elevado: marco de madera, tierra negra y setas grandes
+    wood(c, -w / 2, -h / 2, w, h, '#6a4b2c', 7);
+    c.fillStyle = '#2b1b0e'; rr(c, -w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 5); c.fill();
+    c.fillStyle = 'rgba(255,236,196,.07)'; rr(c, -w / 2 + 8, -h / 2 + 7, w - 16, 4, 2); c.fill();
+    const n = Math.max(2, Math.round(w / 52));
+    for (let i = 0; i < n; i++) {
+      const px = -w / 2 + (w / n) * (i + 0.5);
+      const k = (i * 5) % 3;
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(px + 2, 7, 11, 4, 0, 0, TAU); c.fill();
+      c.fillStyle = '#f0e8d2'; c.fillRect(px - 3, -3, 6, 11);
+      c.fillStyle = k === 0 ? '#d4472f' : k === 1 ? '#e7a33a' : '#a45bc2';
+      dome(c, px, -2, 14, 12); c.fill();
+      c.fillStyle = 'rgba(255,244,222,.9)';
+      for (const [dx, dy] of [[-5, -8], [4, -9], [0, -5]]) { c.beginPath(); c.arc(px + dx, dy, 1.8, 0, TAU); c.fill(); }
+    }
   },
   shelf(c, w, h) { // estante de la despensa con frascos y cestas
     wood(c, -w / 2, -h / 2, w, h, '#5a3d24', 4);
