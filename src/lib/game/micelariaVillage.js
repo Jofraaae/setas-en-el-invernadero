@@ -389,6 +389,29 @@ export const VILLAGE_OBST = {
       for (const [dx, dy] of [[-5, -8], [4, -9], [0, -5]]) { c.beginPath(); c.arc(px + dx, dy, 1.8, 0, TAU); c.fill(); }
     }
   },
+  telescope(c, w, h) { // telescopio del observatorio: plataforma de latón, montura y tubo largo apuntando al cielo
+    const R = Math.min(w, h) * 0.47;
+    c.fillStyle = 'rgba(0,0,0,.32)'; c.beginPath(); c.ellipse(3, 6, R, R * 0.92, 0, 0, TAU); c.fill();
+    c.fillStyle = '#3b3f4d'; c.beginPath(); c.arc(0, 0, R, 0, TAU); c.fill(); // plataforma
+    c.strokeStyle = '#c9a24a'; c.lineWidth = 3.5; c.beginPath(); c.arc(0, 0, R - 2, 0, TAU); c.stroke();
+    c.strokeStyle = 'rgba(201,162,74,.5)'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, R * 0.74, 0, TAU); c.stroke();
+    for (let i = 0; i < 12; i++) { // marcas de grados
+      const a = (i / 12) * TAU; c.strokeStyle = 'rgba(255,236,170,.75)'; c.lineWidth = i % 3 ? 1 : 2;
+      c.beginPath(); c.moveTo(Math.cos(a) * R * 0.74, Math.sin(a) * R * 0.74); c.lineTo(Math.cos(a) * R * 0.9, Math.sin(a) * R * 0.9); c.stroke();
+    }
+    c.fillStyle = '#6a4b2c'; c.beginPath(); c.arc(-R * 0.12, R * 0.1, R * 0.26, 0, TAU); c.fill(); // montura
+    c.strokeStyle = 'rgba(30,18,8,.6)'; c.lineWidth = 2; c.stroke();
+    c.save(); c.translate(-R * 0.12, R * 0.1); c.rotate(-0.72); // tubo
+    c.fillStyle = 'rgba(0,0,0,.25)'; rr(c, -R * 0.2, -R * 0.15, R * 1.55, R * 0.4, 6); c.fill();
+    c.fillStyle = '#b9bcc6'; rr(c, -R * 0.28, -R * 0.2, R * 1.5, R * 0.38, 6); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.55)'; rr(c, -R * 0.2, -R * 0.15, R * 1.34, R * 0.08, 3); c.fill();
+    c.fillStyle = '#c9a24a'; c.fillRect(R * 0.2, -R * 0.2, R * 0.1, R * 0.38); c.fillRect(R * 0.62, -R * 0.2, R * 0.1, R * 0.38);
+    c.fillStyle = '#7fe3ee'; c.beginPath(); c.ellipse(R * 1.2, -R * 0.01, R * 0.06, R * 0.17, 0, 0, TAU); c.fill(); // lente
+    c.fillStyle = '#8f4a6d'; rr(c, -R * 0.4, -R * 0.12, R * 0.14, R * 0.24, 3); c.fill(); // ocular
+    c.restore();
+    c.fillStyle = 'rgba(255,244,200,.95)'; // estrellitas sobre la plataforma
+    for (const [px, py] of [[0.55, -0.45], [-0.6, -0.35], [0.1, 0.62]]) { c.beginPath(); c.arc(px * R, py * R, 1.8, 0, TAU); c.fill(); }
+  },
   shelf(c, w, h) { // estante de la despensa con frascos y cestas
     wood(c, -w / 2, -h / 2, w, h, '#5a3d24', 4);
     c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(-w / 2 + 4, 2, w - 8, 3);

@@ -206,12 +206,13 @@ const PATHS = ([
   [[1540, 640], [1420, 700], [1360, 880]],
   [[2120, 900], [2110, 1000], [2000, 1100], [1930, 1330]],
   // el cruce del oeste: Casa Seta (sur), taller, observatorio y la plaza
-  [[900, 1220], [960, 1340], [1100, 1440], [1250, 1490]],
-  [[1040, 1500], [1250, 1490]],
-  [[1300, 1580], [1280, 1530], [1250, 1490]],
-  [[1250, 1490], [1420, 1470], [1580, 1420], [1860, 1400]],
+  // un solo camino de oeste a este (del taller a la plaza); el resto se le une de lado, sin cruces
+  [[1040, 1500], [1150, 1500], [1250, 1490], [1420, 1470], [1580, 1420], [1860, 1400]],
+  [[900, 1220], [960, 1340], [1060, 1410], [1150, 1460], [1230, 1488]],
+  [[1300, 1580], [1305, 1530], [1330, 1495], [1400, 1474]],
   // molino, puente y la orilla este
-  [[2420, 1160], [2360, 1230], [2260, 1310], [1980, 1380]],
+  // el ramal del molino sale del camino del puente (no hay dos caminos pegados saliendo de la plaza)
+  [[2420, 1160], [2370, 1240], [2350, 1360], [2370, 1486]],
   [[1960, 1420], [2240, 1470], [2500, 1500], [2896, 1520]],
   [[3224, 1520], [3300, 1510], [3340, 1360], [3380, 1180], [3420, 1020], [3440, 1000]],
   [[3300, 1510], [3480, 1530], [3640, 1560], [3700, 1620]],
@@ -223,12 +224,12 @@ const PATHS = ([
   // taller y huerto
   [[680, 1980], [690, 2080], [780, 2160], [800, 2190]],
   // la senda de la cascada, por el callejón entre la Casa del Té y el molino
-  [[2160, 1230], [2300, 1000], [2500, 960], [2760, 950], [2900, 860], [2960, 700], [3000, 560]],
+  [[2370, 1240], [2340, 1120], [2390, 1010], [2500, 960], [2760, 950], [2900, 860], [2960, 700], [3000, 560]],
   // sendas del bosque y el pantano, al oeste
   [[960, 1340], [760, 1300], [560, 1220], [400, 1100], [340, 960]],
   [[340, 960], [420, 760], [500, 560], [560, 440]],
   // el claro de las luciérnagas
-  [[2040, 1640], [2300, 1700], [2500, 1760], [2640, 1840]],
+  [[2130, 1790], [2290, 1790], [2470, 1800], [2640, 1840]],
 ]).map(sp);
 
 // puntos justo fuera de cada puerta, para no plantar nada delante
@@ -271,7 +272,7 @@ put(2755, 1210, 100, 130, 'millwheel');
 put(2680, 1180, 46, 46, 'sacks');
 
 /* ---- Almacén de la Aldea ---- */
-put(1690, 2090, 64, 58, 'panel');
+put(1694, 1962, 60, 56, 'panel');
 put(1700, 2420, 90, 80, 'haystack'); put(1830, 2440, 90, 80, 'haystack');
 put(2540, 2380, 60, 60, 'barrel'); put(2470, 2390, 60, 60, 'barrel');
 put(2500, 2090, 70, 70, 'sacks'); put(2380, 2090, 100, 70, 'baskets');
@@ -283,7 +284,7 @@ put(610, 1580, 140, 56, 'table'); put(440, 1610, 60, 60, 'barrel');
 put(890, 1600, 70, 60, 'sacks');
 
 /* ---- Observatorio ---- */
-put(1255, 1805, 90, 90, 'totem');
+put(1255, 1805, 90, 90, 'telescope');
 
 /* ---- Estación de Energía ---- */
 put(3690, 970, 120, 60, 'core');
@@ -292,7 +293,7 @@ put(3560, 880, 90, 70, 'glowshroom'); put(3900, 1100, 90, 70, 'glowshroom');
 
 /* ---- Cueva del Micelio ---- */
 put(3480, 1900, 130, 90, 'boulder'); put(3870, 1950, 120, 90, 'boulder');
-put(3640, 1990, 100, 80, 'roots');
+
 
 
 /* ---- Huerto de Hongos ---- */
@@ -307,7 +308,7 @@ put(3040, 280, 90, 90, 'mushring'); put(3430, 300, 60, 60, 'signpost');
 
 
 /* ---- Bosque de Micelio (oeste) ---- */
-put(300, 900, 170, 60, 'log'); put(440, 1240, 120, 110, 'boulder');
+put(440, 1240, 120, 110, 'boulder');
 put(430, 880, 130, 120, 'fern'); put(260, 1180, 120, 120, 'fern');
 
 /* ---- Claro de Luciérnagas (sur de la plaza) ---- */
@@ -342,8 +343,8 @@ const TASKS = [
   { name: 'Engrasar los engranajes', x: 2650, y: 1310, game: 'pipe', kind: 'valve' },
   { name: 'Escribir el pedido del molino', x: 2540, y: 1270, game: 'scramble', kind: 'panel' },
   // Almacén de la Aldea
-  { name: 'Inventariar las cajas', x: 1780, y: 1960, game: 'count', kind: 'crate' },
-  { name: 'Escribir el albarán', x: 1920, y: 1950, game: 'type', kind: 'panel' },
+  { name: 'Inventariar las cajas', x: 1836, y: 1975, game: 'count', kind: 'crate' },
+  { name: 'Escribir el albarán', x: 1968, y: 1955, game: 'type', kind: 'panel' },
   { name: 'Atar los fardos de paja', x: 2020, y: 2400, game: 'seq', kind: 'bench' },
   { name: 'Limpiar el filtro de la cisterna', x: 2300, y: 2200, game: 'spots', kind: 'filter' },
   { name: 'Pesar los sacos de esporas', x: 2200, y: 2400, game: 'dose', kind: 'scale' },
@@ -395,7 +396,7 @@ const TASKS = [
 const VENTS = [
   { id: 0, net: 'A', name: 'Molino', x: 2630, y: 1205 },
   { id: 1, net: 'A', name: 'Huerto', x: 790, y: 2440 },
-  { id: 2, net: 'A', name: 'Almacén', x: 2380, y: 2410 },
+  { id: 2, net: 'A', name: 'Almacén', x: 1810, y: 2100 },
   { id: 3, net: 'B', name: 'Observatorio', x: 1390, y: 1930 },
   { id: 4, net: 'B', name: 'Casa Seta', x: 690, y: 940 },
   { id: 5, net: 'B', name: 'Cueva', x: 3760, y: 1900 },
@@ -474,7 +475,7 @@ export const MICELARIA = {
   reactor: { x: R(3750 * S), y: R(1000 * S) },
   rpts: [
     { side: 'a', name: 'Consola A', x: R(3560 * S), y: R(870 * S) },
-    { side: 'b', name: 'Consola B', x: R(3940 * S), y: R(1140 * S) },
+    { side: 'b', name: 'Consola B', x: R(3650 * S), y: R(1990 * S) },
   ],
 };
 
