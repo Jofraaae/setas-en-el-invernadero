@@ -278,12 +278,11 @@ put(1960, 2200, 70, 70, 'sacks'); put(1810, 2270, 100, 70, 'baskets');
 
 /* ---- Taller de Esporas ---- */
 put(400, 1430, 150, 46, 'shelf'); put(740, 1430, 130, 46, 'shelf');
-put(600, 1580, 160, 56, 'table'); put(440, 1610, 60, 60, 'barrel');
+put(610, 1580, 140, 56, 'table'); put(440, 1610, 60, 60, 'barrel');
 put(890, 1600, 70, 60, 'sacks');
 
 /* ---- Observatorio ---- */
 put(1255, 1805, 90, 90, 'totem');
-put(1160, 1800, 72, 50, 'table');
 
 /* ---- Estación de Energía ---- */
 put(3690, 970, 120, 60, 'core');
@@ -296,7 +295,7 @@ put(3640, 1990, 100, 80, 'roots');
 
 
 /* ---- Huerto de Hongos ---- */
-put(500, 2320, 360, 44, 'cropbed'); put(500, 2400, 360, 44, 'cropbed');
+put(480, 2320, 240, 44, 'cropbed'); put(480, 2400, 240, 44, 'cropbed');
 put(970, 2340, 90, 80, 'cart');
 
 /* ---- Pantano de Esporas (noroeste) ---- */
@@ -394,7 +393,7 @@ const TASKS = [
 /* ---------------- rejillas de ventilación ---------------- */
 const VENTS = [
   { id: 0, net: 'A', name: 'Molino', x: 2630, y: 1205 },
-  { id: 1, net: 'A', name: 'Huerto', x: 900, y: 2370 },
+  { id: 1, net: 'A', name: 'Huerto', x: 790, y: 2440 },
   { id: 2, net: 'A', name: 'Almacén', x: 2380, y: 2410 },
   { id: 3, net: 'B', name: 'Observatorio', x: 1390, y: 1930 },
   { id: 4, net: 'B', name: 'Casa Seta', x: 690, y: 940 },
