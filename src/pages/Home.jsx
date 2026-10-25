@@ -163,8 +163,9 @@ export default function Home() {
     g.world = m.world;
     g.floors = m.floors;
     g.obst = m.obst;
+    g.sol = m.sol || m.obst; // cajas de choque (más pequeñas que el dibujo en algunos mapas): igual que la sala
     g.map = m.map || 'greenhouse'; // escenario elegido en la sala: decide cómo se pinta el lienzo
-    g.grid = makeGrid(m.world, m.floors, m.obst);
+    g.grid = makeGrid(m.world, m.floors, g.sol);
     // La vista solo la cortan los muros de las salas: las cajas, barriles y máquinas no
     // dan sombra, así que no tapan a quien pasa por detrás.
     g.sightGrid = makeGrid(m.world, m.floors, []);
@@ -251,7 +252,8 @@ export default function Home() {
     if (doorKey !== g.doorKey) {
       g.doorKey = doorKey;
       const boxes = drs.map(([id]) => (g.doors || []).find((d) => d.id === id)).filter(Boolean).map((d) => [d.x, d.y, d.w, d.h]);
-      g.grid = makeGrid(g.world, g.floors, (g.obst || []).concat(boxes));
+      g.grid = makeGrid(g.world, g.floors, g.sol || g.obst || []);
+      g.grid.boxes = boxes.map((b) => ({ x: b[0], y: b[1], w: b[2], h: b[3] })); // puertas cerradas: rectángulos exactos, como en la sala
       g.sightGrid = makeGrid(g.world, g.floors, boxes);
     }
     const prevRx = g.st.rx;

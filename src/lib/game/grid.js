@@ -1,7 +1,7 @@
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const CELL = 20;
-const MOVE_STEP = 2; // resolución del avance: deja al jugador pegado al muro, sin huecos
+const MOVE_STEP = 3; // lo más que avanza el jugador entre dos comprobaciones de choque
 
 // Rejilla de celdas de 20 px: 1 = suelo transitable, 0 = muro o caja.
 // Los rectángulos se ajustan a la cuadrícula para que ninguno se quede sin colisión
@@ -72,36 +72,62 @@ export function gridHit(g, x, y, r) {
   return false;
 }
 
-// Desplaza en un solo eje con pasos cortos y afina el contacto por búsqueda binaria:
-// el jugador queda apoyado exactamente en el muro (mismo punto en cliente y servidor),
-// así no tiembla ni se cuela al arrimarse.
-export function moveAxis(g, x, y, d, r, axis) {
-  if (!d) return { x, y };
-  const sign = d < 0 ? -1 : 1;
-  const total = Math.abs(d);
-  const steps = Math.max(1, Math.ceil(total / MOVE_STEP));
-  const inc = total / steps;
-  let px = x, py = y;
-  for (let i = 0; i < steps; i++) {
-    const s = i === steps - 1 ? total - inc * (steps - 1) : inc;
-    const nx = axis === 'x' ? px + s * sign : px;
-    const ny = axis === 'y' ? py + s * sign : py;
-    if (!gridHit(g, nx, ny, r)) { px = nx; py = ny; continue; }
-    let lo = 0, hi = s;
-    for (let k = 0; k < 8; k++) {
-      const mid = (lo + hi) / 2;
-      const mx = axis === 'x' ? px + mid * sign : px;
-      const my = axis === 'y' ? py + mid * sign : py;
-      if (gridHit(g, mx, my, r)) hi = mid; else lo = mid;
-    }
-    px = axis === 'x' ? px + lo * sign : px;
-    py = axis === 'y' ? py + lo * sign : py;
-    break;
+// Un círculo contra un rectángulo: si lo pisa, lo saca por la normal del punto más cercano.
+// Devuelve la nueva posición o null si no se tocan. Dentro del rectángulo sale por el borde más cercano.
+function pushFromRect(x, y, r, rx, ry, rw, rh) {
+  const cx = Math.max(rx, Math.min(x, rx + rw)), cy = Math.max(ry, Math.min(y, ry + rh));
+  const dx = x - cx, dy = y - cy, d2 = dx * dx + dy * dy;
+  if (d2 >= r * r) return null;
+  if (d2 > 1e-9) {
+    const d = Math.sqrt(d2), k = (r + 0.001) / d;
+    return [cx + dx * k, cy + dy * k];
   }
-  return { x: px, y: py };
+  const l = x - rx, rg = rx + rw - x, t = y - ry, b = ry + rh - y, m = Math.min(l, rg, t, b);
+  if (m === l) return [rx - r - 0.001, y];
+  if (m === rg) return [rx + rw + r + 0.001, y];
+  if (m === t) return [x, ry - r - 0.001];
+  return [x, ry + rh + r + 0.001];
 }
 
-export function stepMove(g, x, y, dx, dy, r) {
-  const a = moveAxis(g, x, y, dx, r, 'x');
-  return moveAxis(g, a.x, a.y, dy, r, 'y');
+// Saca al círculo de todo lo que pisa (muros, objetos y puertas cerradas): como empuja por la
+// normal de cada contacto, el jugador DESLIZA por paredes curvas y esquinas en vez de engancharse,
+// y si alguna vez queda dentro de algo (una puerta que se cierra encima) sale solo.
+// Devuelve { x, y, ok }: ok = false si tras varios empujes sigue pisando algo.
+export function resolveCircle(g, x, y, r, boxes) {
+  for (let pass = 0; pass < 5; pass++) {
+    let moved = false;
+    const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);
+    const y0 = Math.floor((y - r) / CELL), y1 = Math.floor((y + r) / CELL);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      if (tx >= 0 && ty >= 0 && tx < g.gw && ty < g.gh && g.cells[ty * g.gw + tx]) continue;
+      const q = pushFromRect(x, y, r, tx * CELL, ty * CELL, CELL, CELL);
+      if (q) { x = q[0]; y = q[1]; moved = true; }
+    }
+    if (boxes) for (const b of boxes) {
+      const q = pushFromRect(x, y, r, b.x, b.y, b.w, b.h);
+      if (q) { x = q[0]; y = q[1]; moved = true; }
+    }
+    if (!moved) return { x, y, ok: true };
+  }
+  return { x, y, ok: !gridHit(g, x, y, r - 0.05) && !(boxes && boxes.some((b) => {
+    const cx = Math.max(b.x, Math.min(x, b.x + b.w)), cy = Math.max(b.y, Math.min(y, b.y + b.h));
+    return (x - cx) ** 2 + (y - cy) ** 2 < (r - 0.05) ** 2;
+  })) };
+}
+
+// Avanza (dx, dy) en pasos cortos; tras cada paso se resuelve el choque. Si el jugador ya
+// estaba incrustado, primero se le saca. `boxes` son las puertas cerradas (rectángulos exactos).
+export function stepMove(g, x, y, dx, dy, r, boxes = g.boxes) {
+  let p = resolveCircle(g, x, y, r, boxes);
+  let px = p.x, py = p.y;
+  const dist = Math.hypot(dx, dy);
+  if (!dist) return { x: px, y: py };
+  const n = Math.max(1, Math.ceil(dist / MOVE_STEP));
+  const sx = dx / n, sy = dy / n;
+  for (let i = 0; i < n; i++) {
+    const q = resolveCircle(g, px + sx, py + sy, r, boxes);
+    if (!q.ok) break; // un rincón imposible: se queda donde estaba
+    px = q.x; py = q.y;
+  }
+  return { x: px, y: py };
 }

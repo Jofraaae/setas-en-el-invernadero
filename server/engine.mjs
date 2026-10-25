@@ -281,7 +281,7 @@ function buildMap(def) {
   // conserva su choque de siempre, que allí las cajas son muebles y miden lo que se ve.
   const solid = def.softCollide ? obst.map(solidBox) : obst;
   return {
-    id: def.id, name: def.name, world, floors, tasks, obst,
+    id: def.id, name: def.name, world, floors, tasks, obst, solid,
     vents: def.vents.map(at),
     button: at(def.button),
     spawn: def.spawn ? at(def.spawn) : null, // dónde se reparte a los jugadores; por defecto, junto al botón
@@ -530,31 +530,56 @@ function pickTasks(M, n) {
   return shuffle(out);
 }
 
-// Avanza en un eje con pasos cortos y se detiene justo al contacto: el jugador queda
-// apoyado en el muro (sin huecos), que es lo que evita los tirones al arrimarse.
-const MOVE_STEP = 2;
-function moveAxis(M, x, y, d, axis, closed) {
-  if (!d) return { x, y };
-  const sign = d < 0 ? -1 : 1;
-  const total = Math.abs(d);
-  const steps = Math.max(1, Math.ceil(total / MOVE_STEP));
-  const inc = total / steps;
-  let px = x, py = y;
-  for (let i = 0; i < steps; i++) {
-    const s = i === steps - 1 ? total - inc * (steps - 1) : inc;
-    const nx = axis === 'x' ? px + s * sign : px;
-    const ny = axis === 'y' ? py + s * sign : py;
-    if (!hitsWall(M, nx, ny, closed)) { px = nx; py = ny; continue; }
-    // contacto exacto por búsqueda binaria: cliente y servidor acaban en el mismo punto
-    let lo = 0, hi = s;
-    for (let k = 0; k < 8; k++) {
-      const mid = (lo + hi) / 2;
-      const check = axis === 'x' ? hitsWall(M, px + mid * sign, py, closed) : hitsWall(M, px, py + mid * sign, closed);
-      if (check) hi = mid; else lo = mid;
+// Movimiento por círculo: avanza en pasos cortos y, tras cada uno, saca al jugador de todo lo que
+// pisa empujándolo por la normal del contacto. Así DESLIZA por paredes curvas y esquinas sin
+// engancharse, y si queda incrustado (una puerta que se cierra encima) sale solo. Es idéntico al
+// del cliente (src/lib/game/grid.js) para que la predicción coincida con la sala.
+const CELLPX = 20;
+const MOVE_STEP = 3;
+function pushFromRect(x, y, r, rx, ry, rw, rh) {
+  const cx = Math.max(rx, Math.min(x, rx + rw)), cy = Math.max(ry, Math.min(y, ry + rh));
+  const dx = x - cx, dy = y - cy, d2 = dx * dx + dy * dy;
+  if (d2 >= r * r) return null;
+  if (d2 > 1e-9) {
+    const d = Math.sqrt(d2), k = (r + 0.001) / d;
+    return [cx + dx * k, cy + dy * k];
+  }
+  const l = x - rx, rg = rx + rw - x, t = y - ry, b = ry + rh - y, m = Math.min(l, rg, t, b);
+  if (m === l) return [rx - r - 0.001, y];
+  if (m === rg) return [rx + rw + r + 0.001, y];
+  if (m === t) return [x, ry - r - 0.001];
+  return [x, ry + rh + r + 0.001];
+}
+function resolveCircle(M, x, y, r, boxes) {
+  const g = M.grid;
+  for (let pass = 0; pass < 5; pass++) {
+    let moved = false;
+    const x0 = Math.floor((x - r) / CELLPX), x1 = Math.floor((x + r) / CELLPX);
+    const y0 = Math.floor((y - r) / CELLPX), y1 = Math.floor((y + r) / CELLPX);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      if (tx >= 0 && ty >= 0 && tx < g.gw && ty < g.gh && g.cells[ty * g.gw + tx]) continue;
+      const q = pushFromRect(x, y, r, tx * CELLPX, ty * CELLPX, CELLPX, CELLPX);
+      if (q) { x = q[0]; y = q[1]; moved = true; }
     }
-    px = axis === 'x' ? px + lo * sign : px;
-    py = axis === 'y' ? py + lo * sign : py;
-    break;
+    if (boxes && boxes.length) for (const b of boxes) {
+      const q = pushFromRect(x, y, r, b.x, b.y, b.w, b.h);
+      if (q) { x = q[0]; y = q[1]; moved = true; }
+    }
+    if (!moved) return { x, y, ok: true };
+  }
+  return { x, y, ok: !gridHit(g, x, y, r - 0.05) && !(boxes && boxes.length && boxHit(boxes, x, y, r - 0.05)) };
+}
+function moveCircle(M, x, y, dx, dy, closed) {
+  const p = resolveCircle(M, x, y, RADIUS, closed);
+  let px = p.x, py = p.y;
+  const dist = Math.hypot(dx, dy);
+  if (!dist) return { x: px, y: py };
+  const n = Math.max(1, Math.ceil(dist / MOVE_STEP));
+  const sx = dx / n, sy = dy / n;
+  for (let i = 0; i < n; i++) {
+    const q = resolveCircle(M, px + sx, py + sy, RADIUS, closed);
+    if (!q.ok) break;
+    px = q.x; py = q.y;
   }
   return { x: px, y: py };
 }
@@ -569,10 +594,8 @@ function stepPlayer(M, p, dt, speed, closed) {
     p.y = clamp(p.y + dy, RADIUS, M.world.h - RADIUS);
     return;
   }
-  const ax = moveAxis(M, p.x, p.y, dx, 'x', closed);
-  p.x = ax.x; p.y = ax.y;
-  const ay = moveAxis(M, p.x, p.y, dy, 'y', closed);
-  p.x = ay.x; p.y = ay.y;
+  const m = moveCircle(M, p.x, p.y, dx, dy, closed);
+  p.x = m.x; p.y = m.y;
 }
 
 /* ================================================================
@@ -1348,7 +1371,7 @@ class GameRoom {
       this.sendTo(p, {
         t: 'start', role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
         shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: false /* oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
-        tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
+        tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
         rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
         speed: SPEED * S.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
         bu: 0,
@@ -1837,6 +1860,8 @@ class GameRoom {
     }
     const prevTick = now - dtTotal * 1000;
     for (const p of this.players.values()) {
+      // una puerta que se cierra encima de alguien no lo deja atrapado: se le saca por el lado más cercano
+      if (closed.length && p.alive && !p.inVent) { const q = resolveCircle(this.m, p.x, p.y, RADIUS, closed); if (q.ok && (q.x !== p.x || q.y !== p.y)) { p.x = q.x; p.y = q.y; } }
       if (p.mvExtra) p.mvExtra *= 0.998; // el margen de duraciones infladas se va olvidando
       if (this.frozen(p, now)) { p.dx = 0; p.dy = 0; this.markSeg(p, now); continue; } // congelado: quieto y sin acciones
       if ((p.dx || p.dy) && now - (p.lastInputAt || 0) > INPUT_SILENCE_MS) { p.dx = 0; p.dy = 0; }
@@ -1956,7 +1981,7 @@ class GameRoom {
       t: 'start', resync: true, seq: p.seq || 0, alive: p.alive, dark: this.dark,
       you: [p.x, p.y], role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
       shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: !!(p.angel && !p.alive) /* solo se sabe al morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
-      tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
+      tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
       rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
       speed: SPEED * this.settings.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
       bu: p.meetUsed ? 1 : 0,
