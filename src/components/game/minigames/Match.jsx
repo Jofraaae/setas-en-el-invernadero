@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 export default function Match({ onFinish }) {
   const cols = useMemo(() => shuffle(['#e63946', '#4cc9f0', '#80ed99', '#e9c46a', '#9d4edd', '#f4a261']).slice(0, 6), []);
@@ -37,7 +38,7 @@ export default function Match({ onFinish }) {
   );
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Une cada etiqueta de la izquierda con su pareja.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Une cada etiqueta de la izquierda con su pareja.')}</p>
       <div key={bad} className={`flex justify-center gap-10 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         <div className="flex flex-col gap-2.5">{cols.map((c) => square(c, 'l', `l${c}`))}</div>
         <div className="flex flex-col gap-2.5">{right.map((c) => square(c, 'r', `r${c}`))}</div>

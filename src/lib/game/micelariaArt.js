@@ -1,3 +1,4 @@
+import { tr } from '@/lib/i18n';
 /* Micelaria: la aldea de setas gigantes. Todo el vocabulario visual del segundo mapa vive
    aquí: suelos, objetos del escenario, aparatos y objetos de las tareas. Se dibuja con el
    mismo sistema que el invernadero (Canvas 2D, perspectiva cenital), pero con materiales
@@ -1271,7 +1272,7 @@ export function micelariaButton(ctx, bx, by, T, used, blocked) {
     ctx.lineTo(bx - 8, by - 12);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.65)';
-    ctx.fillText(blocked ? 'BLOQUEADA' : 'USADA', bx, by + 34);
+    ctx.fillText(blocked ? tr('BLOQUEADA') : tr('USADA'), bx, by + 34);
   } else {
     ctx.globalAlpha = glow;
     ctx.strokeStyle = '#ffd86a';
@@ -1281,7 +1282,7 @@ export function micelariaButton(ctx, bx, by, T, used, blocked) {
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(255,255,255,.78)';
-    ctx.fillText('REUNIÓN', bx, by + 34);
+    ctx.fillText(tr('REUNIÓN'), bx, by + 34);
   }
   ctx.restore();
 }
@@ -1339,7 +1340,7 @@ export function micelariaPanel(c, p) {
   c.font = '800 11px system-ui';
   c.textAlign = 'center';
   c.fillStyle = 'rgba(255,255,255,.75)';
-  c.fillText('LUCES', 0, 42);
+  c.fillText(tr('LUCES'), 0, 42);
   c.restore();
 }
 
@@ -1435,7 +1436,7 @@ export function micelariaReactor(c, core, pts) {
     c.font = '800 12px system-ui';
     c.textAlign = 'center';
     c.fillStyle = 'rgba(255,255,255,.7)';
-    c.fillText('CORAZÓN DE MICELIO', 0, 44);
+    c.fillText(tr('CORAZÓN DE MICELIO'), 0, 44);
     c.restore();
   }
   for (const pt of pts || []) micelariaConsole(c, pt);

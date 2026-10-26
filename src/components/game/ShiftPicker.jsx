@@ -1,4 +1,5 @@
 import MiniShroom from './MiniShroom';
+import { tr } from '@/lib/i18n';
 
 /* Elección de forma del shapeshifter: solo jugadores vivos, y solo cuando su espera ha
    terminado. El servidor valida igualmente a quién se puede imitar. */
@@ -6,11 +7,11 @@ export default function ShiftPicker({ players, loaded, onPick, onCancel }) {
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
       <div className="flex w-full max-w-[420px] flex-col items-center gap-3.5 rounded-2xl border-2 border-[#3a0ca3] bg-[#1a3027] p-5">
-        <h3 className="text-lg font-extrabold text-[#eaf5ec]">¿En quién te transformas?</h3>
+        <h3 className="text-lg font-extrabold text-[#eaf5ec]">{tr('¿En quién te transformas?')}</h3>
         {!loaded ? (
-          <p className="text-sm text-[#9bb8a6]">Buscando jugadores…</p>
+          <p className="text-sm text-[#9bb8a6]">{tr('Buscando jugadores…')}</p>
         ) : players.length === 0 ? (
-          <p className="text-sm text-[#9bb8a6]">No hay nadie a quien imitar.</p>
+          <p className="text-sm text-[#9bb8a6]">{tr('No hay nadie a quien imitar.')}</p>
         ) : (
           <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
             {players.map((p) => (
@@ -29,7 +30,7 @@ export default function ShiftPicker({ players, loaded, onPick, onCancel }) {
           className="rounded-xl bg-[#2f5a48] px-4 py-3 font-bold text-[#eaf5ec] transition hover:brightness-110"
           onClick={onCancel}
         >
-          Cancelar
+          {tr('Cancelar')}
         </button>
       </div>
     </div>

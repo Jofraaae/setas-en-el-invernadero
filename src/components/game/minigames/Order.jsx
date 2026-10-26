@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 const SIZES = [10, 17, 25, 34, 43, 52];
 
@@ -21,7 +22,7 @@ export default function Order({ onFinish }) {
   };
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Toca de la más pequeña a la más grande.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Toca de la más pequeña a la más grande.')}</p>
       <div key={bad} className={`flex items-end justify-center gap-2 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {order.map((s) => (
           <button

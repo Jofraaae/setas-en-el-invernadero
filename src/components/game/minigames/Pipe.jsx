@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 const W = 4;
 const H = 3;
@@ -124,7 +125,7 @@ export default function Pipe({ onFinish }) {
   const [turns, setTurns] = useState(0);
   const done = useRef(false);
   const wet = useMemo(() => (board ? flow(board) : new Set()), [board]);
-  if (!board) return <p className="text-sm text-[#9bb8a6]">Vuelve a abrir la misión.</p>;
+  if (!board) return <p className="text-sm text-[#9bb8a6]">{tr('Vuelve a abrir la misión.')}</p>;
 
   const turn = (i) => {
     if (done.current) return;
@@ -149,7 +150,7 @@ export default function Pipe({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Gira las piezas hasta llevar el agua de la entrada a la salida.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Gira las piezas hasta llevar el agua de la entrada a la salida.')}</p>
       <div className="flex items-center gap-2">
         <span className="h-[9px] w-4 rounded-full bg-[#6f7a89]" />
         <div className="grid grid-cols-4 gap-1.5">
@@ -170,7 +171,7 @@ export default function Pipe({ onFinish }) {
         <span className="h-[9px] w-4 rounded-full bg-[#80ed99]" />
       </div>
       <p className="text-xs text-[#9bb8a6]">
-        Agua en {wet.size} de {W * H} piezas · giros: {turns}
+        {tr('Agua en {a} de {b} piezas · giros: {n}', { a: wet.size, b: W * H, n: turns })}
       </p>
     </>
   );

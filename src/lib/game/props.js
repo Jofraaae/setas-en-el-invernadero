@@ -1,3 +1,4 @@
+import { tr } from '@/lib/i18n';
 /* Objetos del invernadero: props de tareas, cajas del mapa, botón y marcadores.
    Se dibujan con la misma caja que usa el servidor para las colisiones, así que
    lo que se ve y lo que bloquea coinciden siempre. */
@@ -901,10 +902,10 @@ export function drawButton(ctx, bx, by, T, used, blocked, fn) {
     ctx.lineTo(bx - 8, by - 2);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.6)';
-    ctx.fillText(blocked ? 'BLOQUEADA' : 'USADA', bx, by + 34);
+    ctx.fillText(blocked ? tr('BLOQUEADA') : tr('USADA'), bx, by + 34);
   } else {
     ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.fillText('REUNIÓN', bx, by + 34);
+    ctx.fillText(tr('REUNIÓN'), bx, by + 34);
   }
   ctx.restore();
 }

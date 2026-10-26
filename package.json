@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "play": "vite build && node server/index.js",
-    "html": "vite build && node scripts/single-html.mjs"
+    "html": "vite build && node scripts/single-html.mjs",
+    "i18n:keys": "node scripts/i18n.mjs keys",
+    "i18n:check": "node scripts/i18n.mjs check"
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.2",

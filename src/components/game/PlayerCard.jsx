@@ -1,5 +1,6 @@
 import MiniShroom from './MiniShroom';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const KICK = 'rounded-lg bg-[#7b2c2c] px-2 py-0.5 text-[11px] font-bold text-[#ffd9d9] transition hover:brightness-125';
 const BAN = 'rounded-lg bg-[#5a1f3a] px-2 py-0.5 text-[11px] font-bold text-[#ffc7e0] transition hover:brightness-125';
@@ -12,14 +13,14 @@ export default function PlayerCard({ player, me, host, isHost, onKick }) {
       <MiniShroom color={player.color} size={44} />
       <b>
         {player.name}
-        {me ? ' (tú)' : ''}
+        {me ? '\u00a0' + tr('(tú)') : ''}
         {host ? ' 👑' : ''}
       </b>
-      {player.offline ? <span className="text-[11px] text-[#ff8a8a]">reconectando…</span> : null}
+      {player.offline ? <span className="text-[11px] text-[#ff8a8a]">{tr('reconectando…')}</span> : null}
       {isHost && !me ? (
         <div className="mt-0.5 flex gap-1">
-          <button className={KICK} onClick={() => { sfx('deny'); onKick(player.id, 'kick'); }}>Expulsar</button>
-          <button className={BAN} onClick={() => { sfx('deny'); onKick(player.id, 'ban'); }}>Banear</button>
+          <button className={KICK} onClick={() => { sfx('deny'); onKick(player.id, 'kick'); }}>{tr('Expulsar')}</button>
+          <button className={BAN} onClick={() => { sfx('deny'); onKick(player.id, 'ban'); }}>{tr('Banear')}</button>
         </div>
       ) : null}
     </div>

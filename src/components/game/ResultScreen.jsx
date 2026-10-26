@@ -1,5 +1,6 @@
 import MiniShroom from './MiniShroom';
 import JudgeResultScreen from './JudgeResultScreen';
+import { tr } from '@/lib/i18n';
 
 export default function ResultScreen({ result, roster }) {
   if (result.judge) return <JudgeResultScreen result={result} roster={roster} />;
@@ -11,8 +12,8 @@ export default function ResultScreen({ result, roster }) {
     groups[key].push((roster.get(v.from) || {}).name || '?');
   }
   const sub = e
-    ? e.wasImpostor ? `${e.name} era un IMPOSTOR` : `${e.name} NO era un impostor`
-    : result.tie ? 'Hubo un empate.' : 'La mayoría saltó la votación.';
+    ? e.wasImpostor ? tr('{name} era un IMPOSTOR', { name: e.name }) : tr('{name} NO era un impostor', { name: e.name })
+    : result.tie ? tr('Hubo un empate.') : tr('La mayoría saltó la votación.');
 
   return (
     <div
@@ -27,13 +28,13 @@ export default function ResultScreen({ result, roster }) {
         ) : null}
       </div>
       <h2 className="text-center text-2xl font-extrabold text-[#eaf5ec]">
-        {e ? `Han expulsado a ${e.name}` : 'Nadie ha sido expulsado'}
+        {e ? tr('Han expulsado a {name}', { name: e.name }) : tr('Nadie ha sido expulsado')}
       </h2>
       <p className="text-center text-lg text-[#9bb8a6]">{sub}</p>
       <div className="text-center text-sm leading-relaxed text-[#9bb8a6]">
         {Object.entries(groups).map(([to, from]) => (
           <div key={to}>
-            <b>{to === 'skip' ? 'Saltar' : (roster.get(to) || {}).name || '?'}</b> ← {from.join(', ')}
+            <b>{to === 'skip' ? tr('Saltar') : (roster.get(to) || {}).name || '?'}</b> ← {from.join(', ')}
           </div>
         ))}
       </div>

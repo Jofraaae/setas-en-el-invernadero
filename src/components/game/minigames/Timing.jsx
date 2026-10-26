@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { BTN } from './ui';
+import { tr } from '@/lib/i18n';
 
 const ZONE = 0.18;
 const NEED = 5;
@@ -41,7 +42,7 @@ export default function Timing({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Detén la aguja 5 veces seguidas dentro de la zona verde.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Detén la aguja 5 veces seguidas dentro de la zona verde.')}</p>
       <div className="relative h-12 w-full overflow-hidden rounded-xl bg-[#0f211a]">
         <div
           className="absolute inset-y-0 bg-[rgba(128,237,153,.35)] ring-2 ring-[#80ed99]"
@@ -55,7 +56,7 @@ export default function Timing({ onFinish }) {
         ))}
       </div>
       <button className={`${BTN} w-full py-6 text-xl select-none`} style={{ touchAction: 'none' }} onClick={stop}>
-        DETENER
+        {tr('DETENER')}
       </button>
     </>
   );

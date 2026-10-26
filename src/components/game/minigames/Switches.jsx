@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const N = 5;
 
@@ -34,7 +35,7 @@ export default function Switches({ onFinish }) {
   return (
     <div className="flex flex-col items-center gap-4">
       <p className="text-center text-[13px] text-[#b7cfc2]">
-        Pon todos los interruptores en ON para devolver la luz. Cada uno cambia también a los de al lado.
+        {tr('Pon todos los interruptores en ON para devolver la luz. Cada uno cambia también a los de al lado.')}
       </p>
       <div className="flex items-end gap-3 rounded-xl border-2 border-[#2f5a48] bg-[#12241c] px-4 py-3.5">
         {on.map((v, i) => (
@@ -53,7 +54,7 @@ export default function Switches({ onFinish }) {
           </div>
         ))}
       </div>
-      {ready ? <div className="text-sm font-bold text-[#80ed99]">¡Cuadro reiniciado!</div> : null}
+      {ready ? <div className="text-sm font-bold text-[#80ed99]">{tr('¡Cuadro reiniciado!')}</div> : null}
     </div>
   );
 }

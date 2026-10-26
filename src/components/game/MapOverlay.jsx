@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { mapName } from '@/lib/game/maps';
+import { tr } from '@/lib/i18n';
 
 /* Mapa del escenario: se abre en el centro de la pantalla con la M y se cierra igual.
    Es translúcido: mientras lo miras sigues viendo el juego y puedes seguir andando.
@@ -54,12 +55,12 @@ export default function MapOverlay({ g, onClose, onDoors }) {
     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/20 p-3">
       <div className="pointer-events-auto flex max-h-full w-full flex-col items-center gap-2 overflow-auto">
         <div className="flex w-full max-w-[1180px] items-center justify-between gap-3">
-          <div className="text-[15px] font-extrabold text-[#eaf5ec]">Mapa de {mapName(g.map)}</div>
+          <div className="text-[15px] font-extrabold text-[#eaf5ec]">{tr('Mapa de {name}', { name: tr(mapName(g.map)) })}</div>
           <button
             className="rounded-xl bg-[#2f5a48] px-4 py-2 text-sm font-bold text-[#eaf5ec] transition hover:brightness-110"
             onClick={onClose}
           >
-            Cerrar [M]
+            {tr('Cerrar [M]')}
           </button>
         </div>
 
@@ -94,7 +95,7 @@ export default function MapOverlay({ g, onClose, onDoors }) {
                     className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[13px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
                     style={{ left: lx * sc, top: ly * sc }}
                   >
-                    {name}
+                    {tr(name)}
                   </span>
                 ) : null}
               </div>
@@ -119,7 +120,7 @@ export default function MapOverlay({ g, onClose, onDoors }) {
             return (
               <button
                 key={i}
-                title={`Puertas de ${f[5]}`}
+                title={tr('Puertas de {name}', { name: tr(f[5]) })}
                 className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/35 bg-[rgba(10,22,16,.92)] px-2 py-1 text-[13px] font-bold leading-none text-[#eaf5ec] shadow-[0_2px_6px_rgba(0,0,0,.5)] transition hover:bg-[#7b2cbf] disabled:cursor-not-allowed disabled:opacity-55 ${wait > 0 && left <= 0 ? 'text-[#ffd60a]' : ''}`}
                 style={{ left: onBtn ? g.btn.x * sc : lock[0] * sc, top: onBtn ? g.btn.y * sc + 26 : lock[1] * sc }}
                 disabled={!canClose || left > 0 || wait > 0}
@@ -162,16 +163,16 @@ export default function MapOverlay({ g, onClose, onDoors }) {
         <div className="max-w-[1180px] text-center text-[12px] text-[#9bb8a6]">
           {isImp
             ? sab
-              ? 'Con un sabotaje en marcha no se pueden cerrar puertas.'
-              : 'Toca el candado de una sala para cerrar sus puertas 10 s: nadie puede abrirlas antes y tardan 20 s en poder cerrarse otra vez.'
-            : 'Ves el mapa entero, con el nombre de cada zona.'}
-          <div className="text-[11px]">Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia</div>
+              ? tr('Con un sabotaje en marcha no se pueden cerrar puertas.')
+              : tr('Toca el candado de una sala para cerrar sus puertas 10 s: nadie puede abrirlas antes y tardan 20 s en poder cerrarse otra vez.')
+            : tr('Ves el mapa entero, con el nombre de cada zona.')}
+          <div className="text-[11px]">{tr('Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia')}</div>
           {trk ? (
             <div className="text-[11px] font-bold text-[#cdf3ff]">
-              📍 {trkWho.name || '???'}: el jugador que llevas localizado
+              {tr('📍 {name}: el jugador que llevas localizado', { name: trkWho.name || '???' })}
             </div>
           ) : null}
-          <div className="text-[11px] font-bold text-[#80ed99]">Puedes seguir andando con el mapa abierto · se cierra con la M</div>
+          <div className="text-[11px] font-bold text-[#80ed99]">{tr('Puedes seguir andando con el mapa abierto · se cierra con la M')}</div>
         </div>
       </div>
     </div>

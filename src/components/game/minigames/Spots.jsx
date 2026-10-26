@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 const N = 9;
 const DIRTY = 7;
@@ -20,7 +21,7 @@ export default function Spots({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Limpia todas las manchas.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Limpia todas las manchas.')}</p>
       <div className="grid grid-cols-3 gap-2.5">
         {Array.from({ length: N }, (_, i) => (
           <button

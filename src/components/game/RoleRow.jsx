@@ -1,5 +1,6 @@
 import SettingRow from './SettingRow';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const ON = 'rounded-full bg-[#3f7d5f] px-3 py-1 text-[12px] font-bold text-[#eaf5ec] transition hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-40';
 const OFF = 'rounded-full bg-[#3a4a42] px-3 py-1 text-[12px] font-bold text-[#9bb8a6] transition hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-40';
@@ -10,15 +11,15 @@ export default function RoleRow({ role, on, cd, cdStep, cdMin, cdMax, extra, loc
     <div className="rounded-[10px] bg-[#234036] px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-2">
         <span className="leading-tight">
-          <b>{role.name}</b>
-          <span className="block text-[11px] text-[#7f9c8c]">{role.desc}</span>
+          <b>{tr(role.name)}</b>
+          <span className="block text-[11px] text-[#7f9c8c]">{tr(role.desc)}</span>
         </span>
         <button
           className={on ? ON : OFF}
           onClick={() => { sfx('click'); onToggle(on ? 0 : 1); }}
           disabled={locked}
         >
-          {on ? 'Sí' : 'No'}
+          {on ? tr('Sí') : tr('No')}
         </button>
       </div>
       {on && role.cd ? (

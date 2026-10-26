@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { BTN_ALT, shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 const WORDS = ['MICELIO', 'ESPORAS', 'SOMBRERO', 'LAMINAS', 'HONGO', 'BOSQUE', 'LUCIERNAGA', 'RAICES', 'CASCADA', 'MOLINO', 'ALDEA', 'CALDERO'];
 const NEED = 2;
@@ -38,7 +39,7 @@ export default function Scramble({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Ordena las letras para formar la palabra ({i + 1}/{NEED}).</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Ordena las letras para formar la palabra ({a}/{b}).', { a: i + 1, b: NEED })}</p>
       <div key={bad} className={`flex min-h-[48px] flex-wrap justify-center gap-1.5 rounded-xl bg-[#0f211a] px-3 py-2 ring-2 ring-[#2f5a48] ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {word.split('').map((_, k) => (
           <span key={k} className="flex h-9 w-8 items-center justify-center rounded-lg bg-[#1a3027] text-lg font-black text-[#80ed99]">
@@ -58,7 +59,7 @@ export default function Scramble({ onFinish }) {
           </button>
         ))}
       </div>
-      <button className={BTN_ALT} onClick={() => setUsed([])}>Borrar</button>
+      <button className={BTN_ALT} onClick={() => setUsed([])}>{tr('Borrar')}</button>
     </>
   );
 }

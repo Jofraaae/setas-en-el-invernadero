@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { randInt } from './ui';
+import { tr, trMark, trNodes } from '@/lib/i18n';
 
 const COLS = 6;
 const ROWS = 6;
@@ -10,11 +11,11 @@ const PROBES = 15; // sondas de un intento
 
 // El color y los puntos dicen a qué distancia está la colonia más cercana.
 const HEAT = [
-  { bg: '#12303f', ring: '#2f6f8f', dots: 0, label: 'frío' },
-  { bg: '#1b4a5c', ring: '#4cc9f0', dots: 1, label: 'tibio' },
-  { bg: '#6d6022', ring: '#e9c46a', dots: 2, label: 'caliente' },
-  { bg: '#8a4520', ring: '#f4a261', dots: 3, label: 'muy caliente' },
-  { bg: '#6f2830', ring: '#e63946', dots: 3, label: '¡colonia!' },
+  { bg: '#12303f', ring: '#2f6f8f', dots: 0, label: trMark('frío') },
+  { bg: '#1b4a5c', ring: '#4cc9f0', dots: 1, label: trMark('tibio') },
+  { bg: '#6d6022', ring: '#e9c46a', dots: 2, label: trMark('caliente') },
+  { bg: '#8a4520', ring: '#f4a261', dots: 3, label: trMark('muy caliente') },
+  { bg: '#6f2830', ring: '#e63946', dots: 3, label: trMark('¡colonia!') },
 ];
 
 function hideColony() {
@@ -61,14 +62,14 @@ export default function Sonar({ onFinish }) {
   return (
     <>
       <p className="text-center text-sm text-[#9bb8a6]">
-        Suelta sondas hasta dar con las 3 colonias. El color y los puntos dicen lo cerca que estás.
+        {tr('Suelta sondas hasta dar con las 3 colonias. El color y los puntos dicen lo cerca que estás.')}
       </p>
       <div className="flex w-full justify-between text-xs font-bold text-[#eaf5ec]">
         <span>
-          Sondas <span className={left <= 4 ? 'text-[#e63946]' : 'text-[#e9c46a]'}>{left}</span>/{PROBES}
+          {trNodes('Sondas {n}/{m}', { n: <span className={left <= 4 ? 'text-[#e63946]' : 'text-[#e9c46a]'}>{left}</span>, m: PROBES })}
         </span>
         <span>
-          Colonias <span className="text-[#80ed99]">{found}</span>/{NEED}
+          {trNodes('Colonias {n}/{m}', { n: <span className="text-[#80ed99]">{found}</span>, m: NEED })}
         </span>
       </div>
       <div key={escapes} className={`grid w-full grid-cols-6 gap-1.5 ${escapes ? 'animate-[shake_.25s]' : ''}`}>
@@ -96,14 +97,14 @@ export default function Sonar({ onFinish }) {
         {HEAT.slice(0, 4).map((h) => (
           <span key={h.label} className="flex items-center gap-1">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: h.ring }} />
-            {h.label}
+            {tr(h.label)}
           </span>
         ))}
       </div>
       <p className="text-xs text-[#9bb8a6]">
         {escapes
-          ? `Se te han escapado ${escapes} ${escapes === 1 ? 'vez' : 'veces'}: la colonia se muda y hay que volver a buscarla.`
-          : 'Si te quedas sin sondas, la colonia se muda y empiezas de nuevo.'}
+          ? (escapes === 1 ? tr('Se te ha escapado 1 vez: la colonia se muda y hay que volver a buscarla.') : tr('Se te han escapado {n} veces: la colonia se muda y hay que volver a buscarla.', { n: escapes }))
+          : tr('Si te quedas sin sondas, la colonia se muda y empiezas de nuevo.')}
       </p>
     </>
   );

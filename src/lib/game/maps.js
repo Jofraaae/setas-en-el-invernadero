@@ -1,3 +1,5 @@
+import { trMark } from '@/lib/i18n';
+
 /* Catálogo de escenarios. El motor de la sala manda el mapa de la partida por su id
    ('greenhouse' o 'micelaria'); aquí solo vive lo que enseña la interfaz: nombre,
    descripción y miniatura. El Invernadero es el de siempre y el que viene por defecto. */
@@ -5,14 +7,14 @@
 export const MAPS = [
   {
     id: 'greenhouse',
-    name: 'El Invernadero',
-    blurb: 'Naves de cultivo, cámaras frías y maquinaria de laboratorio.',
+    name: trMark('El Invernadero'),
+    blurb: trMark('Naves de cultivo, cámaras frías y maquinaria de laboratorio.'),
     thumb: '/maps/greenhouse.svg',
   },
   {
     id: 'micelaria',
-    name: 'Micelaria',
-    blurb: 'Una aldea de setas: casas con sombrero, plaza, arroyo, molino y cueva.',
+    name: trMark('Micelaria'),
+    blurb: trMark('Una aldea de setas: casas con sombrero, plaza, arroyo, molino y cueva.'),
     thumb: '/maps/micelaria.jpg',
   },
 ];
