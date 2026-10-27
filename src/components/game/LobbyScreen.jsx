@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import LobbyChat from './LobbyChat';
 import PlayerCard from './PlayerCard';
@@ -8,7 +9,10 @@ import { tr } from '@/lib/i18n';
 const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-3 font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-3 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
-export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick }) {
+export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick, onAddBots }) {
+  const [nBots, setNBots] = useState(1);
+  const bots = lobby.players.filter((p) => p.bot);
+  const free = Math.max(0, lobby.max - lobby.players.length);
   const isHost = myId === lobby.hostId;
   const n = lobby.players.length;
   const mine = (lobby.players.find((p) => p.id === myId) || {}).color;
@@ -23,7 +27,7 @@ export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, on
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
       <div className="m-auto flex w-full max-w-[700px] flex-col items-center gap-3">
-        <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}</p>
+        <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}{lobby.mode === 'bots' ? ' · ' + tr('Sala de bots (privada)') : ''}</p>
         <div className="text-[clamp(40px,10vw,56px)] font-black leading-none tracking-[10px] text-[#e9c46a]">
           {lobby.code}
         </div>
@@ -48,6 +52,29 @@ export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, on
               />
             ))}
           </div>
+          {isHost ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#234036] p-2">
+              <span className="text-[12px] font-bold text-[#bfe3cf]">🤖 {tr('Bots')}</span>
+              <button className="h-8 w-8 rounded-lg bg-[#2f5a48] font-black" disabled={nBots <= 1} onClick={() => { sfx('click'); setNBots(Math.max(1, nBots - 1)); }} aria-label="-">−</button>
+              <b className="w-6 text-center">{Math.min(nBots, Math.max(1, free))}</b>
+              <button className="h-8 w-8 rounded-lg bg-[#2f5a48] font-black" disabled={nBots >= free} onClick={() => { sfx('click'); setNBots(Math.min(Math.max(1, free), nBots + 1)); }} aria-label="+">+</button>
+              <button
+                className="rounded-lg bg-[#e9c46a] px-3 py-1.5 text-[13px] font-bold text-[#261c05] transition hover:brightness-110 disabled:opacity-40"
+                disabled={free <= 0}
+                onClick={() => { sfx('click'); onAddBots(Math.min(nBots, free)); }}
+              >
+                {tr('Añadir bots')}
+              </button>
+              {bots.length ? (
+                <button
+                  className="rounded-lg bg-[#7b2c2c] px-3 py-1.5 text-[12px] font-bold text-[#ffd9d9] transition hover:brightness-125"
+                  onClick={() => { sfx('deny'); for (const b of bots) onKick(b.id, 'kick'); }}
+                >
+                  {tr('Quitar todos')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {isHost ? (
             <p className="mt-2 text-[11px] leading-relaxed text-[#7f9c8c]">
               <b className="text-[#ffb3b3]">{tr('Expulsar')}</b> {tr(': sale de la sala, pero puede volver con el código.')}

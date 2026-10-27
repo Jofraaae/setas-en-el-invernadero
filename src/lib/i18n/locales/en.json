@@ -568,5 +568,18 @@
  "Reiniciar el cuadro eléctrico": "Reset the electrical panel",
  "Enlace copiado": "Link copied",
  "Código: {c}": "Code: {c}",
- "Escribe el código de 4 letras.": "Enter the 4-letter code."
+ "Escribe el código de 4 letras.": "Enter the 4-letter code.",
+ "Sala online": "Online room",
+ "Sale en el listado y entra quien tenga el código. También puedes añadir bots.": "Shown in the room list; anyone with the code can join. You can add bots too.",
+ "Sala de bots": "Bot room",
+ "Privada: no sale en el listado y empieza con 5 bots (puedes quitarlos o añadir más).": "Private: not shown in the list, starts with 5 bots (remove them or add more).",
+ "Máximo de jugadores": "Max players",
+ "Cuentan personas y bots. Mínimo {min} para empezar.": "People and bots both count. At least {min} to start.",
+ "Tipo de sala": "Room type",
+ "Sala de bots (privada)": "Bot room (private)",
+ "Bots": "Bots",
+ "Añadir bots": "Add bots",
+ "Quitar todos": "Remove all",
+ "Bot": "Bot",
+ "Quitar": "Remove"
 }

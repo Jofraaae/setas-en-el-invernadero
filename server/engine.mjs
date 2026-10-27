@@ -7,6 +7,8 @@
    ================================================================ */
 
 import { MICELARIA } from './mapMicelaria.mjs';
+import { BotManager } from './bots.mjs';
+import { say } from './botChat.mjs';
 
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 15;
@@ -610,6 +612,12 @@ function stepPlayer(M, p, dt, speed, closed) {
    El protocolo de mensajes es identico al del actor original.
    ================================================================ */
 
+// Lo que los bots necesitan del motor (se les pasa para no importar este archivo desde el suyo).
+const BOT_ENV = {
+  sees, gridHit, boxHit, say, RADIUS, KILL_RANGE, USE_RANGE, REPORT_RANGE, INTERROG_RANGE, TRACK_RANGE, HOLD_RANGE,
+  SIGHT_BASE, DARK_VISION,
+};
+
 class GameRoom {
   constructor(code, rt = {}) {
     this.code = code || null;
@@ -644,6 +652,10 @@ class GameRoom {
   onMessage(conn, msg) { return this.handleMessage(conn, msg); }
 
   code = null;
+  capacity = MAX_PLAYERS; // máximo de jugadores (personas + bots) que eligió el anfitrión al crear la sala
+  mode = 'online';        // 'online': sale en el listado · 'bots': sala privada pensada para jugar con bots
+  lang = 'es';            // idioma en el que hablan los bots si no se sabe el de cada jugador
+  bots = new BotManager(this, BOT_ENV);
   map = DEFAULT_MAP; // escenario elegido en la sala de espera: cada mapa trae sus salas, objetos, misiones y rejillas
   hostSeat = null;
   nextSeat = 1;
@@ -734,6 +746,18 @@ class GameRoom {
     const now = Date.now();
 
     switch (msg.t) {
+      case 'lang': {
+        if (msg.lang === 'es' || msg.lang === 'en') p.lang = msg.lang;
+        return;
+      }
+      case 'addBot': {
+        if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
+        const want = Math.max(1, Math.min(15, Math.round(Number(msg.n)) || 1));
+        let added = 0;
+        for (let i = 0; i < want; i++) if (this.addBot()) added++;
+        if (!added) return conn.send({ t: 'error', msg: 'La sala está llena.' });
+        return this.save();
+      }
       case 'ping':
         // Contesta siempre: con esta respuesta el cliente sabe si su conexión sigue viva y,
         // si la sala ha dejado de responder, la rehace por su cuenta.
@@ -807,6 +831,7 @@ class GameRoom {
         const target = this.players.get(String(msg.id));
         if (!target || target.id === p.id) return;
         const mode = msg.mode === 'ban' ? 'ban' : 'kick';
+        if (target.bot) { this.removePlayer(target, 'kick'); return this.save(); } // un bot se quita sin más
         if (mode === 'ban') this.banned.add(target.connId);
         this.sendTo(target, { t: 'kicked', ban: mode === 'ban' });
         this.rt.closeConn(target.connId); // sin cortar el socket, el expulsado seguiría jugando
@@ -864,6 +889,7 @@ class GameRoom {
         // habilidad no tiene espera propia: siempre que mata, el cuerpo sale así.
         const rot = p.viper ? this.settings.rotSec * 1000 : 0;
         this.bodies.push({ id: best.id, x: best.x, y: best.y, color: best.color, name: best.name, at: now, rot });
+        this.bots.onKill(p, best, now); // los bots que lo vean lo recordarán
         if (rot) this.broadcast({ t: 'venom', x: best.x, y: best.y, id: best.id, ms: VIPER_FX_MS });
         p.killReadyAt = now + this.settings.killCd * 1000;
         // aviso privado de muerte: solo lo recibe quien ha caído, y con quién lo ha matado
@@ -977,6 +1003,7 @@ class GameRoom {
           if (d <= bd && sees(this.m, p, v, USE_RANGE, shut)) { bd = d; vent = v; }
         }
         if (!vent) return;
+        this.bots.onVent(p, true, now); // quien lo tenga a la vista lo ve entrar
         p.inVent = true;
         p.ventId = vent.id;
         p.ventAt = now; // el reloj de la estancia: el ingeniero no puede quedarse más de ENG_VENT_MS
@@ -1006,6 +1033,7 @@ class GameRoom {
         // el ingeniero paga cada salida: hasta que pase su espera no puede volver a entrar
         if (p.engineer) p.ventReadyAt = now + this.settings.engCd * 1000;
         conn.send({ t: 'vent', in: false });
+        this.bots.onVent(p, false, now); // y quien lo tenga a la vista lo ve salir
         this.broadcast({ t: 'ventFx', ids: [p.ventId] }); // y al salir se cierra
         return this.save();
       }
@@ -1185,7 +1213,14 @@ class GameRoom {
     const other = this.rt.registry.list().find((r) => r.code === code && r.status !== 'gone');
     if (other || this.players.size > 0) return conn.send({ t: 'error', msg: 'Ese código ya está ocupado. Generando otro…' });
     this.reset(code);
-    this.addPlayer(conn, msg.name);
+    // lo elegido en la pantalla de crear sala: aforo, mapa y tipo de sala
+    this.capacity = clamp(Math.round(Number(msg.cap)) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
+    if (MAPS[msg.map]) this.map = msg.map;
+    this.mode = msg.mode === 'bots' ? 'bots' : 'online';
+    this.lang = msg.lang === 'en' ? 'en' : 'es';
+    this.addPlayer(conn, msg.name, msg.lang);
+    // una sala de bots arranca ya con compañía: el anfitrión puede quitarlos o añadir más
+    if (this.mode === 'bots') for (let i = 0; i < 5 && this.players.size < this.capacity; i++) this.addBot();
     await this.save();
   }
 
@@ -1198,16 +1233,40 @@ class GameRoom {
     if (!this.code || this.players.size === 0) return conn.send({ t: 'error', msg: 'No existe esa sala. Comprueba el código.', out: true });
     if (code !== this.code) return conn.send({ t: 'error', msg: 'No existe esa sala. Comprueba el código.' });
     if (this.phase !== 'lobby') return conn.send({ t: 'error', msg: 'La partida ya ha empezado.', out: true });
-    if (this.players.size >= MAX_PLAYERS) return conn.send({ t: 'error', msg: 'La sala está llena.' });
-    this.addPlayer(conn, msg.name);
+    if (this.players.size >= this.capacity) return conn.send({ t: 'error', msg: 'La sala está llena.' });
+    this.addPlayer(conn, msg.name, msg.lang);
     await this.save();
   }
 
-  addPlayer(conn, name) {
+  addPlayer(conn, name, lang) {
+    const p = this.makePlayer(conn.id, name);
+    if (lang === 'es' || lang === 'en') p.lang = lang;
+    this.players.set(p.id, p);
+    if (!this.hostSeat) this.hostSeat = p.id;
+    conn.send({ t: 'joined', id: p.id, code: this.code });
+    this.broadcast(this.lobbyInfo());
+    this.syncRoom();
+    this.armRoomSync();
+    return p;
+  }
+
+  // Un bot es un jugador más (con bot:true) que no tiene socket: lo maneja server/bots.mjs.
+  addBot() {
+    if (this.phase !== 'lobby' || this.players.size >= this.capacity) return null;
+    const p = this.makePlayer('bot:' + this.code + ':' + this.nextSeat, this.bots.newName());
+    p.bot = true;
+    this.players.set(p.id, p);
+    this.bots.afterAdd(p);
+    this.broadcast(this.lobbyInfo());
+    this.syncRoom();
+    return p;
+  }
+
+  makePlayer(connId, name) {
     const used = new Set([...this.players.values()].map((p) => p.color));
     const spot = this.spawnSpot(Math.max(4, this.players.size + 1), [...this.players.values()].map((q) => ({ x: q.x, y: q.y })), this.closedDoors());
     const p = {
-      id: 'p' + this.nextSeat++, connId: conn.id, name: cleanName(name),
+      id: 'p' + this.nextSeat++, connId, name: cleanName(name),
       color: COLORS.find((c) => !used.has(c)) || COLORS[0],
       x: spot.x, y: spot.y, dx: 0, dy: 0, face: 1,
       role: 'crew', alive: true, tasks: [], done: [],
@@ -1220,24 +1279,21 @@ class GameRoom {
       detective: false, detectiveUsed: false, detectiveTarget: null,
       tracker: false, trackerTarget: null, trackerUntil: 0, trackerReadyAt: 0,
     };
-    this.players.set(p.id, p);
-    if (!this.hostSeat) this.hostSeat = p.id;
-    conn.send({ t: 'joined', id: p.id, code: this.code });
-    this.broadcast(this.lobbyInfo());
-    this.syncRoom();
-    this.armRoomSync();
     return p;
   }
 
   removePlayer(p, kicked = false) {
     if (!this.players.has(p.id)) return;
     this.players.delete(p.id);
+    if (p.bot) this.bots.forget(p);
+    // sin personas la sala no tiene sentido: los bots solos no juegan
+    else if (![...this.players.values()].some((q) => !q.bot)) this.players.clear();
     this.syncRoom(); // actualiza (o retira) el anuncio de la sala
     if (this.players.size === 0) {
       this.reset(this.code);
       return;
     }
-    if (this.hostSeat === p.id) this.hostSeat = this.players.keys().next().value;
+    if (this.hostSeat === p.id) this.hostSeat = [...this.players.values()].find((q) => !q.bot).id;
     if (this.phase === 'lobby' || this.phase === 'ended') {
       this.broadcast(this.lobbyInfo());
       return;
@@ -1257,7 +1313,7 @@ class GameRoom {
   // jugadores fantasma para siempre, pero volver a la pestaña a tiempo siempre cuenta.
   pruneOffline(now = Date.now()) {
     for (const p of [...this.players.values()]) {
-      if (p.offline && now - (p.offlineSince || 0) > OFFLINE_GRACE_MS) this.removePlayer(p);
+      if (!p.bot && p.offline && now - (p.offlineSince || 0) > OFFLINE_GRACE_MS) this.removePlayer(p);
     }
   }
 
@@ -1379,6 +1435,7 @@ class GameRoom {
         you: [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10], // tu punto de salida: el cliente arranca ahí, nunca dentro de un objeto
       });
     }
+    this.bots.onStart(); // cada bot empieza la partida con la cabeza en blanco
     this.ensureLoop();
     this.syncRoom(); // la sala pasa a "partida en curso": ya no admite jugadores nuevos
     return this.save();
@@ -1741,6 +1798,7 @@ class GameRoom {
     const now = Date.now();
     const dtTotal = Math.min(1, (now - this.lastTick) / 1000); // tiempo real: no se queda atrás
     this.lastTick = now;
+    this.bots.tick(now); // los bots deciden y mandan sus órdenes antes de que se mueva nadie
     if (now - this.roomSyncedAt > ROOM_SYNC_MS) this.syncRoom(); // mantiene el anuncio al día
     if (this.phase === 'roles') {
       if (now >= this.rolesUntil) this.beginPlay();
@@ -1961,8 +2019,8 @@ class GameRoom {
   lobbyInfo() {
     return {
       t: 'lobby', phase: this.phase, code: this.code, hostId: this.hostSeat, map: this.map,
-      min: MIN_PLAYERS, max: MAX_PLAYERS, colors: COLORS, settings: this.settings, ranges: RANGES,
-      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline })),
+      min: MIN_PLAYERS, max: this.capacity, mode: this.mode, colors: COLORS, settings: this.settings, ranges: RANGES,
+      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot })),
       chat: this.lobbyChat,
     };
   }
@@ -1999,7 +2057,7 @@ class GameRoom {
   async save() {
     this.savedAt = Date.now();
     await this.rt.storage.put('st', {
-      code: this.code, map: this.map, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
+      code: this.code, map: this.map, capacity: this.capacity, mode: this.mode, lang: this.lang, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
       settings: this.settings, bodies: this.bodies, taskDone: this.taskDone, taskTotal: this.taskTotal,
       dark: this.dark, reactor: this.reactor, resultUntil: this.resultUntil, rolesUntil: this.rolesUntil,
       sabLockAt: this.sabLockAt, rtLockAt: this.rtLockAt,
@@ -2018,6 +2076,9 @@ class GameRoom {
     this.nextSeat = s.nextSeat || 1;
     this.phase = s.phase || 'lobby';
     this.map = MAPS[s.map] ? s.map : DEFAULT_MAP;
+    this.capacity = clamp(Number(s.capacity) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
+    this.mode = s.mode === 'bots' ? 'bots' : 'online';
+    this.lang = s.lang === 'en' ? 'en' : 'es';
     this.settings = { ...DEFAULTS, ...(s.settings || {}) };
     this.bodies = Array.isArray(s.bodies) ? s.bodies : [];
     this.taskDone = s.taskDone || 0;
@@ -2036,6 +2097,7 @@ class GameRoom {
     this.doorReady = new Map(Array.isArray(s.doorReady) ? s.doorReady : []);
     this.players = new Map();
     for (const p of s.players || []) this.players.set(p.id, { ...p, done: Array.isArray(p.done) ? p.done : [] });
+    this.bots.sync();
     this.meeting = s.meeting
       ? {
         votes: new Map(s.meeting.votes || []),
@@ -2049,6 +2111,10 @@ class GameRoom {
   reset(code) {
     this.code = code || null;
     this.map = DEFAULT_MAP;
+    this.capacity = MAX_PLAYERS;
+    this.mode = 'online';
+    this.lang = 'es';
+    this.bots.clear();
     this.hostSeat = null;
     this.nextSeat = 1;
     this.phase = 'lobby';
@@ -2079,6 +2145,7 @@ class GameRoom {
     if (s) this.restore(s);
     const live = new Map(this.rt.getConnections().map((c) => [c.id, c]));
     for (const p of this.players.values()) {
+      if (p.bot) continue; // los bots no tienen socket: nunca "se desconectan"
       const conn = live.get(p.connId);
       if (conn) {
         p.offline = false;
@@ -2112,14 +2179,14 @@ class GameRoom {
     this.roomSyncedAt = Date.now(); // se marca antes de escribir: evita ráfagas de llamadas
     try {
       if (!code) return;
-      if (this.players.size === 0 || this.phase === 'ended') {
-        this.rt.registry.remove(code);
+      if (this.players.size === 0 || this.phase === 'ended' || this.mode === 'bots') {
+        this.rt.registry.remove(code); // las salas de bots son privadas: no salen en el listado
         return;
       }
       this.rt.registry.update(code, {
         code,
         player_count: this.players.size,
-        max_players: MAX_PLAYERS,
+        max_players: this.capacity,
         min_players: MIN_PLAYERS,
         status: this.phase === 'lobby' ? 'lobby' : 'playing',
       });
@@ -2148,6 +2215,27 @@ class GameRoom {
     for (const c of this.getConnections()) {
       try { c.send(msg); } catch (e) { /* conexión cerrada a media tanda */ }
     }
+    this.bots.onBroadcast(msg); // los bots "oyen" lo mismo que todos (reuniones, resultados…)
+  }
+
+  /* Un bot habla: cada persona recibe la frase en SU idioma (y los demás bots, la frase ya entendida). */
+  botSay(p, texts, struct) {
+    const now = Date.now();
+    if (!texts || now - (p.lastChatAt || 0) < 500) return false;
+    const lobby = this.phase === 'lobby';
+    if (!lobby && !(this.phase === 'meeting' && p.alive)) return false;
+    p.lastChatAt = now;
+    const base = { id: p.id, name: p.name, color: p.color };
+    const pick = (q) => texts[q.lang || this.lang] || texts.es;
+    if (lobby) {
+      const m = { ...base, text: texts[this.lang] || texts.es };
+      this.lobbyChat = [...this.lobbyChat, m].slice(-LOBBY_CHAT_MAX);
+      for (const q of this.players.values()) if (!q.bot) this.sendTo(q, { t: 'lchat', ...base, text: pick(q) });
+    } else {
+      for (const q of this.players.values()) if (!q.bot) this.sendTo(q, { t: 'chat', ...base, text: pick(q), dead: 0 });
+      this.bots.onChatStruct(p, struct, now);
+    }
+    return true;
   }
 
   findByConn(connId) {
@@ -2156,6 +2244,7 @@ class GameRoom {
   }
 
   sendTo(p, msg) {
+    if (p.bot) { this.bots.onPrivate(p, msg); return; }
     for (const c of this.getConnections()) if (c.id === p.connId) { c.send(msg); return; }
   }
 }
@@ -2166,7 +2255,7 @@ export function roomInfo(room) {
   return {
     code: room.code,
     players: room.players.size,
-    max_players: MAX_PLAYERS,
+    max_players: room.capacity,
     min_players: MIN_PLAYERS,
     status: room.phase === 'lobby' ? 'lobby' : (room.phase === 'ended' ? 'ended' : 'playing'),
   };
