@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const COLS = 5;
 const ROWS = 4;
@@ -45,13 +46,13 @@ export default function Route({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Toca las casillas para llevar el riego de la entrada a la salida, pasando por los dos puntos.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Toca las casillas para llevar el riego de la entrada a la salida, pasando por los dos puntos.')}</p>
       <div className="grid grid-cols-5 gap-1.5">
         {Array.from({ length: COLS * ROWS }, (_, n) => {
           const c = n % COLS, r = Math.floor(n / COLS);
           const key = k(c, r);
           const on = cells.has(key);
-          const label = key === k(...IN) ? 'ENTRA' : key === k(...OUT) ? 'SALE' : CHK.some((p) => k(...p) === key) ? '💧' : '';
+          const label = key === k(...IN) ? tr('ENTRA') : key === k(...OUT) ? tr('SALE') : CHK.some((p) => k(...p) === key) ? '💧' : '';
           return (
             <button
               key={key}

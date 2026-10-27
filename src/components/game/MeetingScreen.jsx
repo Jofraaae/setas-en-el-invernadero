@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import MiniShroom from './MiniShroom';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-2.5 font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-2.5 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
@@ -30,10 +31,10 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
     setLeft(Math.max(0, Math.ceil(data.voteMs / 1000)));
   }, [data.voting, data.voteMs, voting]);
 
-  const caller = roster.get(data.callerId) || { name: 'Alguien' };
+  const caller = roster.get(data.callerId) || { name: tr('Alguien') };
   const title = data.reason === 'body'
-    ? `🚨 ${caller.name} ha encontrado a ${data.bodyName}`
-    : `📣 ${caller.name} ha pulsado el botón de emergencia`;
+    ? tr('🚨 {name} ha encontrado a {body}', { name: caller.name, body: data.bodyName })
+    : tr('📣 {name} ha pulsado el botón de emergencia', { name: caller.name });
   const players = data.players.filter((p) => !gone.has(p.id));
   const votable = alive && voting && !voted;
   const canVote = votable && !!sel;
@@ -61,7 +62,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
       {interro ? (
         <div className="w-full max-w-[980px] rounded-xl border-2 border-[#2a9d8f] bg-[rgba(42,157,143,.2)] px-4 py-2 text-center">
           <div className="text-[11px] font-black uppercase tracking-[2px] text-[#7fd8ca]">
-            Informe del Detective · solo tú lo ves
+            {tr('Informe del Detective · solo tú lo ves')}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center justify-center gap-2 text-sm text-[#eaf5ec]">
             <i className="inline-block h-3 w-3 rounded-full" style={{ background: interro.color }} />
@@ -78,7 +79,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
           voting ? 'bg-[#e9c46a] text-[#261c05]' : 'bg-[#2f5a48] text-[#eaf5ec]'
         }`}
       >
-        {voting ? `Votación abierta · ${left}s` : `Deliberación · la votación empieza en ${left}s`}
+        {voting ? tr('Votación abierta · {s}s', { s: left }) : tr('Deliberación · la votación empieza en {s}s', { s: left })}
       </div>
 
       <div className="grid min-h-0 w-full max-w-[980px] flex-1 grid-cols-1 gap-3 md:grid-cols-2">
@@ -101,14 +102,14 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
                     dead ? 'text-[#7d8f84]' : did ? 'text-[#80ed99]' : 'text-[#9bb8a6]'
                   }`}
                 >
-                  {dead ? '✖ no vota' : did ? '✔ votó' : '… esperando'}
+                  {dead ? tr('✖ no vota') : did ? tr('✔ votó') : tr('… esperando')}
                 </span>
                 <MiniShroom color={p.color} size={46} dead={dead} />
                 <div className={isMate ? 'font-bold text-[#ff7b86]' : ''}>
                   {p.name}
-                  {p.id === myId ? ' (tú)' : ''}
+                  {p.id === myId ? '\u00a0' + tr('(tú)') : ''}
                 </div>
-                {sel === p.id ? <div className="text-[11px] font-bold text-[#e9c46a]">tu voto</div> : null}
+                {sel === p.id ? <div className="text-[11px] font-bold text-[#e9c46a]">{tr('tu voto')}</div> : null}
               </div>
             );
           })}
@@ -127,7 +128,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
             <input
               className="w-full select-text rounded-xl border-2 border-[#2f5a48] bg-[#0f211a] px-3 py-2 text-[#eaf5ec] outline-none focus:border-[#e9c46a] disabled:opacity-50"
               maxLength={140}
-              placeholder={alive ? 'Escribe un mensaje…' : 'Habla solo con los fantasmas…'}
+              placeholder={alive ? tr('Escribe un mensaje…') : tr('Habla solo con los fantasmas…')}
               autoComplete="off"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -139,7 +140,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
               className={`${BTN} shrink-0`}
               onClick={() => { if (text.trim()) { onChat(text.trim()); setText(''); } }}
             >
-              Enviar
+              {tr('Enviar')}
             </button>
           </div>
         </div>
@@ -150,8 +151,8 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
           <>
             {judge && jUsed ? null : (
               <>
-                <button className={BTN} disabled={!canVote} onClick={send}>Confirmar voto</button>
-                <button className={BTN_ALT} disabled={!votable} onClick={skip}>Saltar voto</button>
+                <button className={BTN} disabled={!canVote} onClick={send}>{tr('Confirmar voto')}</button>
+                <button className={BTN_ALT} disabled={!votable} onClick={skip}>{tr('Saltar voto')}</button>
               </>
             )}
             {judge && !judgeUsed && !jUsed && voting && sel && !voted ? (
@@ -159,23 +160,23 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
                 className="rounded-xl bg-[#7b3f00] px-4 py-2.5 font-bold text-[#ffe3a3] transition hover:brightness-110"
                 onClick={() => { if (!sel) return; sfx('vote'); onJudge(sel); setJUsed(true); }}
               >
-                ⚖ Juzgar (1 uso)
+                {tr('⚖ Juzgar (1 uso)')}
               </button>
             ) : null}
           </>
         ) : null}
         <span className="max-w-[440px] text-center text-[#9bb8a6]">
           {!alive
-            ? 'Eres un fantasma: no votas, y tu chat solo lo ven los demás muertos.'
+            ? tr('Eres un fantasma: no votas, y tu chat solo lo ven los demás muertos.')
             : judge && jUsed
-              ? 'Has usado tu sentencia en esta ronda. Tu decisión decide la expulsión.'
+              ? tr('Has usado tu sentencia en esta ronda. Tu decisión decide la expulsión.')
               : voted
-                ? 'Voto enviado. Esperando al resto…'
+                ? tr('Voto enviado. Esperando al resto…')
                 : voting
                   ? judgeUsed
-                    ? 'Tu sentencia ya está gastada: en esta ronda votas como uno más.'
-                    : 'Elige a un jugador o salta el voto.'
-                  : 'En la deliberación nadie puede votar todavía.'}
+                    ? tr('Tu sentencia ya está gastada: en esta ronda votas como uno más.')
+                    : tr('Elige a un jugador o salta el voto.')
+                  : tr('En la deliberación nadie puede votar todavía.')}
         </span>
       </div>
     </div>

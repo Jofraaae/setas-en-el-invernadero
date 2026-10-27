@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { clamp } from '@/lib/game/grid';
 import { sfx } from '@/lib/game/sound';
 import { BTN } from './ui';
+import { tr } from '@/lib/i18n';
 
 export default function Hold({ onFinish }) {
   const [v, setV] = useState(0);
@@ -19,7 +20,7 @@ export default function Hold({ onFinish }) {
   }, [onFinish]);
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Mantén pulsado hasta llenar el medidor.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Mantén pulsado hasta llenar el medidor.')}</p>
       <div className="h-5 w-full overflow-hidden rounded-[10px] bg-[#0f211a]">
         <div className="h-full bg-[#80ed99]" style={{ width: `${v * 100}%` }} />
       </div>
@@ -30,7 +31,7 @@ export default function Hold({ onFinish }) {
         onPointerUp={() => { held.current = false; }}
         onPointerCancel={() => { held.current = false; }}
       >
-        MANTÉN PULSADO
+        {tr('MANTÉN PULSADO')}
       </button>
     </>
   );

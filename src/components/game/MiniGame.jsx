@@ -23,6 +23,7 @@ import Brew from './minigames/Brew';
 import Sprout from './minigames/Sprout';
 import Count from './minigames/Count';
 import Scramble from './minigames/Scramble';
+import { tr } from '@/lib/i18n';
 
 const GAMES = {
   seq: Seq,
@@ -56,9 +57,9 @@ export default function MiniGame({ task, onFinish, onCancel }) {
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
       <div className="flex w-full max-w-[420px] flex-col items-center gap-3.5 rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-5">
-        <h3 className="text-lg font-extrabold text-[#eaf5ec]">{task.name}</h3>
+        <h3 className="text-lg font-extrabold text-[#eaf5ec]">{tr(task.name)}</h3>
         <Game onFinish={() => { sfx('miniDone'); onFinish(); }} />
-        <button className={BTN_ALT} onClick={() => { sfx('back'); onCancel(); }}>Cancelar</button>
+        <button className={BTN_ALT} onClick={() => { sfx('back'); onCancel(); }}>{tr('Cancelar')}</button>
       </div>
     </div>
   );

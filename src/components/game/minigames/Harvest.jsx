@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr, trMark, trNodes } from '@/lib/i18n';
 
 const ROUNDS = 3;
 const CELLS = 25;
 const KINDS = [
-  { name: 'rojas', color: '#e63946' },
-  { name: 'verdes', color: '#80ed99' },
-  { name: 'azules', color: '#4cc9f0' },
+  { name: trMark('rojas'), color: '#e63946' },
+  { name: trMark('verdes'), color: '#80ed99' },
+  { name: trMark('azules'), color: '#4cc9f0' },
 ];
 
 /* Tablero de una ronda: las tres variedades mezcladas y unos huecos vacíos.
@@ -54,7 +55,7 @@ export default function Harvest({ onFinish }) {
   return (
     <>
       <p className="text-sm text-[#9bb8a6]">
-        Recoge solo las setas <b style={{ color: kind.color }}>{kind.name}</b> ({found.size}/{data.nTarget}).
+        {trNodes('Recoge solo las setas {color} ({a}/{b}).', { color: <b style={{ color: kind.color }}>{tr(kind.name)}</b>, a: found.size, b: data.nTarget })}
       </p>
       <div key={round} className={`grid grid-cols-5 gap-1.5 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {data.board.map((k, i) => (
@@ -82,7 +83,7 @@ export default function Harvest({ onFinish }) {
         ))}
       </div>
       <p className="text-xs text-[#9bb8a6]">
-        Ronda {round + 1} de {ROUNDS}{bad ? ` · fallos: ${bad}` : ''}
+        {tr('Ronda {a} de {b}', { a: round + 1, b: ROUNDS })}{bad ? ' · ' + tr('fallos: {n}', { n: bad }) : ''}
       </p>
     </>
   );

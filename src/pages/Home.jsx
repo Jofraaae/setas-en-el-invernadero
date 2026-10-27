@@ -21,6 +21,8 @@ import ShiftPicker from '@/components/game/ShiftPicker';
 import ScientistPanel from '@/components/game/ScientistPanel';
 import MapOverlay from '@/components/game/MapOverlay';
 import SoundToggle from '@/components/game/SoundToggle';
+import { tr, tServer, useLang } from '@/lib/i18n';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const DEATH_MS = 2400; // duración de la animación privada de muerte
 const CONNECT_MS = 12000; // si la sala no contesta, se avisa en vez de dejar el menú bloqueado
@@ -41,6 +43,7 @@ function getConnId() {
 }
 
 export default function Home() {
+  useLang(); // al cambiar de idioma se vuelve a pintar toda la pantalla
   const { toast } = useToast();
   const [screen, setScreen] = useState('menu');
   const [name, setName] = useState(() => { try { return localStorage.getItem('setas_name') || ''; } catch (e) { return ''; } });
@@ -297,11 +300,11 @@ export default function Home() {
     if (!prevRx && g.st.rx) {
       loop('reactor');
       sfx('alert');
-      toast({ description: '¡Reactor inestable! Dos jugadores deben mantener las consolas A y B.', duration: 5000 });
+      toast({ description: tr('¡Reactor inestable! Dos jugadores deben mantener las consolas A y B.'), duration: 5000 });
     } else if (prevRx && !g.st.rx) {
       stopLoop('reactor');
       sfx('fixed');
-      toast({ description: 'Reactor estabilizado.' });
+      toast({ description: tr('Reactor estabilizado.') });
     }
     // apagón: zumbido grave mientras dura, y chispa al volver la luz
     if (!prevDark && m.dark) loop('blackout');
@@ -343,17 +346,17 @@ export default function Home() {
       if (screenRef.current !== 'menu') return;
       closeConn();
       setBusy(false);
-      setError('No se ha podido conectar con la sala. Inténtalo otra vez.');
+      setError(tr('No se ha podido conectar con la sala. Inténtalo otra vez.'));
     }, CONNECT_MS);
     try {
       const conn = connectRoom(roomCode, { id: getConnId() });
       connRef.current = conn;
       subRef.current = conn.subscribe((m) => handlerRef.current(m));
-      conn.send({ t: kind, name: name || 'Seta', code: roomCode });
+      conn.send({ t: kind, name: name || tr('Seta'), code: roomCode });
     } catch (e) {
       closeConn();
       setBusy(false);
-      setError('No se ha podido conectar con la sala.');
+      setError(tr('No se ha podido conectar con la sala.'));
     }
   }, [closeConn, name]);
 
@@ -366,7 +369,7 @@ export default function Home() {
     if (Date.now() - resumedAt.current < 3000) return;
     resumedAt.current = Date.now();
     connRef.current.send({ t: 'ping' });
-    connRef.current.send({ t: 'join', name: name || 'Seta', code });
+    connRef.current.send({ t: 'join', name: name || tr('Seta'), code });
   }, [code, name]);
 
   const revealDone = useCallback(() => {
@@ -425,20 +428,20 @@ export default function Home() {
         if (connectTimer.current) { clearTimeout(connectTimer.current); connectTimer.current = null; }
         sfx('deny');
         if (screenRef.current === 'menu') {
-          toast({ description: m.msg });
+          toast({ description: tServer(m.msg) });
           setBusy(false);
-          setError(m.msg);
+          setError(tServer(m.msg));
           closeConn();
           break;
         }
         // La sala ya no te tiene (te soltó mientras la pestaña estaba parada): se vuelve al
         // menú con el código puesto y se entra otra vez sin recargar la página.
         if (m.out) {
-          toast({ description: 'Te has quedado fuera de la sala: vuelve a entrar con el código.' });
+          toast({ description: tr('Te has quedado fuera de la sala: vuelve a entrar con el código.') });
           leave();
           break;
         }
-        toast({ description: m.msg });
+        toast({ description: tServer(m.msg) });
         break;
       }
       case 'joined':
@@ -486,13 +489,13 @@ export default function Home() {
         sfx(m.on ? 'taskOpen' : m.empty ? 'miss' : 'back');
         setSci(!!m.on);
         g.inputLock = g.miniOpen;
-        if (m.empty) toast({ description: 'Batería del panel agotada: ya no puedes volver a abrirlo.', duration: 7000 });
+        if (m.empty) toast({ description: tr('Batería del panel agotada: ya no puedes volver a abrirlo.'), duration: 7000 });
         break;
       }
       case 'taskAck':
         g.done.add(m.id);
         setDoneIds([...g.done]);
-        toast({ description: 'Tarea completada' });
+        toast({ description: tr('Tarea completada') });
         break;
       case 'died': {
         // la muerte manda: se corta el minijuego, la interacción y el movimiento al instante
@@ -507,11 +510,11 @@ export default function Home() {
         setMini(null);
         setShiftPick(null);
         setSci(false);
-        setDeath({ name: m.name || 'Alguien', color: m.color || '#e63946' });
+        setDeath({ name: m.name || tr('Alguien'), color: m.color || '#e63946' });
         // el rol de Ángel Guardián no se conoce en vida: se descubre aquí, al morir
         if (m.angel) {
           g.angel = true;
-          toast({ description: '¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.', duration: 9000 });
+          toast({ description: tr('¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.'), duration: 9000 });
         }
         window.setTimeout(() => {
           setDeath(null);
@@ -522,13 +525,13 @@ export default function Home() {
       case 'angelOn':
         // expulsado en una votación: también ahora descubre que es el Ángel Guardián
         g.angel = true;
-        toast({ description: '¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.', duration: 9000 });
+        toast({ description: tr('¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.'), duration: 9000 });
         break;
       case 'alertDeath': {
         // el Alertador ha caído: todos ven una flecha que señala su cuerpo
         sfx('alert');
         g.alert = { x: m.x, y: m.y, color: m.color, expire: performance.now() + (m.ms || 10000) };
-        toast({ description: '¡El Alertador ha caído! Sigue la flecha hasta su cuerpo.', duration: 6000 });
+        toast({ description: tr('¡El Alertador ha caído! Sigue la flecha hasta su cuerpo.'), duration: 6000 });
         break;
       }
       case 'doorFx':
@@ -548,25 +551,25 @@ export default function Home() {
         // el Ángel Guardián ha escudado a alguien: el escudo asoma un instante donde estaba
         sfx('fixed');
         g.saves = [...(g.saves || []).filter((sv) => performance.now() - sv.at < 2200), { x: m.x, y: m.y, at: performance.now() }];
-        if (m.by === g.myId) toast({ description: 'Estaba protegido: la muerte no entra. Tardas 10 s en volver a eliminar.', duration: 6000 });
+        if (m.by === g.myId) toast({ description: tr('Estaba protegido: la muerte no entra. Tardas 10 s en volver a eliminar.'), duration: 6000 });
         break;
       }
       case 'guardAck':
         // solo lo sabe el Ángel: el protegido no recibe ningún aviso
         sfx('miniDone');
-        toast({ description: `Escudo listo: aguanta un intento de muerte durante ${Math.round((m.ms || 0) / 1000)} s.`, duration: 5000 });
+        toast({ description: tr('Escudo listo: aguanta un intento de muerte durante {s} s.', { s: Math.round((m.ms || 0) / 1000) }), duration: 5000 });
         break;
       case 'interroAck':
         // la sala confirma la consulta: el informe llega en la próxima reunión
         g.detectiveUsed = true;
         g.interroName = m.name || '';
         sfx('miniDone');
-        toast({ description: `Has interrogado a ${m.name}. En la próxima reunión sabrás si es tripulante o impostor.`, duration: 8000 });
+        toast({ description: tr('Has interrogado a {name}. En la próxima reunión sabrás si es tripulante o impostor.', { name: m.name }), duration: 8000 });
         break;
       case 'trackAck':
         // la sala confirma el localizador: su posición se ve en el mapa mientras dure
         sfx('switch');
-        toast({ description: `Localizador puesto en ${m.name}: lo verás en el mapa ${Math.round((m.ms || 0) / 1000)} s.`, duration: 6000 });
+        toast({ description: tr('Localizador puesto en {name}: lo verás en el mapa {s} s.', { name: m.name, s: Math.round((m.ms || 0) / 1000) }), duration: 6000 });
         break;
       case 'trkOff':
         // el jugador que llevabas localizado ha caído: el localizador se apaga al instante
@@ -580,19 +583,19 @@ export default function Home() {
       case 'kicked': {
         // el anfitrión te ha echado de la sala de espera: se vuelve al menú limpio
         sfx('deny');
-        toast({ description: m.ban ? 'El anfitrión te ha baneado: no puedes volver a esta sala.' : 'El anfitrión te ha expulsado. Puedes volver a entrar con el código.' });
+        toast({ description: m.ban ? tr('El anfitrión te ha baneado: no puedes volver a esta sala.') : tr('El anfitrión te ha expulsado. Puedes volver a entrar con el código.') });
         leave();
         break;
       }
       case 'left': {
-        const gone = (g.roster.get(m.id) || {}).name || 'Alguien';
+        const gone = (g.roster.get(m.id) || {}).name || tr('Alguien');
         g.gone.add(m.id);
         g.hostId = m.hostId;
         setHostId(m.hostId);
         g.others.delete(m.id);
         sfx('leave');
         setMeeting((mt) => (mt ? { ...mt, players: mt.players.filter((p) => p.id !== m.id) } : mt));
-        toast({ description: m.ban ? `${gone} ha sido baneado de esta sala` : m.kicked ? `${gone} ha sido expulsado` : `${gone} se ha desconectado` });
+        toast({ description: m.ban ? tr('{name} ha sido baneado de esta sala', { name: gone }) : m.kicked ? tr('{name} ha sido expulsado', { name: gone }) : tr('{name} se ha desconectado', { name: gone }) });
         break;
       }
       case 'meeting':
@@ -642,7 +645,7 @@ export default function Home() {
         // el servidor confirma que el Juez ha gastado su única sentencia
         g.judgeUsed = true;
         sfx('vote');
-        toast({ description: 'Has usado tu sentencia del Juez. Tu decisión decide la expulsión.' });
+        toast({ description: tr('Has usado tu sentencia del Juez. Tu decisión decide la expulsión.') });
         break;
       case 'shiftTargets':
         // la sala responde con quiénes se pueden imitar ahora mismo
@@ -721,7 +724,7 @@ export default function Home() {
     if (screenRef.current !== 'playing' || g.miniOpen) return;
     const c = contextOf(g);
     if (c.hold) { sfx('switch'); send({ t: 'hold', side: c.hold.side }); }
-    else if (c.panel) { sfx('taskOpen'); openMini({ id: -1, name: 'Reiniciar el cuadro eléctrico', game: 'switch', lights: true }); }
+    else if (c.panel) { sfx('taskOpen'); openMini({ id: -1, name: tr('Reiniciar el cuadro eléctrico'), game: 'switch', lights: true }); }
     else if (c.task) { sfx('taskOpen'); openMini(c.task); }
     else if (c.btn) { sfx('button'); send({ t: 'button' }); } // la sala confirma si tu reunión quedó gastada
   }, [g, openMini, send]);
@@ -930,9 +933,9 @@ export default function Home() {
     const link = /^https?:$/.test(window.location.protocol) ? `${base}?sala=${c}` : c;
     try {
       await navigator.clipboard.writeText(link);
-      toast({ description: 'Enlace copiado' });
+      toast({ description: tr('Enlace copiado') });
     } catch (e) {
-      toast({ description: `Código: ${c}` });
+      toast({ description: tr('Código: {c}', { c }) });
     }
   };
 
@@ -983,7 +986,7 @@ export default function Home() {
           onJoinRoom={(c) => dial('join', c)}
           onJoin={() => {
             const c = code.toUpperCase().trim();
-            if (c.length !== 4) { setError('Escribe el código de 4 letras.'); return; }
+            if (c.length !== 4) { setError(tr('Escribe el código de 4 letras.')); return; }
             dial('join', c);
           }}
         />
@@ -1034,6 +1037,7 @@ export default function Home() {
 
       {mini ? <MiniGame task={mini} onFinish={() => finishMini(mini)} onCancel={closeMini} /> : null}
       {death ? <DeathOverlay killer={death} /> : null}
+      <LanguageSwitcher compact={screen === 'playing'} />
       <SoundToggle />
     </div>
   );

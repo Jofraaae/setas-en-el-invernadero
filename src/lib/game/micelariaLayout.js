@@ -5,6 +5,7 @@
 
 import { MICELARIA_ART as ART } from '../../../server/mapMicelaria.mjs';
 import { blob, blade, dome, rr } from './micelariaArt';
+import { tr } from '@/lib/i18n';
 
 const TAU = Math.PI * 2;
 const { OUTDOORS, RIVER, POND, DOOR_DEFS, PATHS, CAPTIONS, WATERS, PLAZA, PLAZA_R, S, WORLD } = ART;
@@ -270,7 +271,7 @@ function plaza(c, r) {
   // la leyenda, grabada en el primer escalón
   c.save();
   c.font = '800 15px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  const txt = 'ASAMBLEA · ASAMBLEA · ASAMBLEA · ';
+  const txt = `${tr('ASAMBLEA')} · `.repeat(3);
   const rad = 101;
   c.fillStyle = 'rgba(40,34,22,.7)';
   for (let i = 0; i < txt.length; i++) {
@@ -423,9 +424,10 @@ function zones(c, r) {
 function captions(c) {
   c.font = '700 26px system-ui'; c.textAlign = 'center';
   for (const t of CAPTIONS) {
-    const tw = c.measureText(t.name).width;
+    const label = tr(t.name);
+    const tw = c.measureText(label).width;
     c.fillStyle = 'rgba(20,38,20,.4)'; rr(c, t.x - tw / 2 - 16, t.y - 23, tw + 32, 32, 8); c.fill();
-    c.fillStyle = 'rgba(255,250,228,.7)'; c.fillText(t.name, t.x, t.y);
+    c.fillStyle = 'rgba(255,250,228,.7)'; c.fillText(label, t.x, t.y);
   }
 }
 

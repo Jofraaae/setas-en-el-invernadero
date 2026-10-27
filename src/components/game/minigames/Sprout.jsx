@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const GOAL = 6;
 const CELLS = 9;
@@ -55,7 +56,7 @@ export default function Sprout({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Toca los brotes 🌱 antes de que se escondan. ¡Con las piedras no!</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Toca los brotes 🌱 antes de que se escondan. ¡Con las piedras no!')}</p>
       <div key={bad} className={`grid grid-cols-3 gap-2.5 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {Array.from({ length: CELLS }, (_, i) => (
           <button

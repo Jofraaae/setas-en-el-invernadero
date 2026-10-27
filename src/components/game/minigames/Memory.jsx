@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
+import { tr } from '@/lib/i18n';
 
 const COLS = ['#e63946', '#4cc9f0', '#80ed99', '#e9c46a'];
 
@@ -46,7 +47,7 @@ export default function Memory({ onFinish }) {
   return (
     <>
       <p className="text-sm text-[#9bb8a6]">
-        {watch ? 'Memoriza la secuencia de luces…' : 'Repite la secuencia.'}
+        {watch ? tr('Memoriza la secuencia de luces…') : tr('Repite la secuencia.')}
       </p>
       <div key={bad} className={`grid grid-cols-2 gap-3 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {COLS.map((c, i) => (

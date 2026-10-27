@@ -1,4 +1,5 @@
 import MiniShroom from './MiniShroom';
+import { tr } from '@/lib/i18n';
 
 export default function EndScreen({ end, isHost, onAgain }) {
   const crewWin = end.winner === 'crew';
@@ -9,8 +10,8 @@ export default function EndScreen({ end, isHost, onAgain }) {
     >
       <h1 className="end-title text-center text-[clamp(22px,5vw,38px)] font-black tracking-tight">
         {crewWin
-          ? <span className="text-[#80ed99]">¡Ganan los TRIPULANTES!</span>
-          : <span className="text-[#ff7b86]">¡Ganan los IMPOSTORES!</span>}
+          ? <span className="text-[#80ed99]">{tr('¡Ganan los TRIPULANTES!')}</span>
+          : <span className="text-[#ff7b86]">{tr('¡Ganan los IMPOSTORES!')}</span>}
       </h1>
       <div className="flex max-w-[640px] flex-wrap justify-center gap-2">
         {end.roles.map((r, i) => (
@@ -25,8 +26,8 @@ export default function EndScreen({ end, isHost, onAgain }) {
             <b>{r.name}</b>
             <span className={r.role === 'impostor' ? 'font-bold text-[#ff7b86]' : 'text-[#9bb8a6]'}>
               {r.role === 'impostor'
-                ? (r.spectre ? 'Impostor · Espectro' : r.viper ? 'Impostor · Víbora' : r.shifter ? 'Impostor · Cambiaformas' : 'Impostor')
-                : (r.engineer ? 'Tripulante · Ingeniero' : r.alerter ? 'Tripulante · Alertador' : r.judge ? 'Tripulante · Juez' : r.angel ? 'Tripulante · Ángel Guardián' : r.scientist ? 'Tripulante · Científico' : r.detective ? 'Tripulante · Detective' : r.tracker ? 'Tripulante · Localizador' : 'Tripulante')}
+                ? (r.spectre ? tr('Impostor · Espectro') : r.viper ? tr('Impostor · Víbora') : r.shifter ? tr('Impostor · Cambiaformas') : tr('Impostor'))
+                : (r.engineer ? tr('Tripulante · Ingeniero') : r.alerter ? tr('Tripulante · Alertador') : r.judge ? tr('Tripulante · Juez') : r.angel ? tr('Tripulante · Ángel Guardián') : r.scientist ? tr('Tripulante · Científico') : r.detective ? tr('Tripulante · Detective') : r.tracker ? tr('Tripulante · Localizador') : tr('Tripulante'))}
             </span>
           </div>
         ))}
@@ -36,10 +37,10 @@ export default function EndScreen({ end, isHost, onAgain }) {
           className="rounded-xl bg-[#e9c46a] px-4 py-3 font-bold text-[#261c05] transition hover:brightness-110"
           onClick={onAgain}
         >
-          Volver a la sala
+          {tr('Volver a la sala')}
         </button>
       ) : null}
-      <p className="text-[#9bb8a6]">{isHost ? '' : 'Esperando a que el anfitrión vuelva a la sala…'}</p>
+      <p className="text-[#9bb8a6]">{isHost ? '' : tr('Esperando a que el anfitrión vuelva a la sala…')}</p>
     </div>
   );
 }

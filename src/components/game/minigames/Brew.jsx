@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr, trMark } from '@/lib/i18n';
 
 // Ingredientes de la aldea: se enseña la receta un momento y hay que recrearla de memoria.
 const ING = [
-  { id: 'seta', e: '🍄', n: 'Seta' },
-  { id: 'hierba', e: '🌿', n: 'Hierba' },
-  { id: 'miel', e: '🍯', n: 'Miel' },
-  { id: 'rocio', e: '💧', n: 'Rocío' },
-  { id: 'flor', e: '🌸', n: 'Flor' },
-  { id: 'brasa', e: '🔥', n: 'Brasa' },
-  { id: 'baya', e: '🫐', n: 'Baya' },
-  { id: 'nuez', e: '🌰', n: 'Nuez' },
+  { id: 'seta', e: '🍄', n: trMark('Seta') },
+  { id: 'hierba', e: '🌿', n: trMark('Hierba') },
+  { id: 'miel', e: '🍯', n: trMark('Miel') },
+  { id: 'rocio', e: '💧', n: trMark('Rocío') },
+  { id: 'flor', e: '🌸', n: trMark('Flor') },
+  { id: 'brasa', e: '🔥', n: trMark('Brasa') },
+  { id: 'baya', e: '🫐', n: trMark('Baya') },
+  { id: 'nuez', e: '🌰', n: trMark('Nuez') },
 ];
 const SHOW_MS = 3600;
 
@@ -48,7 +49,7 @@ export default function Brew({ onFinish }) {
   return (
     <>
       <p className="text-sm text-[#9bb8a6]">
-        {phase === 'show' ? 'Memoriza la receta…' : 'Echa al caldero los tres ingredientes.'}
+        {phase === 'show' ? tr('Memoriza la receta…') : tr('Echa al caldero los tres ingredientes.')}
       </p>
       <div key={bad} className={`flex h-[72px] items-center justify-center gap-3 rounded-xl bg-[#0f211a] px-4 ring-2 ring-[#2f5a48] ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {phase === 'show'
@@ -74,7 +75,7 @@ export default function Brew({ onFinish }) {
             className={`flex h-[58px] w-[62px] flex-col items-center justify-center rounded-xl bg-[#0f211a] ring-2 transition hover:brightness-125 ${pot.includes(i.id) ? 'opacity-40 ring-[#e9c46a]' : 'ring-[#2f5a48]'}`}
           >
             <span className="text-2xl">{phase === 'pick' ? i.e : '❔'}</span>
-            <span className="text-[10px] text-[#9bb8a6]">{phase === 'pick' ? i.n : ''}</span>
+            <span className="text-[10px] text-[#9bb8a6]">{phase === 'pick' ? tr(i.n) : ''}</span>
           </button>
         ))}
       </div>

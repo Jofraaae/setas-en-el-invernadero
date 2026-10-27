@@ -10,6 +10,7 @@ import {
   MICELARIA_FOREST_WALL, MICELARIA_OBST_EXTRA, MICELARIA_PROPS_EXTRA, micelariaGround,
 } from './micelariaNature';
 import { VILLAGE_TEX, VILLAGE_OBST, VILLAGE_PROPS, villageDecor, villageOverlay } from './micelariaVillage';
+import { tr } from '@/lib/i18n';
 
 function rr(c, x, y, w, h, r) {
   c.beginPath();
@@ -413,7 +414,7 @@ function drawPanel(c, p) {
   c.font = '800 11px system-ui';
   c.textAlign = 'center';
   c.fillStyle = 'rgba(255,255,255,.75)';
-  c.fillText('LUCES', 0, 42);
+  c.fillText(tr('LUCES'), 0, 42);
   c.restore();
 }
 
@@ -520,7 +521,7 @@ function drawReactor(c, core, pts) {
     c.font = '800 12px system-ui';
     c.textAlign = 'center';
     c.fillStyle = 'rgba(255,255,255,.7)';
-    c.fillText('REACTOR', 0, 42);
+    c.fillText(tr('REACTOR'), 0, 42);
     c.restore();
   }
   for (const pt of pts || []) drawConsole(c, pt);
@@ -683,12 +684,13 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
     const o = f[7] || {};
     const lx = o.label ? o.label[0] : x + w / 2;
     const ly = o.label ? o.label[1] : y + h - 23;
-    const tw = c.measureText(name).width;
+    const label = tr(name);
+    const tw = c.measureText(label).width;
     c.fillStyle = A.labelBg;
     rr(c, lx - tw / 2 - 18, ly - 25, tw + 36, 34, 8);
     c.fill();
     c.fillStyle = A.labelFg;
-    c.fillText(name, lx, ly);
+    c.fillText(label, lx, ly);
   }
 
   // botón de emergencia

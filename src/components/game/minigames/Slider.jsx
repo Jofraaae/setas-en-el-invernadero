@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr, trMark } from '@/lib/i18n';
 
 const TOL = 3;
-const LABELS = ['Humedad', 'pH del sustrato', 'Temperatura'];
+const LABELS = [trMark('Humedad'), trMark('pH del sustrato'), trMark('Temperatura')];
 
 export default function Slider({ onFinish }) {
   const targets = useMemo(() => shuffle([14, 27, 38, 49, 61, 72, 83, 91]).slice(0, LABELS.length), []);
@@ -23,15 +24,15 @@ export default function Slider({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Desliza cada medidor hasta la marca verde.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Desliza cada medidor hasta la marca verde.')}</p>
       {LABELS.map((label, i) => {
         const ok = Math.abs(vals[i] - targets[i]) <= TOL;
         return (
           <div key={label} className="w-full">
             <div className="flex justify-between text-xs font-bold">
-              <span className="text-[#9bb8a6]">{label}</span>
+              <span className="text-[#9bb8a6]">{tr(label)}</span>
               <span className={ok ? 'text-[#80ed99]' : 'text-[#e9c46a]'}>
-                {vals[i]}% · marca {targets[i]}%
+                {tr('{v}% · marca {t}%', { v: vals[i], t: targets[i] })}
               </span>
             </div>
             <div className="relative mt-1 h-3.5 w-full overflow-hidden rounded-full bg-[#0f211a]">

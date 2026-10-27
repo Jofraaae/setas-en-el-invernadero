@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 export default function Seq({ onFinish }) {
   const order = useMemo(() => shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]), []);
@@ -19,7 +20,7 @@ export default function Seq({ onFinish }) {
   };
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Abre las válvulas en orden, del 1 al 9.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Abre las válvulas en orden, del 1 al 9.')}</p>
       <div key={bad} className={`grid w-full grid-cols-3 gap-2.5 ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {order.map((n) => (
           <button

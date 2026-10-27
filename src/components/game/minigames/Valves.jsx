@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { BTN_ALT, randInt } from './ui';
+import { tr } from '@/lib/i18n';
 
 const VALS = [7, 13, 23, 41];
 const BAND = 4;    // media anchura de la banda verde
@@ -67,13 +68,13 @@ export default function Valves({ onFinish }) {
   return (
     <>
       <p className="text-center text-sm text-[#9bb8a6]">
-        Sube la presión a la banda verde y aguanta 3 s dentro: se escapa sola, así que hay que ir corrigiéndola.
+        {tr('Sube la presión a la banda verde y aguanta 3 s dentro: se escapa sola, así que hay que ir corrigiéndola.')}
       </p>
       <div className="w-full">
         <div className="flex justify-between text-xs font-bold">
-          <span className="text-[#9bb8a6]">Presión</span>
+          <span className="text-[#9bb8a6]">{tr('Presión')}</span>
           <span className={inBand ? 'text-[#80ed99]' : 'text-[#e9c46a]'}>
-            {Math.round(p)}% · banda {target - BAND}–{target + BAND}%
+            {tr('{p}% · banda {a}–{b}%', { p: Math.round(p), a: target - BAND, b: target + BAND })}
           </span>
         </div>
         <div className="relative mt-1 h-6 w-full overflow-hidden rounded-lg bg-[#0f211a]">
@@ -84,7 +85,7 @@ export default function Valves({ onFinish }) {
           <div className="absolute inset-y-0 w-[4px] bg-[#e9c46a]" style={{ left: `${Math.min(99, p)}%` }} />
         </div>
         <div className="mt-2 flex justify-between text-xs font-bold">
-          <span className="text-[#9bb8a6]">Estabilizando</span>
+          <span className="text-[#9bb8a6]">{tr('Estabilizando')}</span>
           <span className={inBand ? 'text-[#80ed99]' : 'text-[#5d7568]'}>{Math.round((hold / HOLD) * 100)}%</span>
         </div>
         <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-black/30">
@@ -103,10 +104,10 @@ export default function Valves({ onFinish }) {
         ))}
       </div>
       <button className={BTN_ALT} onClick={purge} disabled={!p}>
-        Purgar
+        {tr('Purgar')}
       </button>
       <p className="text-xs text-[#9bb8a6]">
-        Pasando de 100% salta la válvula de seguridad y se vacía el circuito.{trips ? ` Saltos: ${trips}.` : ''}
+        {tr('Pasando de 100% salta la válvula de seguridad y se vacía el circuito.')}{trips ? ' ' + tr('Saltos: {n}.', { n: trips }) : ''}
       </p>
     </>
   );

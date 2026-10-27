@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { BTN, shuffle } from './ui';
+import { tr } from '@/lib/i18n';
 
 const WORDS = ['SHIITAKE', 'PORTABELLO', 'MAITAKE', 'SHIMEJI', 'REISHI', 'BOLETUS', 'ENOKI', 'TRUFA NEGRA', 'PIE AZUL', 'NÍSCALO'];
 const NEED = 3;
@@ -31,7 +32,7 @@ export default function Type({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Copia el nombre de cada variedad en su etiqueta.</p>
+      <p className="text-sm text-[#9bb8a6]">{tr('Copia el nombre de cada variedad en su etiqueta.')}</p>
       <div className="rounded-xl bg-[#0f211a] px-4 py-3 text-xl font-black tracking-[2px] text-[#80ed99]">
         {words[i]}
       </div>
@@ -39,7 +40,7 @@ export default function Type({ onFinish }) {
         <input
           ref={inp}
           value={text}
-          placeholder={`Etiqueta ${i + 1} de ${NEED}`}
+          placeholder={tr('Etiqueta {a} de {b}', { a: i + 1, b: NEED })}
           autoComplete="off"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') check(); }}
@@ -48,9 +49,9 @@ export default function Type({ onFinish }) {
         <button className={BTN} onClick={check}>OK</button>
       </div>
       {bad ? (
-        <p key={bad} className="animate-[shake_.25s] text-xs font-bold text-[#ff8a8a]">No coincide, inténtalo otra vez.</p>
+        <p key={bad} className="animate-[shake_.25s] text-xs font-bold text-[#ff8a8a]">{tr('No coincide, inténtalo otra vez.')}</p>
       ) : (
-        <p className="text-xs text-[#9bb8a6]">Escribe el nombre y pulsa OK (o Enter).</p>
+        <p className="text-xs text-[#9bb8a6]">{tr('Escribe el nombre y pulsa OK (o Enter).')}</p>
       )}
     </>
   );

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { randInt } from './ui';
+import { tr } from '@/lib/i18n';
 
 const N = 3;
 const SOLVED = ['1', '2', '3', '4', '5', '6', '7', '8', '.'];
@@ -63,7 +64,7 @@ export default function Puzzle({ onFinish }) {
   return (
     <>
       <p className="text-center text-sm text-[#9bb8a6]">
-        Desliza los frascos al hueco vacío hasta dejarlos ordenados del 1 al 8.
+        {tr('Desliza los frascos al hueco vacío hasta dejarlos ordenados del 1 al 8.')}
       </p>
       <div className="grid w-full grid-cols-3 gap-2">
         {board.map((v, i) => {
@@ -87,7 +88,7 @@ export default function Puzzle({ onFinish }) {
         })}
       </div>
       <p className="text-xs text-[#9bb8a6]">
-        Movimientos: {moves} · los frascos ya colocados se marcan en verde
+        {tr('Movimientos: {n} · los frascos ya colocados se marcan en verde', { n: moves })}
       </p>
     </>
   );

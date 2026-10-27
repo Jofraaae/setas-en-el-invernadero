@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import MiniShroom from './MiniShroom';
+import { tr } from '@/lib/i18n';
 
 const S1_MS = 3200; // "El Juez ha hablado"
 const S2_MS = 5200; // sobre la pantalla del veredicto: sale volando quien paga la sentencia
@@ -25,16 +26,16 @@ export default function JudgeResultScreen({ result }) {
     >
       {stage === 1 ? (
         <div className="end-title flex flex-col items-center gap-4 text-center">
-          <div className="text-xs uppercase tracking-[0.35em] text-[#9bb8a6]">Sentencia del Juez</div>
+          <div className="text-xs uppercase tracking-[0.35em] text-[#9bb8a6]">{tr('Sentencia del Juez')}</div>
           <MiniShroom color={judge.judgeColor} size={92} />
-          <h1 className="text-[clamp(28px,6vw,54px)] font-black text-[#e9c46a]">El Juez ha hablado</h1>
-          <p className="max-w-[460px] text-[#cfe3d5]">La decisión del Juez pesa más que todos los demás votos.</p>
+          <h1 className="text-[clamp(28px,6vw,54px)] font-black text-[#e9c46a]">{tr('El Juez ha hablado')}</h1>
+          <p className="max-w-[460px] text-[#cfe3d5]">{tr('La decisión del Juez pesa más que todos los demás votos.')}</p>
         </div>
       ) : null}
 
       {stage === 2 ? (
         <div className="end-title flex flex-col items-center gap-4 text-center">
-          <h1 className="text-[clamp(28px,6vw,54px)] font-black text-[#e9c46a]">El veredicto es…</h1>
+          <h1 className="text-[clamp(28px,6vw,54px)] font-black text-[#e9c46a]">{tr('El veredicto es…')}</h1>
 
           {fly ? (
             <>
@@ -44,13 +45,13 @@ export default function JudgeResultScreen({ result }) {
                 </div>
               </div>
               <div className="end-row flex flex-col items-center gap-2">
-                <h2 className="text-2xl font-extrabold text-[#eaf5ec] md:text-3xl">Han expulsado a {ejected.name}</h2>
+                <h2 className="text-2xl font-extrabold text-[#eaf5ec] md:text-3xl">{tr('Han expulsado a {name}', { name: ejected.name })}</h2>
                 <p className={`text-xl font-extrabold ${ejected.wasImpostor ? 'text-[#ff7b86]' : 'text-[#80ed99]'}`}>
-                  {ejected.wasImpostor ? `${ejected.name} era el IMPOSTOR` : `${ejected.name} NO era un impostor`}
+                  {ejected.wasImpostor ? tr('{name} era el IMPOSTOR', { name: ejected.name }) : tr('{name} NO era un impostor', { name: ejected.name })}
                 </p>
                 {!judge.success ? (
                   <p className="max-w-[520px] font-bold text-[#ff7b86]">
-                    El Juez se equivocó: la sentencia cae sobre quien la dictó y se va él.
+                    {tr('El Juez se equivocó: la sentencia cae sobre quien la dictó y se va él.')}
                   </p>
                 ) : null}
               </div>

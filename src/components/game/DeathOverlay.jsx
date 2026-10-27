@@ -1,4 +1,5 @@
 import MiniShroom from './MiniShroom';
+import { tr } from '@/lib/i18n';
 
 /* Animación privada de muerte: solo la ve el jugador eliminado.
    Muestra el personaje de quien le ha matado y su nombre. */
@@ -18,13 +19,13 @@ export default function DeathOverlay({ killer }) {
         className="px-4 text-center text-[clamp(20px,4.4vw,36px)] font-black text-[#ff8a95]"
         style={{ textShadow: '0 3px 14px rgba(0,0,0,.8)', animation: 'deathText .5s ease-out .18s both' }}
       >
-        {killer.name} te ha matado
+        {tr('{name} te ha matado', { name: killer.name })}
       </div>
       <div
         className="text-sm font-bold tracking-wide text-[#c9a7ab]"
         style={{ animation: 'deathText .5s ease-out .5s both' }}
       >
-        Ahora eres un fantasma: sigue con tus misiones
+        {tr('Ahora eres un fantasma: sigue con tus misiones')}
       </div>
     </div>
   );

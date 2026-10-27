@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { shuffle } from './ui';
+import { tr, trMark, trNodes } from '@/lib/i18n';
 
 const COLORS = [
-  { id: 'roja', n: 'rojas', c: '#d9473f' },
-  { id: 'violeta', n: 'violetas', c: '#8a62c4' },
-  { id: 'dorada', n: 'doradas', c: '#e0a53a' },
+  { id: 'roja', n: trMark('rojas'), c: '#d9473f' },
+  { id: 'violeta', n: trMark('violetas'), c: '#8a62c4' },
+  { id: 'dorada', n: trMark('doradas'), c: '#e0a53a' },
 ];
 const ROUNDS = 3;
 const CELLS = 15;
@@ -49,7 +50,7 @@ export default function Count({ onFinish }) {
 
   return (
     <>
-      <p className="text-sm text-[#9bb8a6]">Cuenta las setas <b style={{ color: r.target.c }}>{r.target.n}</b> ({round + 1}/{ROUNDS}).</p>
+      <p className="text-sm text-[#9bb8a6]">{trNodes('Cuenta las setas {color} ({a}/{b}).', { color: <b style={{ color: r.target.c }}>{tr(r.target.n)}</b>, a: round + 1, b: ROUNDS })}</p>
       <div key={bad} className={`grid grid-cols-5 gap-2 rounded-xl bg-[#0f211a] p-3 ring-2 ring-[#2f5a48] ${bad ? 'animate-[shake_.25s]' : ''}`}>
         {r.cells.map((id, i) => (
           <span key={i} className="flex h-9 w-11 flex-col items-center justify-end">
