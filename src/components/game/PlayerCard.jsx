@@ -16,11 +16,12 @@ export default function PlayerCard({ player, me, host, isHost, onKick }) {
         {me ? '\u00a0' + tr('(tú)') : ''}
         {host ? ' 👑' : ''}
       </b>
+      {player.bot ? <span className="rounded-full bg-[#2f5a48] px-1.5 text-[10px] font-bold tracking-wide text-[#bfe3cf]">🤖 {tr('Bot')}</span> : null}
       {player.offline ? <span className="text-[11px] text-[#ff8a8a]">{tr('reconectando…')}</span> : null}
       {isHost && !me ? (
         <div className="mt-0.5 flex gap-1">
-          <button className={KICK} onClick={() => { sfx('deny'); onKick(player.id, 'kick'); }}>{tr('Expulsar')}</button>
-          <button className={BAN} onClick={() => { sfx('deny'); onKick(player.id, 'ban'); }}>{tr('Banear')}</button>
+          <button className={KICK} onClick={() => { sfx('deny'); onKick(player.id, 'kick'); }}>{player.bot ? tr('Quitar') : tr('Expulsar')}</button>
+          {player.bot ? null : <button className={BAN} onClick={() => { sfx('deny'); onKick(player.id, 'ban'); }}>{tr('Banear')}</button>}
         </div>
       ) : null}
     </div>

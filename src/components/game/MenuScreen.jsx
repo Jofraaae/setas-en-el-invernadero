@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import RoomList from './RoomList';
+import CreateRoomScreen from './CreateRoomScreen';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
 
@@ -9,6 +10,7 @@ const INPUT = 'w-full select-text rounded-xl border-2 border-[#2f5a48] bg-[#0f21
 
 export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoin, onJoinRoom, error, busy }) {
   const [rooms, setRooms] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   return (
     <div
@@ -32,8 +34,8 @@ export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoi
             value={name}
             onChange={(e) => onName(e.target.value)}
           />
-          <button className={BTN} onClick={() => { sfx('click'); onCreate(); }} disabled={busy}>
-            {busy ? tr('Conectando…') : tr('Crear sala')}
+          <button className={BTN} onClick={() => { sfx('click'); setCreating(true); }} disabled={busy}>
+            {tr('Crear sala')}
           </button>
           <button className={BTN_ALT} onClick={() => { sfx('click'); setRooms(true); }}>
             {tr('Ver salas activas')}
@@ -58,6 +60,15 @@ export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoi
           {tr('Mueve con WASD / flechas (o el joystick táctil). E = usar, Q = eliminar, R = reportar, X = apagón, V = rejilla (impostor), I = interrogar (detective). Si se te cae la conexión, vuelve a entrar con el mismo código: recuperas tu sitio y tu rol.')}
         </p>
       </div>
+
+      {creating ? (
+        <CreateRoomScreen
+          busy={busy}
+          error={error}
+          onBack={() => setCreating(false)}
+          onCreate={onCreate}
+        />
+      ) : null}
 
       {rooms ? (
         <RoomList

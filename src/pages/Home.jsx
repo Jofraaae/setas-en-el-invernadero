@@ -21,7 +21,7 @@ import ShiftPicker from '@/components/game/ShiftPicker';
 import ScientistPanel from '@/components/game/ScientistPanel';
 import MapOverlay from '@/components/game/MapOverlay';
 import SoundToggle from '@/components/game/SoundToggle';
-import { tr, tServer, useLang } from '@/lib/i18n';
+import { tr, tServer, useLang, getLang } from '@/lib/i18n';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const DEATH_MS = 2400; // duración de la animación privada de muerte
@@ -43,7 +43,7 @@ function getConnId() {
 }
 
 export default function Home() {
-  useLang(); // al cambiar de idioma se vuelve a pintar toda la pantalla
+  const { lang } = useLang(); // al cambiar de idioma se vuelve a pintar toda la pantalla
   const { toast } = useToast();
   const [screen, setScreen] = useState('menu');
   const [name, setName] = useState(() => { try { return localStorage.getItem('setas_name') || ''; } catch (e) { return ''; } });
@@ -335,10 +335,10 @@ export default function Home() {
     for (const id of [...g.others.keys()]) if (!seen.has(id)) g.others.delete(id);
   }, [g]);
 
-  const dial = useCallback((kind, roomCode, tries = 0) => {
+  const dial = useCallback((kind, roomCode, tries = 0, opts = null) => {
     setError('');
     setBusy(true);
-    attemptRef.current = { kind, tries };
+    attemptRef.current = { kind, tries, opts };
     try { localStorage.setItem('setas_name', name); } catch (e) { /* sin permisos */ }
     closeConn();
     // Si la sala no responde, el menú se libera en vez de quedarse en "Conectando…".
@@ -352,7 +352,8 @@ export default function Home() {
       const conn = connectRoom(roomCode, { id: getConnId() });
       connRef.current = conn;
       subRef.current = conn.subscribe((m) => handlerRef.current(m));
-      conn.send({ t: kind, name: name || tr('Seta'), code: roomCode });
+      // al crear van también el aforo, el mapa y el tipo de sala; siempre, el idioma (para el chat de los bots)
+      conn.send({ t: kind, name: name || tr('Seta'), code: roomCode, lang: getLang(), ...(kind === 'create' && opts ? opts : {}) });
     } catch (e) {
       closeConn();
       setBusy(false);
@@ -369,7 +370,7 @@ export default function Home() {
     if (Date.now() - resumedAt.current < 3000) return;
     resumedAt.current = Date.now();
     connRef.current.send({ t: 'ping' });
-    connRef.current.send({ t: 'join', name: name || tr('Seta'), code });
+    connRef.current.send({ t: 'join', name: name || tr('Seta'), code, lang: getLang() });
   }, [code, name]);
 
   const revealDone = useCallback(() => {
@@ -422,7 +423,7 @@ export default function Home() {
     switch (m.t) {
       case 'error': {
         if (attemptRef.current && attemptRef.current.kind === 'create' && attemptRef.current.tries < 6 && /ocupado/i.test(m.msg)) {
-          dial('create', randCode(), attemptRef.current.tries + 1);
+          dial('create', randCode(), attemptRef.current.tries + 1, attemptRef.current.opts);
           return;
         }
         if (connectTimer.current) { clearTimeout(connectTimer.current); connectTimer.current = null; }
@@ -925,6 +926,11 @@ export default function Home() {
     };
   }, [screen, code, hostId, g, lobbyCount, lobbyMin, lobbyMax]);
 
+  // la sala usa el idioma de cada jugador para el chat de los bots: si lo cambia, se le avisa
+  useEffect(() => {
+    if (connRef.current && screenRef.current !== 'menu') connRef.current.send({ t: 'lang', lang: getLang() });
+  }, [lang]);
+
   useEffect(() => () => closeConn(), [closeConn]);
 
   const copyInvite = async () => {
@@ -982,7 +988,7 @@ export default function Home() {
           onCode={setCode}
           busy={busy}
           error={error}
-          onCreate={() => dial('create', randCode())}
+          onCreate={(opts) => dial('create', randCode(), 0, opts)}
           onJoinRoom={(c) => dial('join', c)}
           onJoin={() => {
             const c = code.toUpperCase().trim();
@@ -1005,6 +1011,7 @@ export default function Home() {
           chat={lchat}
           onChat={(text) => send({ t: 'lchat', text })}
           onKick={(id, mode) => send({ t: 'kick', id, mode })}
+          onAddBots={(n) => send({ t: 'addBot', n })}
         />
       ) : null}
 
