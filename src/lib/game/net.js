@@ -1,5 +1,5 @@
 /* ================================================================
-   Sustituto del SDK de Base44 para "Setas en el invernadero".
+   Sustituto del SDK de Base44 para "Among Shrooms".
    - connectRoom(): WebSocket contra server/index.js con la misma interfaz
      que devolvía base44.actors.GameRoom(code).connect(): send(msg),
      subscribe(fn) -> unsubscribe, y close().

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /* ================================================================
-   Sonido de "Setas en el invernadero".
+   Sonido de "Among Shrooms".
    Todo se sintetiza en el navegador con la Web Audio API: no hay
    ficheros que descargar y cada efecto está pensado para lo que se
    ve en pantalla (pasos, tareas, muerte, sabotajes, reuniones...).

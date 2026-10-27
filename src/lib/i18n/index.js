@@ -22,7 +22,7 @@ const emit = () => { version++; listeners.forEach((f) => f()); };
 function applyDocument() {
   try {
     document.documentElement.lang = lang;
-    document.title = tr('Setas en el invernadero');
+    document.title = tr('Among Shrooms');
   } catch (e) { /* sin documento */ }
 }
 

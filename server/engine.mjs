@@ -1,6 +1,6 @@
 
 /* ================================================================
-   Sala de partida de "Setas en el invernadero".
+   Sala de partida de "Among Shrooms".
    Una instancia = una sala (el id de instancia es el código de 4 letras).
    El motor de la partida vive aquí: el servidor manda, los clientes solo
    envían órdenes (movimiento, tareas, votos...) y reciben su estado.
