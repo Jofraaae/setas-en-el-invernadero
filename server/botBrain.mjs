@@ -7,7 +7,7 @@
    ================================================================ */
 
 import { findPath } from './botNav.mjs';
-import { parseChat } from './botChat.mjs';
+import { parseChat, pickStyle, stylize } from './botChat.mjs';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const chance = (p) => Math.random() < p;
@@ -24,6 +24,7 @@ export class Brain {
     this.disabled = false;
     this.mates = new Set();
     this.talk = rnd(0.5, 1.2); // lo parlanchín que es (cada bot, el suyo)
+    this.style = pickStyle(); // su forma de escribir
     this.diligence = rnd(0.4, 0.85); // lo aplicado que es con las misiones: el resto del tiempo, da vueltas
     this.hostile = new Set(); // quien me ha acusado
     this.reset();
@@ -72,6 +73,11 @@ export class Brain {
     this.lastKillAt = 0;
     this.hostile = new Set();
     this.lurk = null;
+    this.roomLog = [];   // salas por las que he pasado esta ronda (para saber si me mienten)
+    this.buddy = null;   // a quién acompaño un rato (con un crimen en el aire no se anda solo)
+    this.nextBuddy = 0;
+    this.avoid = null;   // a dónde voy para alejarme de un sospechoso
+    this.nextAvoid = 0;
     this.wander = null;   // un rato dando vueltas en vez de hacer misiones
     this.darkAt = 0;      // desde cuándo hay apagón (para tardar en ir a reparar)
     this.darkDelay = 0;
@@ -142,7 +148,16 @@ export class Brain {
     this.vis = [];
     this.visBodies = [];
     const ri = mgr.roomIdx(p.x, p.y);
-    if (ri >= 0) this.where = { idx: ri, name: { ...mgr.roomName(p.x, p.y), idx: ri }, t: now };
+    if (ri >= 0) {
+      const prevIdx = this.where ? this.where.idx : -1;
+      this.where = { idx: ri, name: { ...mgr.roomName(p.x, p.y), idx: ri }, t: now };
+      if (ri !== prevIdx) {
+        this.roomLog.push({ idx: ri, t: now });
+        if (this.roomLog.length > 80) this.roomLog.shift();
+        // al entrar en una sala a veces se para un instante a mirar
+        if (p.alive && this.goal && !this.goal.urgent && chance(0.12)) this.hold = Math.max(this.hold, now + rnd(300, 1000));
+      }
+    }
     if (!p.alive) return;
     const closed = R.closedDoors(now);
     const sr = mgr.sightOf(p, now);
@@ -242,6 +257,9 @@ export class Brain {
   }
 
   onResume(now) {
+    this.roomLog = this.where ? [{ idx: this.where.idx, t: now }] : [];
+    this.buddy = null;
+    this.avoid = null;
     this.mem.bodies.clear();
     this.mem.seen.clear();
     this.hold = now + rnd(300, 1200);
@@ -407,7 +425,53 @@ export class Brain {
     if (R.dark) { const g = this.panelGoal(now); if (g) return g; } else this.darkAt = 0;
     const g4 = this.buttonGoal(now); if (g4) return g4;
     const g5 = this.roleGoal(now); if (g5) return g5;
+    const g6 = this.socialGoal(now); if (g6) return g6;
     return this.taskGoal(now) || this.roamGoal(now);
+  }
+
+  /* Con un crimen en el aire ya no se anda solo por ahí: se aleja de un sospechoso si se queda a solas con él
+     y a veces acompaña un rato a otro tripulante. Así los impostores lo tienen menos fácil. */
+  socialGoal(now) {
+    const p = this.p, R = this.mgr.room, M = this.mgr.M;
+    if (!p.alive || p.role !== 'crew') return null;
+    if (this.mem.dead.size === 0 && this.mem.bodies.size === 0) return null;
+    const others = this.vis.filter((o) => o.q.alive);
+    if (this.avoid && now < this.avoid.until) {
+      return this.mk('avoid', 'avoid', this.avoid.x, this.avoid.y, 70, () => { this.avoid = null; this.goal = null; }, { valid: () => !!this.avoid });
+    }
+    this.avoid = null;
+    if (others.length === 1 && now >= this.nextAvoid) {
+      const o = others[0];
+      if (this.susp(o.shown) >= 0.5 && !this.mem.clear.has(o.shown) && Math.hypot(o.q.x - p.x, o.q.y - p.y) < 450) {
+        const pts = M.tasks.filter((t) => Math.hypot(t.x - o.q.x, t.y - o.q.y) > 700 && Math.hypot(t.x - p.x, t.y - p.y) < 1500);
+        this.nextAvoid = now + rnd(15000, 30000);
+        if (pts.length) {
+          const t = pts[Math.floor(Math.random() * pts.length)];
+          this.avoid = { x: t.x, y: t.y, until: now + rnd(9000, 16000) };
+          return this.mk('avoid', 'avoid', t.x, t.y, 70, () => { this.avoid = null; this.goal = null; }, { valid: () => !!this.avoid });
+        }
+      }
+    }
+    if (this.buddy) {
+      const q = R.players.get(this.buddy.id);
+      if (!q || !q.alive || now > this.buddy.until || this.susp(this.buddy.id) >= 0.5) this.buddy = null;
+      else {
+        const seen = this.mem.seen.get(this.buddy.id);
+        const live = () => (this.vis.some((o) => o.q === q) ? { x: q.x, y: q.y } : null);
+        const pos = live() || (seen ? { x: seen.x, y: seen.y } : null);
+        if (pos) return this.mk('buddy', 'buddy:' + this.buddy.id, pos.x, pos.y, 150, () => {}, { follow: live, valid: () => !!this.buddy });
+        this.buddy = null;
+      }
+    }
+    if (!others.length && now >= this.nextBuddy) {
+      this.nextBuddy = now + rnd(20000, 40000);
+      const cands = [...this.mem.seen].filter(([id, s]) => id !== this.id && now - s.t < 25000 && R.players.get(id)?.alive && !this.mem.dead.has(id) && this.susp(id) < 0.45);
+      if (cands.length && chance(0.55)) {
+        this.buddy = { id: cands[Math.floor(Math.random() * cands.length)][0], until: now + rnd(12000, 28000) };
+        return this.socialGoal(now);
+      }
+    }
+    return null;
   }
 
   decideGhost(now) {
@@ -974,12 +1038,24 @@ export class Brain {
   }
 
   pairOf(kind, params, struct) {
-    const texts = this.mgr.say(kind, params);
-    if (texts) this.hist.set(kind, this.meetNo);
+    let texts = this.mgr.say(kind, params);
+    if (texts) { this.hist.set(kind, this.meetNo); texts = { es: stylize(texts.es, this.style), en: stylize(texts.en, this.style) }; }
     return texts ? { texts, struct: struct || null, prio: PRIO.has(kind) } : null;
   }
 
   S(k) { if (this.mem.said.has(k)) return false; this.mem.said.add(k); return true; }
+
+  // ¿he pasado por esa sala en esta ronda? (la actual cuenta)
+  wasIn(ridx) {
+    if (this.where && this.where.idx === ridx) return true;
+    return this.roomLog.some((e) => e.idx === ridx);
+  }
+
+  roomObj(ridx) {
+    const fl = this.mgr.M.floors[ridx];
+    if (!fl) return this.myRoom();
+    return { ...this.mgr.roomName(fl[0] + fl[2] / 2, fl[1] + fl[3] / 2), idx: ridx };
+  }
 
   // ¿hace al menos `gap` reuniones que no digo una frase de este tipo? (para no repetirse de una reunión a otra)
   fresh(kind, gap = 2) { return this.meetNo - (this.hist.get(kind) ?? -99) >= gap; }
@@ -1046,7 +1122,7 @@ export class Brain {
       if (b) return this.pairOf('nearBody', { x: this.nameOf(top.id), v: m.bodyName || '?', room: b.room }, { kind: 'suspect', target: top.id });
       return this.pairOf('suspect', { x: this.nameOf(top.id) }, { kind: 'echo', target: top.id });
     }
-    if (top && top.s >= 0.4 && chance(0.6) && this.fresh('voteCall', 2) && this.S('vc')) return this.pairOf('voteCall', { x: this.nameOf(top.id) }, null);
+    if (top && top.s >= 0.4 && chance(0.6) && this.fresh('voteCall', 2) && this.S('vc')) { m.pledge = top.id; return this.pairOf('voteCall', { x: this.nameOf(top.id) }, { kind: 'vote', target: top.id }); }
     return null;
   }
 
@@ -1061,12 +1137,12 @@ export class Brain {
     if (frame && chance(0.6) && this.fresh('lieSaw', 2) && this.S('lie')) {
       const s = this.mem.seen.get(frame);
       const room = s ? this.mgr.roomName(s.x, s.y) : this.fakeRoom();
-      return this.pairOf('lieSaw', { x: this.nameOf(frame), room }, { kind: 'suspect', target: frame });
+      return this.pairOf('lieSaw', { x: this.nameOf(frame), room }, { kind: 'suspect', target: frame, ridx: s ? s.room : room.idx });
     }
     for (const [id, n] of this.mem.acc) {
       if (this.mates.has(id) && !this.mem.dead.has(id) && n >= 1 && chance(0.4) && this.fresh('defendMate', 2) && this.S('dm' + id)) return this.pairOf('defendMate', { x: this.nameOf(id) }, { kind: 'clear', target: id });
     }
-    if (frame && chance(0.5) && this.fresh('voteCall', 2) && this.S('vc')) return this.pairOf('voteCall', { x: this.nameOf(frame) }, null);
+    if (frame && chance(0.5) && this.fresh('voteCall', 2) && this.S('vc')) { m.pledge = frame; return this.pairOf('voteCall', { x: this.nameOf(frame) }, { kind: 'vote', target: frame }); }
     return null;
   }
 
@@ -1104,6 +1180,19 @@ export class Brain {
     const p = this.p, m = this.meet;
     if (!m || !p || !p.alive) return;
     if (st.kind === 'body') { if (st.ridx >= 0 && this.bodyRoomIdx == null) this.bodyRoomIdx = st.ridx; return; }
+    // alguien dice haberme visto en una sala: yo sé si es verdad
+    if (st.kind === 'alibi' && st.seen && st.seen.includes(this.id) && st.ridx >= 0 && m.reacts < 3) {
+      m.reacts++;
+      if (this.wasIn(st.ridx)) this.queueSay(this.pairOf('confirm', { x: this.nameOf(fromId), room: this.roomObj(st.ridx) }, null), rnd(2500, 5500));
+      else {
+        if (p.role !== 'impostor') this.addSusp(fromId, 0.35); // me nombra en un sitio donde no estuve: miente
+        this.queueSay(this.pairOf('falseSeen', { x: this.nameOf(fromId), room: this.roomObj(st.ridx) }, p.role !== 'impostor' ? { kind: 'liar', target: fromId } : null), rnd(3000, 6500));
+      }
+    }
+    if (st.kind === 'liar') {
+      if (st.target !== this.id && p.role !== 'impostor' && !this.mem.dead.has(st.target)) this.addSusp(st.target, 0.2 * (1 - this.susp(fromId)));
+      return;
+    }
     if (st.kind === 'alibi') {
       // quien dice haber estado en la sala del cuerpo (o haber visto allí a alguien) queda un poco más señalado
       if (p.role !== 'impostor' && this.bodyRoomIdx != null && st.ridx === this.bodyRoomIdx) {
@@ -1113,7 +1202,7 @@ export class Brain {
       return;
     }
     if (st.kind === 'clear') { if (p.role !== 'impostor') this.addSusp(st.target, -0.15); return; }
-    if (st.kind !== 'witness' && st.kind !== 'suspect' && st.kind !== 'echo') return;
+    if (st.kind !== 'witness' && st.kind !== 'suspect' && st.kind !== 'echo' && st.kind !== 'vote') return;
     if (st.target !== this.id && this.mem.dead.has(st.target)) return; // ya está fuera: no se vuelve a hablar de él
     this.mem.acc.set(st.target, (this.mem.acc.get(st.target) || 0) + 1);
     if (st.target === this.id) { this.respondAccusation(fromId, st, now); return; }
@@ -1122,7 +1211,7 @@ export class Brain {
       if (this.mates.has(st.target) && chance(0.35)) this.queueSay(this.pairOf('askWhy', { x: this.nameOf(fromId) }, null), rnd(3500, 7000));
       return;
     }
-    const base = st.kind === 'witness' ? (st.soft ? 0.3 : 0.42) : 0.07; // lo de oídas pesa poco: lo que cuenta es lo visto
+    const base = st.kind === 'witness' ? (st.soft ? 0.3 : 0.42) : st.kind === 'vote' ? 0.05 : 0.07; // lo de oídas pesa poco: lo que cuenta es lo visto
     this.addSusp(st.target, base * (1 - this.susp(fromId)));
     if (m.reacts < 1 && !m.quiet) {
       if (st.kind === 'witness' && chance(0.15) && this.susp(st.target) < 0.5) { m.reacts++; this.queueSay(this.pairOf('askWhy', { x: this.nameOf(fromId) }, null), rnd(3500, 7000)); }
@@ -1164,6 +1253,12 @@ export class Brain {
     m.reacts++;
     // primero hay que leerlo, pensar y escribir: nadie contesta al instante (y a veces ni contesta)
     if (!chance(p.role === 'impostor' ? 0.92 : 0.85)) return;
+    // me sitúan en una sala por la que no he pasado: es una mentira comprobada
+    if (st.ridx >= 0 && !this.wasIn(st.ridx)) {
+      if (p.role !== 'impostor') this.addSusp(fromId, 0.4);
+      this.queueSay(this.pairOf('falseSeen', { x: this.nameOf(fromId), room: this.roomObj(st.ridx) }, p.role !== 'impostor' ? { kind: 'liar', target: fromId } : null), rnd(3500, 7000));
+      return;
+    }
     const room = p.role === 'impostor' ? this.fakeRoom() : this.myRoom();
     const wait = st.kind === 'witness' ? rnd(4500, 8500) : rnd(3500, 7000); // una acusación grave se lee con más calma
     this.queueSay(this.pairOf('defend', { room }, { kind: 'alibi' }), wait);
@@ -1192,6 +1287,7 @@ export class Brain {
       const need = Math.ceil((alive.length + 1) / 2);
       const doomed = [...this.mem.acc].find(([id, n]) => this.mates.has(id) && n >= need);
       if (doomed && chance(0.55)) choice = doomed[0]; // el compañero ya está perdido: votarle disimula
+      else if (m.pledge && alive.some((q) => q.id === m.pledge)) choice = m.pledge; // lo que dije en el chat
       else {
         let best = null, bs = -1;
         for (const q of crew) {
@@ -1204,6 +1300,7 @@ export class Brain {
       const top = this.topSuspect(true);
       const thr = alive.length <= 3 ? 0.28 : 0.45;
       if (top && top.s >= thr) choice = top.id;
+      if (m.pledge && alive.some((q) => q.id === m.pledge) && !this.mem.clear.has(m.pledge) && (this.susp(m.pledge) >= 0.2 || chance(0.7))) choice = m.pledge; // cumple lo que dijo
       if (p.judge && !p.judgeUsed && top && this.proof(top.id)) {
         this.send({ t: 'judge', target: top.id }); // una prueba directa: el Juez sentencia
         return;
