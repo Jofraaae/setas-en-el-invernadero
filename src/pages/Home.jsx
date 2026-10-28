@@ -603,6 +603,8 @@ export default function Home() {
         // una reunión cierra lo que hubiera abierto: un minijuego taparía la votación
         sfx('meeting');
         stopLoop('blackout'); // el zumbido del apagón calla en la votación; si sigue, vuelve al reanudar
+        // la sala apaga el reactor al convocar una reunión: la sirena y la alarma se cortan de golpe
+        stopLoop('reactor');
         g.miniOpen = false;
         g.inputLock = false;
         g.mini = null;
@@ -613,7 +615,7 @@ export default function Home() {
         g.others.clear();
         // al entrar en reunión el cambiaformas vuelve a su forma sin animación: los
         // tripulantes no deben ver la transformación de vuelta al acabar la reunión
-        g.st = { ...g.st, sh: null, mo: null, form: null, fz: 0 };
+        g.st = { ...g.st, sh: null, mo: null, form: null, fz: 0, rx: null };
         g.fx.clear();
         g.vent.in = false;
         g.alert = null;
