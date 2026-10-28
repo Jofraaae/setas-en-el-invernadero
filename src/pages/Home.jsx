@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectRoom } from '@/lib/game/net';
+import { saveName, storedName } from '@/lib/game/profile';
+import { guessCountry } from '@/lib/game/country';
 import { useToast } from '@/components/ui/use-toast';
 import { makeGrid } from '@/lib/game/grid';
 import { announceRoom, forgetRoom } from '@/lib/game/rooms';
@@ -46,7 +48,7 @@ export default function Home() {
   const { lang } = useLang(); // al cambiar de idioma se vuelve a pintar toda la pantalla
   const { toast } = useToast();
   const [screen, setScreen] = useState('menu');
-  const [name, setName] = useState(() => { try { return localStorage.getItem('setas_name') || ''; } catch (e) { return ''; } });
+  const [name, setName] = useState(() => storedName());
   const [code, setCode] = useState(() => {
     const q = new URLSearchParams(window.location.search).get('sala');
     return q ? q.toUpperCase().slice(0, 4) : '';
@@ -339,7 +341,6 @@ export default function Home() {
     setError('');
     setBusy(true);
     attemptRef.current = { kind, tries, opts };
-    try { localStorage.setItem('setas_name', name); } catch (e) { /* sin permisos */ }
     closeConn();
     // Si la sala no responde, el menú se libera en vez de quedarse en "Conectando…".
     connectTimer.current = window.setTimeout(() => {
@@ -353,7 +354,7 @@ export default function Home() {
       connRef.current = conn;
       subRef.current = conn.subscribe((m) => handlerRef.current(m));
       // al crear van también el aforo, el mapa y el tipo de sala; siempre, el idioma (para el chat de los bots)
-      conn.send({ t: kind, name: name || tr('Seta'), code: roomCode, lang: getLang(), ...(kind === 'create' && opts ? opts : {}) });
+      conn.send({ t: kind, name: name || tr('Seta'), code: roomCode, lang: getLang(), ...(kind === 'create' ? { country: guessCountry(), ...(opts || {}) } : {}) });
     } catch (e) {
       closeConn();
       setBusy(false);
@@ -985,7 +986,7 @@ export default function Home() {
       {screen === 'menu' ? (
         <MenuScreen
           name={name}
-          onName={setName}
+          onSaveName={(n) => setName(saveName(n))}
           code={code}
           onCode={setCode}
           busy={busy}
@@ -1014,6 +1015,7 @@ export default function Home() {
           onChat={(text) => send({ t: 'lchat', text })}
           onKick={(id, mode) => send({ t: 'kick', id, mode })}
           onAddBots={(n) => send({ t: 'addBot', n })}
+          onVis={(vis) => send({ t: 'vis', vis })}
         />
       ) : null}
 

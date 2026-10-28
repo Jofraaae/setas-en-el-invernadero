@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import RoomList from './RoomList';
 import CreateRoomScreen from './CreateRoomScreen';
+import NameScreen from './NameScreen';
+import { msUntilNameChange, formatWait } from '@/lib/game/profile';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
 
@@ -8,9 +10,12 @@ const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-3 font-bold text-[#261c05] transiti
 const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-3 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 const INPUT = 'w-full select-text rounded-xl border-2 border-[#2f5a48] bg-[#0f211a] px-3 py-3 text-[#eaf5ec] outline-none transition focus:border-[#e9c46a]';
 
-export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoin, onJoinRoom, error, busy }) {
+export default function MenuScreen({ name, onSaveName, code, onCode, onCreate, onJoin, onJoinRoom, error, busy }) {
   const [rooms, setRooms] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const named = !!name.trim();
+  const wait = named ? msUntilNameChange() : 0;
 
   return (
     <div
@@ -26,14 +31,19 @@ export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoi
           {tr('Deducción social multijugador · 4 a 15 jugadores · sala en línea')}
         </p>
         <div className="flex w-full max-w-[460px] flex-col gap-3 rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-5">
-          <input
-            className={INPUT}
-            maxLength={12}
-            placeholder={tr('Tu nombre')}
-            autoComplete="off"
-            value={name}
-            onChange={(e) => onName(e.target.value)}
-          />
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[#0f211a] px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="text-[11px] font-black uppercase tracking-[2px] text-[#7f9c8c]">{tr('Jugando como')}</div>
+              <div className="truncate text-lg font-black text-[#e9c46a]">{name}</div>
+            </div>
+            <button
+              className="shrink-0 rounded-lg bg-[#2f5a48] px-3 py-1.5 text-[12px] font-bold text-[#eaf5ec] transition hover:brightness-110"
+              onClick={() => { sfx('click'); setRenaming(true); }}
+              title={wait > 0 ? tr('Podrás cambiar tu nombre dentro de {t}.', { t: formatWait(wait) }) : ''}
+            >
+              {wait > 0 ? '🔒 ' : '✏️ '}{tr('Cambiar nombre')}
+            </button>
+          </div>
           <button className={BTN} onClick={() => { sfx('click'); setCreating(true); }} disabled={busy}>
             {tr('Crear sala')}
           </button>
@@ -60,6 +70,14 @@ export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoi
           {tr('Mueve con WASD / flechas (o el joystick táctil). E = usar, Q = eliminar, R = reportar, X = apagón, V = rejilla (impostor), I = interrogar (detective). Si se te cae la conexión, vuelve a entrar con el mismo código: recuperas tu sitio y tu rol.')}
         </p>
       </div>
+
+      {!named || renaming ? (
+        <NameScreen
+          current={named ? name : ''}
+          onSave={(n) => { onSaveName(n); setRenaming(false); }}
+          onCancel={() => setRenaming(false)}
+        />
+      ) : null}
 
       {creating ? (
         <CreateRoomScreen

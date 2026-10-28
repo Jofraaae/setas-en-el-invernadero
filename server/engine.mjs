@@ -652,6 +652,9 @@ class GameRoom {
   onMessage(conn, msg) { return this.handleMessage(conn, msg); }
 
   code = null;
+  visibility = 'public'; // 'public': sale en 'Salas activas'; 'private': solo se entra con el código
+  country = '';          // país (ISO-2) desde donde se creó la sala
+  createdAt = 0;
   capacity = MAX_PLAYERS; // máximo de jugadores (personas + bots) que eligió el anfitrión al crear la sala
   mode = 'online';        // 'online': sale en el listado · 'bots': sala privada pensada para jugar con bots
   lang = 'es';            // idioma en el que hablan los bots si no se sabe el de cada jugador
@@ -781,6 +784,15 @@ class GameRoom {
         if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
         if (this.players.size < MIN_PLAYERS) return conn.send({ t: 'error', msg: `Hacen falta al menos ${MIN_PLAYERS} jugadores.` });
         return this.startGame();
+      }
+      case 'vis': {
+        // el anfitrión puede hacer la sala pública o privada también desde la sala de espera
+        if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
+        if (msg.vis !== 'public' && msg.vis !== 'private') return;
+        this.visibility = msg.vis;
+        this.broadcast(this.lobbyInfo());
+        this.syncRoom();
+        return this.save();
       }
       case 'map': {
         // el anfitrión elige escenario en la sala de espera; la partida lo usa al arrancar
@@ -1218,6 +1230,11 @@ class GameRoom {
     if (MAPS[msg.map]) this.map = msg.map;
     this.mode = msg.mode === 'bots' ? 'bots' : 'online';
     this.lang = msg.lang === 'en' ? 'en' : 'es';
+    // pública o privada: sin indicar nada, las salas de bots eran privadas y las demás públicas
+    this.visibility = msg.vis === 'private' ? 'private' : msg.vis === 'public' ? 'public' : (this.mode === 'bots' ? 'private' : 'public');
+    // el país lo manda la cabecera del proxy (si la hay); si no, la pista del cliente (su zona horaria)
+    this.country = cleanCountry(conn.country) || cleanCountry(msg.country);
+    this.createdAt = Date.now();
     this.addPlayer(conn, msg.name, msg.lang);
     // una sala de bots arranca ya con compañía: el anfitrión puede quitarlos o añadir más
     if (this.mode === 'bots') for (let i = 0; i < 5 && this.players.size < this.capacity; i++) this.addBot();
@@ -2019,7 +2036,7 @@ class GameRoom {
   lobbyInfo() {
     return {
       t: 'lobby', phase: this.phase, code: this.code, hostId: this.hostSeat, map: this.map,
-      min: MIN_PLAYERS, max: this.capacity, mode: this.mode, colors: COLORS, settings: this.settings, ranges: RANGES,
+      min: MIN_PLAYERS, max: this.capacity, mode: this.mode, vis: this.visibility, country: this.country, colors: COLORS, settings: this.settings, ranges: RANGES,
       players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot })),
       chat: this.lobbyChat,
     };
@@ -2057,7 +2074,7 @@ class GameRoom {
   async save() {
     this.savedAt = Date.now();
     await this.rt.storage.put('st', {
-      code: this.code, map: this.map, capacity: this.capacity, mode: this.mode, lang: this.lang, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
+      code: this.code, map: this.map, capacity: this.capacity, mode: this.mode, visibility: this.visibility, country: this.country, createdAt: this.createdAt, lang: this.lang, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
       settings: this.settings, bodies: this.bodies, taskDone: this.taskDone, taskTotal: this.taskTotal,
       dark: this.dark, reactor: this.reactor, resultUntil: this.resultUntil, rolesUntil: this.rolesUntil,
       sabLockAt: this.sabLockAt, rtLockAt: this.rtLockAt,
@@ -2078,6 +2095,9 @@ class GameRoom {
     this.map = MAPS[s.map] ? s.map : DEFAULT_MAP;
     this.capacity = clamp(Number(s.capacity) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
     this.mode = s.mode === 'bots' ? 'bots' : 'online';
+    this.visibility = s.visibility === 'private' || s.visibility === 'public' ? s.visibility : (this.mode === 'bots' ? 'private' : 'public');
+    this.country = cleanCountry(s.country);
+    this.createdAt = Number(s.createdAt) || 0;
     this.lang = s.lang === 'en' ? 'en' : 'es';
     this.settings = { ...DEFAULTS, ...(s.settings || {}) };
     this.bodies = Array.isArray(s.bodies) ? s.bodies : [];
@@ -2113,6 +2133,9 @@ class GameRoom {
     this.map = DEFAULT_MAP;
     this.capacity = MAX_PLAYERS;
     this.mode = 'online';
+    this.visibility = 'public';
+    this.country = '';
+    this.createdAt = 0;
     this.lang = 'es';
     this.bots.clear();
     this.hostSeat = null;
@@ -2179,16 +2202,23 @@ class GameRoom {
     this.roomSyncedAt = Date.now(); // se marca antes de escribir: evita ráfagas de llamadas
     try {
       if (!code) return;
-      if (this.players.size === 0 || this.phase === 'ended' || this.mode === 'bots') {
-        this.rt.registry.remove(code); // las salas de bots son privadas: no salen en el listado
+      if (this.players.size === 0 || this.phase === 'ended' || this.visibility === 'private') {
+        this.rt.registry.remove(code); // las salas privadas no salen en el listado
         return;
       }
+      const host = this.players.get(this.hostSeat);
       this.rt.registry.update(code, {
         code,
         player_count: this.players.size,
         max_players: this.capacity,
         min_players: MIN_PLAYERS,
         status: this.phase === 'lobby' ? 'lobby' : 'playing',
+        owner: host ? host.name : '',
+        country: this.country,
+        map: this.map,
+        lang: this.lang,
+        bots: [...this.players.values()].filter((q) => q.bot).length,
+        created: this.createdAt || Date.now(),
       });
       this.syncErr = null;
     } catch (e) {
@@ -2258,6 +2288,12 @@ class GameRoom {
     if (p.bot) { this.bots.onPrivate(p, msg); return; }
     for (const c of this.getConnections()) if (c.id === p.connId) { c.send(msg); return; }
   }
+}
+
+/* País (ISO-2 en mayúsculas) o '' si no es un código válido. */
+function cleanCountry(c) {
+  const v = String(c || '').toUpperCase().trim();
+  return /^[A-Z]{2}$/.test(v) && v !== 'XX' && v !== 'T1' ? v : '';
 }
 
 /* Ficha de la sala para el listado del menú (solo lectura: la autoridad sigue

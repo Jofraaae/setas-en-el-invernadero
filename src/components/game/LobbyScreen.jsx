@@ -9,7 +9,7 @@ import { tr } from '@/lib/i18n';
 const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-3 font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-3 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
-export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick, onAddBots }) {
+export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick, onAddBots, onVis }) {
   const [nBots, setNBots] = useState(1);
   const bots = lobby.players.filter((p) => p.bot);
   const free = Math.max(0, lobby.max - lobby.players.length);
@@ -27,11 +27,24 @@ export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, on
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
       <div className="m-auto flex w-full max-w-[700px] flex-col items-center gap-3">
-        <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}{lobby.mode === 'bots' ? ' · ' + tr('Sala de bots (privada)') : ''}</p>
+        <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}{lobby.mode === 'bots' ? ' · ' + tr('Sala de bots') : ''}</p>
         <div className="text-[clamp(40px,10vw,56px)] font-black leading-none tracking-[10px] text-[#e9c46a]">
           {lobby.code}
         </div>
         <button className={BTN_ALT} onClick={() => { sfx('click'); onCopy(); }}>{tr('Copiar código / enlace')}</button>
+        <div className="flex flex-wrap items-center justify-center gap-2 text-[12px]">
+          <span className="rounded-full bg-[#234036] px-3 py-1 font-bold text-[#bfe3cf]">
+            {lobby.vis === 'private' ? tr('🔒 Privada: solo entra quien tenga el código') : tr('🌐 Pública: sale en Salas activas')}
+          </span>
+          {isHost ? (
+            <button
+              className="rounded-lg bg-[#2f5a48] px-3 py-1 font-bold text-[#eaf5ec] transition hover:brightness-110"
+              onClick={() => { sfx('click'); onVis(lobby.vis === 'private' ? 'public' : 'private'); }}
+            >
+              {lobby.vis === 'private' ? tr('Hacer pública') : tr('Hacer privada')}
+            </button>
+          ) : null}
+        </div>
 
         <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4">
           <div className="flex items-baseline justify-between">

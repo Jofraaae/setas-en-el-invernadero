@@ -167,7 +167,9 @@ const server = http.createServer((req, res) => {
   if (u.startsWith('/api/rooms')) {
     const rows = liveAnnouncements().map((r) => ({
       id: r.code, code: r.code, player_count: r.player_count, min_players: r.min_players,
-      max_players: r.max_players, status: r.status, created_at: new Date(r.updated_at).toISOString(),
+      max_players: r.max_players, status: r.status, owner: r.owner || '', country: r.country || '',
+      map: r.map || '', lang: r.lang || '', bots: r.bots || 0,
+      created_at: new Date(r.created || r.updated_at).toISOString(),
       updated_at: new Date(r.updated_at).toISOString(),
     }));
     return sendJson(res, 200, { items: rows, total: rows.length });
@@ -181,6 +183,17 @@ const server = http.createServer((req, res) => {
 /* ---------- WebSocket: la misma API de mensajes que el actor ---------- */
 
 const wss = new WebSocketServer({ server, path: '/ws' });
+
+/* País de quien se conecta, si el proxy que hay delante del servidor lo manda en una cabecera
+   (Cloudflare, Vercel, CloudFront…). Si no hay ninguna, queda vacío y se usa la pista del cliente. */
+const COUNTRY_HEADERS = ['cf-ipcountry', 'x-vercel-ip-country', 'cloudfront-viewer-country', 'x-country-code', 'x-appengine-country', 'fastly-client-country'];
+function countryFromHeaders(h) {
+  for (const k of COUNTRY_HEADERS) {
+    const v = String(h[k] || '').toUpperCase().trim();
+    if (/^[A-Z]{2}$/.test(v) && v !== 'XX' && v !== 'T1') return v;
+  }
+  return '';
+}
 
 wss.on('connection', (ws, req) => {
   const q = new URL(req.url, 'http://localhost').searchParams;
@@ -199,6 +212,7 @@ wss.on('connection', (ws, req) => {
   const conn = {
     id: connId,
     raw: ws,
+    country: countryFromHeaders(req.headers),
     send(msg) {
       if (ws.readyState === 1) {
         try { ws.send(JSON.stringify(msg)); } catch (e) { /* envío perdido */ }
