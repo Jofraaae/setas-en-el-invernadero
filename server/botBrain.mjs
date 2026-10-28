@@ -24,6 +24,7 @@ export class Brain {
     this.disabled = false;
     this.mates = new Set();
     this.talk = rnd(0.5, 1.2); // lo parlanchín que es (cada bot, el suyo)
+    this.diligence = rnd(0.4, 0.85); // lo aplicado que es con las misiones: el resto del tiempo, da vueltas
     this.hostile = new Set(); // quien me ha acusado
     this.reset();
   }
@@ -71,6 +72,10 @@ export class Brain {
     this.lastKillAt = 0;
     this.hostile = new Set();
     this.lurk = null;
+    this.wander = null;   // un rato dando vueltas en vez de hacer misiones
+    this.darkAt = 0;      // desde cuándo hay apagón (para tardar en ir a reparar)
+    this.darkDelay = 0;
+    this.nextPause = 0;
     this.hist = new Map(); // tipo de frase -> nº de reunión en que la dije por última vez
     this.meetNo = 0;
   }
@@ -231,6 +236,7 @@ export class Brain {
   }
 
   onGo(now) {
+    this.wander = chance(0.5) ? { until: now + rnd(3000, 12000) } : null; // al empezar, muchos se dan una vuelta primero
     this.nextThink = now + rnd(200, 1500);
     this.nextSab = now + rnd(20000, 40000);
   }
@@ -239,6 +245,7 @@ export class Brain {
     this.mem.bodies.clear();
     this.mem.seen.clear();
     this.hold = now + rnd(300, 1200);
+    this.wander = chance(0.35) ? { until: now + rnd(4000, 12000) } : null;
     this.goal = null;
     this.path = null;
     this.work = null;
@@ -320,6 +327,12 @@ export class Brain {
     const g = this.goal;
     if (!g || g.kind === 'stay') { this.stop(now); return; }
     if (g.follow) { const f = g.follow(); if (f) { g.x = f.x; g.y = f.y; } }
+    // de camino a una misión o paseando, a veces se para un momento a mirar (nadie camina siempre sin parar)
+    if ((g.kind === 'task' || g.kind === 'roam') && !g.urgent && now >= this.nextPause && chance(0.0015)) {
+      this.nextPause = now + rnd(9000, 22000);
+      this.startWork('idle', rnd(800, 3500), () => { this.nextThink = 0; this.resetStuck(Date.now()); });
+      return;
+    }
     const r = this.goTo(g.x, g.y, now, g.near ?? 14);
     if (r === 'arrived') {
       if (!g.arrived || (g.repeat && now - g.lastArr >= g.repeat)) {
@@ -391,7 +404,7 @@ export class Brain {
     const R = this.mgr.room;
     if (R.reactor) { const g = this.reactorGoal(now); if (g) return g; }
     const gb = this.bodyGoal(now); if (gb) return gb;
-    if (R.dark) { const g = this.panelGoal(now); if (g) return g; }
+    if (R.dark) { const g = this.panelGoal(now); if (g) return g; } else this.darkAt = 0;
     const g4 = this.buttonGoal(now); if (g4) return g4;
     const g5 = this.roleGoal(now); if (g5) return g5;
     return this.taskGoal(now) || this.roamGoal(now);
@@ -457,8 +470,11 @@ export class Brain {
     const crew = [...R.players.values()].filter((q) => q.bot && q.alive && q.role === 'crew' && !q.inVent)
       .sort((a, b) => Math.hypot(a.x - pn.x, a.y - pn.y) - Math.hypot(b.x - pn.x, b.y - pn.y));
     if (!crew.slice(0, 2).some((q) => q.id === p.id)) return null;
+    // no se reacciona al instante: primero se nota el apagón, se duda y se echa a andar hacia el cuadro
+    if (!this.darkAt) { this.darkAt = now; this.darkDelay = rnd(4000, 13000); }
+    if (now - this.darkAt < this.darkDelay && !(this.goal && this.goal.kind === 'panel')) return null;
     return this.mk('panel', 'panel', pn.x, pn.y, 50, () => {
-      this.startWork('panel', rnd(2500, 4000), () => { this.send({ t: 'fix' }); this.goal = null; });
+      this.startWork('panel', rnd(4500, 8000), () => { this.send({ t: 'fix' }); this.goal = null; });
     }, { urgent: true, valid: () => R.dark });
   }
 
@@ -548,6 +564,8 @@ export class Brain {
   taskGoal(now) {
     const p = this.p, M = this.mgr.M;
     if (this.goal && this.goal.kind === 'task' && this.goal.valid(now)) return this.goal;
+    if (this.wander && now < this.wander.until) return null; // todavía dando vueltas
+    this.wander = null;
     const rem = p.tasks.filter((id) => !p.done.includes(id) && !(this.bad.get(id) > now));
     if (!rem.length) return null;
     let best = null, bs = Infinity;
@@ -565,23 +583,35 @@ export class Brain {
     const p = this.p, M = this.mgr.M, now = Date.now();
     const t = M.tasks[id];
     if (Math.hypot(t.x - p.x, t.y - p.y) > this.mgr.E.USE_RANGE + 5) { this.bad.set(id, now + 30000); this.goal = null; return; }
-    const ms = (GAME_MS[t.game] || 4500) * rnd(1.4, 2.2); // un minijuego de verdad lleva su rato
-    this.startWork('task', ms, () => {
-      this.send({ t: 'task', id }); // el impostor también "hace" la suya: así parece uno más
-      this.goal = null;
-      this.nextThink = 0;
+    const ms = (GAME_MS[t.game] || 4500) * rnd(2.4, 4.2); // un minijuego de verdad lleva su rato
+    // al llegar mira alrededor un momento antes de ponerse; al terminar, a veces se da una vuelta antes de la siguiente
+    this.startWork('look', rnd(500, 2500), () => {
+      this.startWork('task', ms, () => {
+        this.send({ t: 'task', id }); // el impostor también "hace" la suya: así parece uno más
+        this.goal = null;
+        this.nextThink = 0;
+        if (chance(1 - this.diligence)) this.wander = { until: Date.now() + rnd(8000, 25000) };
+      });
     });
   }
 
   roamGoal(now) {
     if (this.goal && this.goal.kind === 'roam' && this.goal.valid(now)) return this.goal;
-    const p = this.p, M = this.mgr.M;
+    const p = this.p, M = this.mgr.M, R = this.mgr.room;
     const pts = M.tasks.map((t) => ({ x: t.x, y: t.y }));
     pts.push({ x: M.button.x, y: M.button.y });
-    const far = pts.filter((q) => Math.hypot(q.x - p.x, q.y - p.y) > 250);
-    const q = far.length ? far[Math.floor(Math.random() * far.length)] : pts[0];
+    let q = null;
+    // a veces va a donde vio gente por última vez (como quien busca compañía); si no, a un punto cualquiera del mapa
+    if (chance(0.3)) {
+      const seen = [...this.mem.seen].filter(([id, s]) => id !== this.id && R.players.get(id)?.alive && Math.hypot(s.x - p.x, s.y - p.y) > 250);
+      if (seen.length) { const [, s] = seen[Math.floor(Math.random() * seen.length)]; q = { x: s.x, y: s.y }; }
+    }
+    if (!q) {
+      const far = pts.filter((o) => Math.hypot(o.x - p.x, o.y - p.y) > 250);
+      q = far.length ? far[Math.floor(Math.random() * far.length)] : pts[0];
+    }
     const key = 'roam:' + Math.round(q.x) + ':' + Math.round(q.y);
-    const idle = p.role === 'impostor' && p.alive && now >= p.killReadyAt ? [700, 2000] : [1500, 6000];
+    const idle = p.role === 'impostor' && p.alive && now >= p.killReadyAt ? [700, 2000] : [1500, 7000];
     return this.mk('roam', key, q.x, q.y, 60, () => this.startWork('idle', rnd(idle[0], idle[1]), () => { this.goal = null; this.nextThink = 0; }), { valid: () => true });
   }
 
