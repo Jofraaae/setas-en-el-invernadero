@@ -164,10 +164,17 @@ export function fill(tpl, params, lang) {
 }
 
 // Una frase de la categoría `kind` en los dos idiomas. Devuelve { es, en } (≤140 caracteres).
+const RECENT = new Map(); // kind -> índices usados hace poco: se evitan para no repetir la misma frase
+
 export function say(kind, params = {}, rnd = Math.random) {
   const list = T[kind];
   if (!list) return null;
-  const v = pick(list, rnd);
+  const used = RECENT.get(kind) || [];
+  let idx = list.map((_, i) => i).filter((i) => !used.includes(i));
+  if (!idx.length) idx = list.map((_, i) => i);
+  const k = idx[Math.floor(rnd() * idx.length)];
+  RECENT.set(kind, [...used, k].slice(-Math.max(1, list.length - 1)));
+  const v = list[k];
   return { es: fill(v[0], params, 'es').slice(0, 140), en: fill(v[1], params, 'en').slice(0, 140) };
 }
 

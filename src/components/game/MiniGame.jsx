@@ -18,7 +18,7 @@ import Sort from './minigames/Sort';
 import Dose from './minigames/Dose';
 import Sonar from './minigames/Sonar';
 import Valves from './minigames/Valves';
-import Puzzle from './minigames/Puzzle';
+import Catch from './minigames/Catch';
 import Brew from './minigames/Brew';
 import Sprout from './minigames/Sprout';
 import Count from './minigames/Count';
@@ -44,7 +44,7 @@ const GAMES = {
   dose: Dose,
   sonar: Sonar,
   valves: Valves,
-  puzzle: Puzzle,
+  catch: Catch,
   // minijuegos propios de la aldea de Micelaria
   brew: Brew,
   sprout: Sprout,
