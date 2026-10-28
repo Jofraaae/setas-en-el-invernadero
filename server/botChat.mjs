@@ -41,8 +41,14 @@ const pick = (a, rnd = Math.random) => a[Math.floor(rnd() * a.length)];
 /* Plantillas: [es, en]. Las {llaves} se rellenan con los parámetros de cada frase. */
 const T = {
   greet: [
+    ['Ey, buenas.', 'Hey there.'],
+    ['Holi, ¿quién más viene?', 'Hi, who else is joining?'],
     ['¡Hola a todos!', 'Hi everyone!'], ['Buenas, ¿empezamos ya?', 'Hey, shall we start?'],
     ['Hola :)', 'Hello :)'], ['¡Listo para jugar!', 'Ready to play!'],
+  ],
+  greetBack: [
+    ['¡Hola, {x}!', 'Hi, {x}!'], ['Buenas {x}, ¿qué tal?', 'Hey {x}, how is it going?'],
+    ['Holaa {x}', 'Heyyy {x}'], ['Ey {x}, bienvenido.', 'Hey {x}, welcome.'],
   ],
   // ---- quien convoca / reporta
   bodyFound: [
@@ -93,10 +99,15 @@ const T = {
   ],
   // ---- coartadas y sospechas
   alibi: [
+    ['Yo andaba por {room}, tranquilo.', 'I was around {room}, nothing special.'],
+    ['Estaba haciendo tareas en {room}, nada raro.', 'I was doing tasks in {room}, nothing weird.'],
+    ['Pues yo en {room}, a lo mío.', 'Me, I was in {room}, doing my thing.'],
     ['Yo estaba en {room} haciendo mis tareas.', 'I was in {room} doing my tasks.'],
     ['Estaba por {room}, a lo mío.', 'I was around {room}, minding my own business.'],
   ],
   alibiSeen1: [
+    ['Vi a {a} en {room} hace un rato, trabajando.', 'I saw {a} in {room} a while ago, working.'],
+    ['Yo estaba en {room} y {a} también.', 'I was in {room} and so was {a}.'],
     ['Estaba en {room} y vi a {a} por allí.', 'I was in {room} and saw {a} there.'],
     ['Pasé por {room}, ahí vi a {a}.', 'I passed through {room}, I saw {a} there.'],
   ],
@@ -108,10 +119,15 @@ const T = {
     ['{x} estaba cerca del cuerpo de {v}. Me parece sospechoso.', '{x} was near {v}\'s body. Looks suspicious to me.'],
   ],
   suspect: [
+    ['No me fío de {x}.', 'I do not trust {x}.'],
+    ['{x} me da mala espina.', '{x} gives me a bad feeling.'],
+    ['Para mí, {x}.', 'If you ask me, {x}.'],
     ['{x} me parece sospechoso.', '{x} looks suspicious to me.'],
     ['Yo apuntaría a {x}.', 'I would point at {x}.'],
   ],
   voteCall: [
+    ['Yo voy a por {x}.', 'I am going for {x}.'],
+    ['Mi sospechoso es {x}.', 'My suspect is {x}.'],
     ['Voto a {x}.', 'I am voting {x}.'], ['Votemos a {x}.', 'Let us vote {x}.'], ['Mi voto es para {x}.', 'My vote goes to {x}.'],
   ],
   skipCall: [
@@ -123,6 +139,8 @@ const T = {
   ],
   // ---- defensa y réplicas
   defend: [
+    ['Yo no he sido, estaba en {room}.', 'It was not me, I was in {room}.'],
+    ['¿Yo? Estaba en {room}, preguntad a quien queráis.', 'Me? I was in {room}, ask anyone.'],
     ['¡No fui yo! Estaba en {room} haciendo tareas.', 'It was not me! I was in {room} doing tasks.'],
     ['No me acuséis sin pruebas, estaba en {room}.', 'Do not accuse me without proof, I was in {room}.'],
     ['Eso es falso, yo estaba en {room}.', 'That is false, I was in {room}.'],
@@ -131,22 +149,42 @@ const T = {
     ['Puedo demostrarlo: {a} me vio en {room}.', 'I can prove it: {a} saw me in {room}.'],
   ],
   counter: [
+    ['¿Por qué yo? ¿Qué viste, {x}?', 'Why me? What did you see, {x}?'],
+    ['{x}, sin pruebas es solo ruido.', '{x}, without proof that is just noise.'],
     ['¿Y tú dónde estabas, {x}? Es raro que me acuses.', 'Where were you, {x}? It is odd that you accuse me.'],
     ['{x}, ¿qué viste exactamente? Eso me suena a excusa.', '{x}, what exactly did you see? Sounds like an excuse.'],
   ],
   askWhy: [
+    ['{x}, ¿en qué te basas?', '{x}, what are you basing that on?'],
+    ['¿Y eso, {x}? ¿Lo viste o lo supones?', 'Really, {x}? Did you see it or are you guessing?'],
     ['{x}, ¿por qué dices eso? ¿Qué viste?', '{x}, why do you say that? What did you see?'],
     ['¿Pruebas, {x}? Cuéntanos qué viste.', 'Proof, {x}? Tell us what you saw.'],
   ],
   agree: [
+    ['Sí, a mí también me chirría {x}.', 'Yeah, {x} feels off to me too.'],
+    ['Voy con {x}, no lo veo claro.', 'I am with you on {x}, it does not add up.'],
     ['Yo también creo que {x} es sospechoso.', 'I think {x} is suspicious too.'],
     ['Tiene sentido, {x} no me gusta nada.', 'Makes sense, I do not like {x} either.'],
   ],
   disagree: [
     ['No creo que {x} sea impostor: lo vi en {room}.', 'I do not think {x} is the impostor, I saw them in {room}.'],
   ],
+  // ---- comprobar lo que dicen los demás
+  confirm: [
+    ['Confirmo lo que dice {x}: yo estaba en {room}.', 'I confirm what {x} says: I was in {room}.'],
+    ['Sí, {x} me vio en {room}, es verdad.', 'Yes, {x} saw me in {room}, that is true.'],
+  ],
+  falseSeen: [
+    ['{x}, yo no estuve en {room}. ¿A quién viste?', '{x}, I was not in {room}. Who did you see?'],
+    ['Eso es mentira, {x}: no pisé {room} en todo el rato.', 'That is a lie, {x}: I did not set foot in {room} all this time.'],
+    ['{x} dice que me vio en {room} y no es cierto.', '{x} says they saw me in {room} and that is not true.'],
+  ],
+  liar: [
+    ['Cuidado con {x}: dijo haberme visto en {room} y yo no estuve allí.', 'Careful with {x}: they said they saw me in {room} and I was never there.'],
+  ],
   // ---- mentiras del impostor
   lieSaw: [
+    ['Vi a {x} rondando {room}, muy sospechoso.', 'I saw {x} hanging around {room}, very suspicious.'],
     ['Vi a {x} cerca de {room}, iba muy rápido.', 'I saw {x} near {room}, moving fast.'],
     ['{x} estaba por {room} y se fue de golpe. Raro.', '{x} was around {room} and left suddenly. Weird.'],
   ],
@@ -154,6 +192,22 @@ const T = {
     ['Yo no sospecharía de {x}, lo vi currando.', 'I would not suspect {x}, I saw them working.'],
   ],
 };
+
+/* Cada bot escribe a su manera: unos con mayúscula y punto, otros en minúsculas, sin signos de apertura
+   o sin el punto final. Solo cambia la forma, nunca el contenido. */
+export function pickStyle(rnd = Math.random) {
+  return { lower: rnd() < 0.35, nodot: rnd() < 0.5, noOpen: rnd() < 0.6, dbl: rnd() < 0.12 };
+}
+
+export function stylize(text, st) {
+  if (!st || !text) return text;
+  let t = text;
+  if (st.noOpen) t = t.replace(/[¡¿]/g, '');
+  if (st.nodot) t = t.replace(/\.$/, '');
+  if (st.lower) t = t.charAt(0).toLowerCase() + t.slice(1);
+  if (st.dbl && /[?!]$/.test(t)) t += t.slice(-1); // "??" / "!!" de quien escribe con prisa
+  return t;
+}
 
 export function fill(tpl, params, lang) {
   return tpl.replace(/\{(\w+)\}/g, (_, k) => {

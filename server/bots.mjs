@@ -13,7 +13,7 @@
    ================================================================ */
 
 import { buildWalk, nearestWalkable } from './botNav.mjs';
-import { pickBotName, roomEn } from './botChat.mjs';
+import { pickBotName, roomEn, norm } from './botChat.mjs';
 import { Brain } from './botBrain.mjs';
 
 const MAX_ERRORS = 12;
@@ -205,6 +205,26 @@ export class BotManager {
     }
     if (msg.t === 'chat' && msg.id && !this.room.players.get(msg.id)?.bot) this.onHumanChat(msg, now);
     else if (msg.t === 'saved') this.onSaved(msg, now);
+    else if (msg.t === 'lchat' && msg.id && !this.room.players.get(msg.id)?.bot) this.onLobbyChat(msg, now);
+  }
+
+  // una persona saluda en la sala de espera: a veces un bot le contesta, sin prisa
+  onLobbyChat(msg, now) {
+    if (this.room.phase !== 'lobby' || !/\b(hola|holi|buenas|ey|hey|hi|hello|hola a todos)\b/.test(norm(msg.text))) return;
+    if (now - (this.lastGreet || 0) < 8000 || Math.random() > 0.6) return;
+    const bots = [...this.room.players.values()].filter((q) => q.bot);
+    if (!bots.length) return;
+    const q = bots[Math.floor(Math.random() * bots.length)];
+    const t = setTimeout(() => {
+      this.timers.delete(t);
+      try {
+        if (this.room.phase !== 'lobby' || !this.room.players.get(q.id)) return;
+        const s = this.say('greetBack', { x: msg.name });
+        if (s && this.room.botSay(q, s, null)) this.lastGreet = Date.now();
+      } catch (e) { /* una respuesta menos */ }
+    }, 1500 + Math.random() * 2500);
+    if (t.unref) t.unref();
+    this.timers.add(t);
   }
 
   onHumanChat(msg, now) {
