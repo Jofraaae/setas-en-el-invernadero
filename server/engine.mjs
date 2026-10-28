@@ -161,12 +161,12 @@ const TASKS_BASE = [
   { id: 43, name: 'Llenar el depósito', x: 3583.33, y: 1300, game: 'hold', kind: 'valve' },
   { id: 44, name: 'Limpiar el filtro del depósito', x: 3675, y: 1283.33, game: 'spots', kind: 'filter' },
   // Misiones de los tres minijuegos nuevos: buscar la colonia a base de sondas (sonar),
-  // sostener la presión en su banda (valves) y ordenar los frascos deslizándolos (puzzle).
+  // sostener la presión en su banda (valves) y atrapar esporas al vuelo (catch).
   { id: 45, name: 'Rastrear la colonia de esporas', x: 2925, y: 1366.67, game: 'sonar', kind: 'terminal' },
   { id: 46, name: 'Sondear el banco de esporas', x: 1233.33, y: 250, game: 'sonar', kind: 'terminal' },
   { id: 47, name: 'Ajustar la presión del riego', x: 1691.67, y: 1416.67, game: 'valves', kind: 'valve' },
   { id: 48, name: 'Regular el frío de la cámara', x: 2525, y: 1400, game: 'valves', kind: 'valve' },
-  { id: 49, name: 'Ordenar los frascos de esporas', x: 3658.33, y: 1416.67, game: 'puzzle', kind: 'bench' },
+  { id: 49, name: 'Atrapar las esporas del depósito', x: 3658.33, y: 1416.67, game: 'catch', kind: 'bench' },
   // Esquejes y Depósito se quedaban con pocas misiones: cada sala suma tres más, repartidas
   // por su suelo libre y con minijuegos que aún no había en ellas.
   { id: 50, name: 'Rociar las bandejas', x: 3016.67, y: 1183.33, game: 'spots', kind: 'tray' },
@@ -2225,10 +2225,15 @@ class GameRoom {
     const lobby = this.phase === 'lobby';
     if (!lobby && !(this.phase === 'meeting' && p.alive)) return false;
     if (!lobby) {
+      // ni repetir palabra por palabra lo que otro bot acaba de escribir (salvo si es una prueba directa)
+      const es = texts.es;
+      this.botRecent = this.botRecent || [];
+      if (!(struct && struct.kind === 'witness') && es && this.botRecent.includes(es)) return 'dup'; // ya se dijo: se descarta
       // los bots no pueden inundar el chat: un hueco entre mensajes de bots y un tope por reunión
       if (now - (this.botSayAt || 0) < 2200 || (this.botSayN || 0) >= 9) return false;
       this.botSayAt = now;
       this.botSayN = (this.botSayN || 0) + 1;
+      if (es) this.botRecent = [...this.botRecent, es].slice(-10);
     }
     p.lastChatAt = now;
     const base = { id: p.id, name: p.name, color: p.color };

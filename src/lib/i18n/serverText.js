@@ -68,7 +68,7 @@ export const SERVER_TEXT = [
   trMark('Sondear el banco de esporas'),
   trMark('Ajustar la presión del riego'),
   trMark('Regular el frío de la cámara'),
-  trMark('Ordenar los frascos de esporas'),
+  trMark('Atrapar las esporas del depósito'),
   trMark('Rociar las bandejas'),
   trMark('Etiquetar los esquejes'),
   trMark('Replantar los esquejes'),
