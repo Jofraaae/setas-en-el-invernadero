@@ -11,8 +11,13 @@ const MIN = 4;
 const MAX = 15;
 
 const MODES = [
-  { id: 'online', icon: '🌐', title: trMark('Sala online'), hint: trMark('Sale en el listado y entra quien tenga el código. También puedes añadir bots.') },
-  { id: 'bots', icon: '🤖', title: trMark('Sala de bots'), hint: trMark('Privada: no sale en el listado y empieza con 5 bots (puedes quitarlos o añadir más).') },
+  { id: 'online', icon: '👥', title: trMark('Sala online'), hint: trMark('Para jugar con otras personas. También puedes añadir bots.') },
+  { id: 'bots', icon: '🤖', title: trMark('Sala de bots'), hint: trMark('Empieza con 5 bots (puedes quitarlos o añadir más).') },
+];
+
+const VIS = [
+  { id: 'public', icon: '🌐', title: trMark('Pública'), hint: trMark('Sale en Salas activas y puede entrar cualquiera.') },
+  { id: 'private', icon: '🔒', title: trMark('Privada'), hint: trMark('No sale en la lista: solo entran tus amigos con el código.') },
 ];
 
 /* Pantalla previa a crear la sala: aforo máximo, escenario y tipo de sala. */
@@ -20,6 +25,8 @@ export default function CreateRoomScreen({ busy, error, onCreate, onBack }) {
   const [cap, setCap] = useState(10);
   const [map, setMap] = useState('greenhouse');
   const [mode, setMode] = useState('online');
+  const [vis, setVis] = useState('public');
+  const [visPicked, setVisPicked] = useState(false); // si no la ha tocado, sigue al tipo de sala (bots → privada)
 
   return (
     <div
@@ -60,7 +67,7 @@ export default function CreateRoomScreen({ busy, error, onCreate, onBack }) {
                   key={m.id}
                   type="button"
                   aria-pressed={sel}
-                  onClick={() => { sfx('click'); setMode(m.id); }}
+                  onClick={() => { sfx('click'); setMode(m.id); if (!visPicked) setVis(m.id === 'bots' ? 'private' : 'public'); }}
                   className={`rounded-xl border-[3px] p-3 text-left transition ${sel ? 'border-[#e9c46a] bg-[#234036]' : 'border-white/10 opacity-80 hover:opacity-100'}`}
                 >
                   <div className={`text-[15px] font-extrabold ${sel ? 'text-[#e9c46a]' : 'text-[#eaf5ec]'}`}>{m.icon} {tr(m.title)}</div>
@@ -71,10 +78,31 @@ export default function CreateRoomScreen({ busy, error, onCreate, onBack }) {
           </div>
         </div>
 
+        <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4">
+          <h2 className="text-[12px] font-black uppercase tracking-[2px] text-[#e9c46a]">{tr('Visibilidad')}</h2>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {VIS.map((v) => {
+              const sel = v.id === vis;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  aria-pressed={sel}
+                  onClick={() => { sfx('click'); setVis(v.id); setVisPicked(true); }}
+                  className={`rounded-xl border-[3px] p-3 text-left transition ${sel ? 'border-[#e9c46a] bg-[#234036]' : 'border-white/10 opacity-80 hover:opacity-100'}`}
+                >
+                  <div className={`text-[15px] font-extrabold ${sel ? 'text-[#e9c46a]' : 'text-[#eaf5ec]'}`}>{v.icon} {tr(v.title)}</div>
+                  <div className="mt-1 text-[12px] leading-snug text-[#9bb8a6]">{tr(v.hint)}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="min-h-[1.2em] text-sm text-[#ff8a8a]">{error}</div>
         <div className="flex gap-3">
           <button className={BTN_ALT} onClick={() => { sfx('back'); onBack(); }} disabled={busy}>{tr('Volver')}</button>
-          <button className={BTN} onClick={() => { sfx('click'); onCreate({ cap, map, mode }); }} disabled={busy}>
+          <button className={BTN} onClick={() => { sfx('click'); onCreate({ cap, map, mode, vis }); }} disabled={busy}>
             {busy ? tr('Conectando…') : tr('Crear sala')}
           </button>
         </div>
