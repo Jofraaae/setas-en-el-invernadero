@@ -1,4 +1,4 @@
-# 🍄 Setas en el invernadero
+# 🍄 Among Shrooms
 
 Juego de deducción social multijugador (4–15 jugadores) sin dependencias externas:
 frontend React + Vite y backend Node.js propio (`ws`) con el mismo motor de salas que

@@ -1,5 +1,5 @@
 /* ================================================================
-   Servidor de "Setas en el invernadero" sin Base44.
+   Servidor de "Among Shrooms" sin Base44.
    Node + ws: HTTP (listado de salas y estática del build) y WebSocket
    (/ws?room=XXXX&id=<connId>) con el mismo protocolo de mensajes que
    usaba el actor GameRoom de Base44.
@@ -175,7 +175,7 @@ const server = http.createServer((req, res) => {
   if (u.startsWith('/api/health')) return sendJson(res, 200, { ok: true, rooms: rooms.size });
   if (fs.existsSync(DIST)) return serveStatic(req, res, u);
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Backend de Setas en el invernadero. El frontend se sirve con `npm run dev` (Vite) o tras `npm run build`.');
+  res.end('Backend de Among Shrooms. El frontend se sirve con `npm run dev` (Vite) o tras `npm run build`.');
 });
 
 /* ---------- WebSocket: la misma API de mensajes que el actor ---------- */
@@ -235,6 +235,6 @@ server.on('error', (e) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🍄 Servidor de "Setas en el invernadero" escuchando en http://localhost:${PORT}`);
+  console.log(`🍄 Servidor de "Among Shrooms" escuchando en http://localhost:${PORT}`);
   console.log(`   WebSocket: ws://localhost:${PORT}/ws · Listado: http://localhost:${PORT}/api/rooms`);
 });

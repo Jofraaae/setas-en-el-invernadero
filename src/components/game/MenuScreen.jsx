@@ -19,7 +19,7 @@ export default function MenuScreen({ name, onName, code, onCode, onCreate, onJoi
     >
       <div className="m-auto flex w-full flex-col items-center gap-4">
         <h1 className="text-center text-[clamp(26px,5vw,42px)] font-black tracking-tight text-[#eaf5ec]">
-          {tr('🍄 Setas en el invernadero')}
+          {tr('🍄 Among Shrooms')}
         </h1>
         <p className="text-center text-[12px] font-semibold tracking-wide text-[#6f8c7c]">{tr('Made By: Jofre Morros Borràs')}</p>
         <p className="max-w-md text-center text-sm text-[#9bb8a6]">
