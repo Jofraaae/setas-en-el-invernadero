@@ -59,6 +59,8 @@ function chooseWalk(M, E) {
 }
 const WALKS = new Map(); // mapa → rejilla de caminos (se calcula una vez por proceso)
 
+const now0 = () => Date.now();
+
 export class BotManager {
   constructor(room, env) {
     this.room = room;
@@ -97,9 +99,10 @@ export class BotManager {
       this.timers.delete(t);
       try {
         const q = this.room.players.get(p.id);
-        if (!q || this.room.phase !== 'lobby' || Math.random() > 0.45) return;
+        // solo saluda uno de vez en cuando: una sala llena de bots no debe parecer un coro
+        if (!q || this.room.phase !== 'lobby' || Math.random() > 0.2 || now0() - (this.lastGreet || 0) < 45000) return;
         const s = this.say('greet');
-        if (s) this.room.botSay(q, s, null);
+        if (s && this.room.botSay(q, s, null)) this.lastGreet = now0();
       } catch (e) { /* un saludo menos */ }
     }, 1200 + Math.random() * 4000);
     if (t.unref) t.unref();
@@ -186,6 +189,7 @@ export class BotManager {
   onBroadcast(msg) {
     if (!this.brains.size || !msg) return;
     const now = Date.now();
+    if (msg.t === 'meeting') { this.room.botSayAt = 0; this.room.botSayN = 0; }
     for (const b of this.brains.values()) {
       if (b.disabled) continue;
       try {
@@ -232,19 +236,19 @@ export class BotManager {
   }
 
   onKill(killer, victim, now) {
-    const M = this.M, closed = this.room.closedDoors(now);
-    const seenBy = [];
+    const closed = this.room.closedDoors(now);
+    const seenBy = []; // cualquiera que lo viera, persona o bot: para el impostor cuentan todos
     for (const q of this.room.players.values()) {
-      if (!q.bot || q === killer || q === victim || !q.alive || q.inVent) continue;
+      if (q === killer || q === victim || !q.alive || q.inVent || q.role === 'impostor') continue;
       if (this.canSee(q, killer, now, closed) || this.canSee(q, { x: victim.x, y: victim.y }, now, closed)) seenBy.push(q);
     }
     for (const q of seenBy) {
+      if (!q.bot) continue;
       const b = this.brains.get(q.id);
-      if (b && !b.disabled && q.role !== 'impostor') { try { b.witnessKill(killer, victim, now); } catch (e) { this.fail(b, e); } }
+      if (b && !b.disabled) { try { b.witnessKill(killer, victim, now); } catch (e) { this.fail(b, e); } }
     }
     const kb = this.brains.get(killer.id);
     if (kb && !kb.disabled) { try { kb.afterKill(victim, now, seenBy.length); } catch (e) { this.fail(kb, e); } }
-    void M;
   }
 
   onVent(p, entering, now) {

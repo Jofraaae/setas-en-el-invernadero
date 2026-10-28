@@ -2224,6 +2224,12 @@ class GameRoom {
     if (!texts || now - (p.lastChatAt || 0) < 500) return false;
     const lobby = this.phase === 'lobby';
     if (!lobby && !(this.phase === 'meeting' && p.alive)) return false;
+    if (!lobby) {
+      // los bots no pueden inundar el chat: un hueco entre mensajes de bots y un tope por reunión
+      if (now - (this.botSayAt || 0) < 2200 || (this.botSayN || 0) >= 9) return false;
+      this.botSayAt = now;
+      this.botSayN = (this.botSayN || 0) + 1;
+    }
     p.lastChatAt = now;
     const base = { id: p.id, name: p.name, color: p.color };
     const pick = (q) => texts[q.lang || this.lang] || texts.es;
