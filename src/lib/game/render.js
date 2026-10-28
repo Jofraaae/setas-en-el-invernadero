@@ -1226,6 +1226,94 @@ export function drawFrame(o) {
   }
   // el Alertador avisa a todos al morir: flecha en el borde señalando su cuerpo
   drawAlertArrow(ctx, g, cx, cy, s, W, H, dpr, T);
+  // y el reactor sabotaleado: luz roja y flechas a las consolas A y B
+  drawReactorAlarm(ctx, g, cx, cy, s, W, H, dpr, T);
+}
+
+/* Alarma del reactor, en pantalla para todos (vivos, muertos, impostores): borde rojo que parpadea y una
+   flecha amarilla hacia cada consola (A y B) que aún no tiene a nadie sujetándola. Si la consola
+   está a la vista la flecha se posa encima; si no, se pega al borde de la pantalla señalando hacia ella. */
+function drawReactorAlarm(c, g, cx, cy, s, W, H, dpr, T) {
+  const rx = g.st.rx;
+  if (!rx) return;
+  const Wd = W * dpr, Hd = H * dpr;
+  const k = 0.5 + 0.5 * Math.sin(T * 6.5);
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  // luz roja intermitente: un velo suave y, sobre todo, el borde de la pantalla
+  c.fillStyle = `rgba(255,30,40,${0.03 + 0.08 * k})`;
+  c.fillRect(0, 0, Wd, Hd);
+  const grad = c.createRadialGradient(Wd / 2, Hd / 2, Math.min(Wd, Hd) * 0.32, Wd / 2, Hd / 2, Math.hypot(Wd, Hd) * 0.55);
+  grad.addColorStop(0, 'rgba(255,0,20,0)');
+  grad.addColorStop(1, `rgba(255,0,20,${0.2 + 0.33 * k})`);
+  c.fillStyle = grad;
+  c.fillRect(0, 0, Wd, Hd);
+  // flechas amarillas a las consolas
+  const m = 54 * dpr;
+  const bob = Math.sin(T * 7) * 5 * dpr;
+  for (const pt of (g.rmeta && g.rmeta.pts) || []) {
+    if (rx[pt.side]) continue; // ya hay alguien sujetándola
+    const sx = (pt.x - cx) * s, sy = (pt.y - cy) * s;
+    const label = String(pt.side || '').toUpperCase();
+    const inside = sx > m && sx < Wd - m && sy > m && sy < Hd - m;
+    c.fillStyle = '#ffd60a';
+    c.strokeStyle = '#3a2c00';
+    c.lineWidth = 3 * dpr;
+    c.font = `900 ${18 * dpr}px system-ui, sans-serif`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.save();
+    if (inside) {
+      // flecha que bota sobre la consola, apuntando hacia abajo
+      c.translate(sx, sy - 52 * dpr + bob);
+      c.beginPath();
+      c.moveTo(0, 26 * dpr);
+      c.lineTo(-18 * dpr, -4 * dpr);
+      c.lineTo(-7 * dpr, -4 * dpr);
+      c.lineTo(-7 * dpr, -18 * dpr);
+      c.lineTo(7 * dpr, -18 * dpr);
+      c.lineTo(7 * dpr, -4 * dpr);
+      c.lineTo(18 * dpr, -4 * dpr);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#ffd60a';
+      c.strokeStyle = '#3a2c00';
+      c.strokeText(label, 0, -32 * dpr);
+      c.fillText(label, 0, -32 * dpr);
+    } else {
+      // fuera de pantalla: pegada al borde, apuntando hacia ella
+      const dx = sx - Wd / 2, dy = sy - Hd / 2;
+      const ang = Math.atan2(dy, dx);
+      const kx = dx ? (Wd / 2 - m) / Math.abs(dx) : Infinity;
+      const ky = dy ? (Hd / 2 - m) / Math.abs(dy) : Infinity;
+      const t = Math.min(kx, ky);
+      c.translate(Wd / 2 + dx * t, Hd / 2 + dy * t);
+      c.save();
+      c.rotate(ang);
+      c.translate(bob, 0);
+      c.beginPath();
+      c.moveTo(26 * dpr, 0);
+      c.lineTo(-4 * dpr, -18 * dpr);
+      c.lineTo(-4 * dpr, -7 * dpr);
+      c.lineTo(-18 * dpr, -7 * dpr);
+      c.lineTo(-18 * dpr, 7 * dpr);
+      c.lineTo(-4 * dpr, 7 * dpr);
+      c.lineTo(-4 * dpr, 18 * dpr);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      c.restore();
+      // la letra, un poco hacia dentro de la pantalla para que no tape la flecha
+      c.fillStyle = '#ffd60a';
+      c.strokeStyle = '#3a2c00';
+      const lx = -Math.cos(ang) * 34 * dpr, ly = -Math.sin(ang) * 34 * dpr;
+      c.strokeText(label, lx, ly);
+      c.fillText(label, lx, ly);
+    }
+    c.restore();
+  }
+  c.restore();
 }
 
 export function drawMiniMap(el, miniC, g, T) {
