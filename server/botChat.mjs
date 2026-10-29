@@ -169,6 +169,33 @@ const T = {
   disagree: [
     ['No creo que {x} sea impostor: lo vi en {room}.', 'I do not think {x} is the impostor, I saw them in {room}.'],
   ],
+  // ---- hacer caso (o no) a lo que dice una persona: "votad a X", "X es impostor", "X es inocente"
+  follow: [
+    ['Vale, {y}, te hago caso: voto a {x}.', 'Okay {y}, I will trust you: voting {x}.'],
+    ['Tiene sentido, {y}. Yo también voy a por {x}.', 'Makes sense, {y}. I am going for {x} too.'],
+    ['Ahora que lo dices, {x} me cuadra. Voto a {x}.', 'Now that you say it, {x} adds up. Voting {x}.'],
+    ['{y} tiene razón, {x} es sospechoso. Voto a {x}.', '{y} has a point, {x} is suspicious. Voting {x}.'],
+    ['Me has convencido, {y}: a por {x}.', 'You convinced me, {y}: going for {x}.'],
+  ],
+  doubt: [
+    ['No lo veo claro, {y}. ¿Por qué {x}?', 'I am not convinced, {y}. Why {x}?'],
+    ['Yo no vi nada raro en {x}, {y}. Sin pruebas no voto.', 'I saw nothing weird about {x}, {y}. No proof, no vote.'],
+    ['{y}, eso es solo una sospecha. ¿Qué viste de {x}?', '{y}, that is just a hunch. What did you see about {x}?'],
+    ['Mmm, no me cuadra lo de {x}, {y}.', 'Hmm, the {x} thing does not add up, {y}.'],
+    ['No sé, {y}. Tampoco hay motivos claros para votar a {x}.', 'I do not know, {y}. No clear reason to vote {x}.'],
+  ],
+  trustClear: [
+    ['Vale, {y}, entonces {x} está limpio. Me fío.', 'Okay {y}, so {x} is clean. I trust that.'],
+    ['Eso cambia las cosas: {x} parece de fiar.', 'That changes things: {x} seems trustworthy.'],
+  ],
+  skipFollow: [
+    ['Sí, {y}, sin pruebas yo también salto.', 'Yeah {y}, no proof, so I skip too.'],
+    ['De acuerdo, mejor saltar y no arriesgar un inocente.', 'Agreed, better to skip than risk an innocent.'],
+  ],
+  skipRefuse: [
+    ['{y}, saltar no nos sirve: hay un impostor entre nosotros.', '{y}, skipping does not help: there is an impostor among us.'],
+    ['Yo no saltaría, {y}. Alguien miente.', 'I would not skip, {y}. Someone is lying.'],
+  ],
   // ---- comprobar lo que dicen los demás
   confirm: [
     ['Confirmo lo que dice {x}: yo estaba en {room}.', 'I confirm what {x} says: I was in {room}.'],
@@ -241,15 +268,46 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ACCUSE = /\b(sus|sospech\w*|impost\w*|mato|mataron|matado|matar|vent\w*|rejilla\w*|culpable|acus\w*|miente|mientes|mintiendo|liar|lying|lies|kill\w*|suspicious|suspect\w*|vote|votad|votemos|sabotaj\w*|fake|falso)\b/;
 const STRONG = /\b(mato|mataron|matar|vi a|visto|killed|saw|vent|rejilla|impostor)\b/;
 const QUESTION = /(\?|donde|where|que hacias|what were you)/;
+// pedir o anunciar un voto: "votad a X", "voto a X", "vote X", "echemos a X"
+const VOTE = /\b(vota\w*|votad|votemos|votamos|voto|votar|vote|voting|expuls\w*|echad\w*|echemos|echar|eject\w*|kick\w*)\b/;
+const SKIP = /\b(skip\w*|saltar\w*|saltemos|salto|abstenc\w*|abstain|no votemos|no votes|no voten|vote nobody|nobody|nadie)\b/;
+// defender a alguien: "X es inocente", "X no fue", "confío en X"
+const CLEAR = /\b(inocente\w*|limpi[oa]\w*|no fue|no ha sido|no es (el )?impostor|no es sospechoso|confio|confiad|innocent|clean|safe|trust\w*|not (the )?impostor|wasn.?t)\b/;
+// defenderse a uno mismo: "yo no fui", "no soy el impostor"
+const SELF = /\b(yo no fui|no fui yo|no he sido yo|no he sido|no soy (el )?impostor|soy inocente|it wasn.?t me|i am innocent|i.?m innocent|i.?m not (the )?impostor|i did not|i didn.?t)\b/;
 
-/* Qué dice un mensaje: a quién nombra y si acusa. names = [{id, name}] de los jugadores vivos. */
+/* Qué dice un mensaje: a quién nombra y qué pide. names = [{id, name}] de los jugadores vivos.
+   Un nombre se reconoce completo o por su comienzo (4 letras o más), en minúsculas y sin tildes. */
 export function parseChat(text, names) {
   const t = norm(text);
-  const mentioned = [];
+  const found = [];
   for (const n of names) {
     const nn = norm(n.name);
     if (!nn) continue;
-    if (new RegExp(`(^|[^a-z0-9])${esc(nn)}([^a-z0-9]|$)`).test(t)) mentioned.push(n.id);
+    let m = new RegExp(`(^|[^a-z0-9])${esc(nn)}([^a-z0-9]|$)`).exec(t);
+    let at = m ? m.index + m[1].length : -1;
+    if (at < 0 && nn.length >= 4) {
+      // un comienzo del nombre ("colmen" por Colmenilla), solo si es largo y no ambiguo
+      const re = /[a-z0-9]{4,}/g;
+      let w;
+      while ((w = re.exec(t))) { if (nn.startsWith(w[0]) && w[0].length >= Math.min(5, nn.length)) { at = w.index; break; } }
+    }
+    if (at >= 0) found.push({ id: n.id, at });
   }
-  return { mentioned, accuse: ACCUSE.test(t), strong: STRONG.test(t), question: QUESTION.test(t) };
+  found.sort((a, b) => a.at - b.at);
+  const vm = VOTE.exec(t);
+  const clear = CLEAR.test(t);
+  // quien viene después del verbo de votar es a quien se vota ("Ana, vota a Leo": Leo)
+  const voteTargets = vm ? found.filter((f) => f.at > vm.index).map((f) => f.id) : [];
+  return {
+    mentioned: found.map((f) => f.id),
+    accuse: ACCUSE.test(t) && !clear,
+    strong: STRONG.test(t) && !clear,
+    question: QUESTION.test(t),
+    vote: !!vm && !clear,
+    voteTargets: clear ? [] : voteTargets,
+    skip: SKIP.test(t) && !found.length,
+    clear,
+    self: SELF.test(t),
+  };
 }

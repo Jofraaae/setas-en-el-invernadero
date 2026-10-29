@@ -1251,25 +1251,145 @@ export class Brain {
     }
   }
 
-  // lo que escribe una persona: se lee con palabras clave
+  // lo que escribe una persona: se lee con palabras clave y se decide, según lo que el bot sabe, si se la cree
   hearText(fromId, text, names, now) {
     const p = this.p, m = this.meet;
     if (!m || !p || !p.alive || fromId === this.id) return;
     const r = parseChat(text, names);
+    // "yo no fui": se la cree un poco más quien no tenía motivos para sospechar de ella
+    if (r.self && p.role !== 'impostor' && !this.proof(fromId) && this.susp(fromId) < 0.5) this.addSusp(fromId, -0.04);
+    // "saltemos / no votemos a nadie"
+    if (r.skip && !r.mentioned.length) { this.hearSkip(fromId, now); return; }
     if (!r.mentioned.length) return;
+    // "votad a X" / "voto a X": a mí me están señalando, o me piden que vote a otro
+    if (r.vote && r.voteTargets.length) {
+      if (r.voteTargets.includes(this.id)) { this.respondAccusation(fromId, { kind: 'suspect', target: this.id }, now); return; }
+      this.considerCall(fromId, r.voteTargets[0], r, now);
+      return;
+    }
+    // "X es inocente / confío en X"
+    if (r.clear && !r.accuse) {
+      const tgt = r.mentioned.find((id) => id !== this.id);
+      if (tgt) this.considerClear(fromId, tgt, now);
+      return;
+    }
     if (r.mentioned.includes(this.id)) {
       if (r.accuse) { this.respondAccusation(fromId, { kind: r.strong ? 'witness' : 'suspect', target: this.id }, now); return; }
       if (r.question && m.reacts < 3 && chance(0.8)) { m.reacts++; this.queueSay(this.alibiReply(now), rnd(3000, 6000)); }
       return;
     }
-    if (r.accuse && p.role !== 'impostor') {
-      for (const id of r.mentioned) {
-        this.mem.acc.set(id, (this.mem.acc.get(id) || 0) + 1);
-        this.addSusp(id, (r.strong ? 0.18 : 0.07) * (1 - this.susp(fromId)));
-      }
-    } else if (r.accuse) {
-      for (const id of r.mentioned) this.mem.acc.set(id, (this.mem.acc.get(id) || 0) + 1);
+    if (r.accuse) {
+      // acusa a otro ("X es impostor", "vi a X matar"): se la cree o no según el sentido que le encuentre
+      this.considerCall(fromId, r.mentioned[0], r, now);
     }
+  }
+
+  /* ¿Cuánto me creo que `tgt` es sospechoso porque lo dice `fromId`? Pesa lo que yo mismo he visto y
+     sospechado, no solo quién lo dice: si yo ya desconfiaba de él o estuvo junto al cuerpo, cuela; si lo vi
+     trabajando o el que acusa me parece sospechoso, no. */
+  credit(fromId, tgt, r, now) {
+    if (this.mem.knownImp.has(fromId) || this.proof(fromId)) return 0; // sé que quien lo dice es impostor
+    if (this.proof(tgt)) return 1;                                       // yo mismo lo sé
+    let c = 0.4;
+    c += (this.susp(tgt) - 0.12) * 1.1;   // si ya desconfiaba de él, me cuadra
+    c -= (this.susp(fromId) - 0.12) * 0.9; // si desconfío de quien lo dice, me cuadra menos
+    if (this.mem.clear.has(tgt)) c -= 0.4;
+    if (this.recentSeen(now).some((o) => o.id === tgt && now - o.t < 25000)) c -= 0.12; // lo vi trabajando hace nada
+    c += Math.min(0.2, (this.mem.acc.get(tgt) || 0) * 0.06); // varios lo señalan
+    for (const b of this.mem.bodies.values()) if ((b.near || []).includes(tgt)) { c += 0.15; break; } // estaba junto al cuerpo
+    if (r.strong) c += 0.12;
+    else if (!r.accuse) c -= 0.1; // "votad a X" a secas, sin motivo
+    return Math.max(0.08, Math.min(0.92, c));
+  }
+
+  // una persona acusa a `tgt` o pide votarle
+  considerCall(fromId, tgt, r, now) {
+    const p = this.p, m = this.meet;
+    if (!m || tgt === this.id || this.mem.dead.has(tgt)) return;
+    m.heard = m.heard || new Set();
+    const key = tgt + ':' + fromId;
+    if (m.heard.has(key) || m.heard.size >= 4) return; // cada petición se contesta una vez por reunión
+    m.heard.add(key);
+    this.mem.acc.set(tgt, (this.mem.acc.get(tgt) || 0) + 1);
+    const x = this.nameOf(tgt), y = this.nameOf(fromId);
+    if (p.role === 'impostor') {
+      if (this.mates.has(tgt)) {
+        // piden votar a mi compañero: lo defiendo y desconfío de quien lo pide
+        this.hostile.add(fromId);
+        if (m.reacts < 4 && chance(0.7)) { m.reacts++; this.queueSay(this.pairOf(chance(0.5) ? 'defendMate' : 'doubt', { x, y }, null), rnd(3500, 7000)); }
+        return;
+      }
+      // a un inocente: me apunto casi siempre, así parece que ayudo y el voto se reparte
+      if (chance(0.7)) this.followCall(tgt, fromId, r, 0.35);
+      return;
+    }
+    if (chance(this.credit(fromId, tgt, r, now))) this.followCall(tgt, fromId, r, r.strong ? 0.3 : 0.22);
+    else this.refuseCall(tgt, fromId, now);
+  }
+
+  // me lo creo: sube la sospecha, a veces me comprometo a votarle y lo digo
+  followCall(tgt, fromId, r, bump) {
+    const p = this.p, m = this.meet;
+    this.addSusp(tgt, bump * (1 - this.susp(fromId)));
+    // si me lo creo, normalmente me comprometo a votarle: más si me lo piden o dicen haberlo visto
+    const commit = r.vote ? 0.9 : r.strong ? 0.8 : 0.6;
+    if ((!m.pledge || chance(0.6)) && chance(commit)) m.pledge = tgt;
+    if (m.reacts < 4 && chance(0.75)) {
+      m.reacts++;
+      this.queueSay(this.pairOf('follow', { x: this.nameOf(tgt), y: this.nameOf(fromId) }, { kind: 'vote', target: tgt }), rnd(2800, 6000));
+    }
+    void p;
+  }
+
+  // no me lo creo: no cambia mi voto y a veces lo digo
+  refuseCall(tgt, fromId, now) {
+    const m = this.meet;
+    if (m.pledge === tgt) m.pledge = null;
+    this.addSusp(tgt, -0.02);
+    if (m.reacts < 4 && chance(0.65)) {
+      m.reacts++;
+      const seen = this.recentSeen(now).find((o) => o.id === tgt && now - o.t < 40000);
+      const x = this.nameOf(tgt), y = this.nameOf(fromId);
+      this.queueSay(seen && chance(0.6)
+        ? this.pairOf('disagree', { x, room: seen.room }, null)
+        : this.pairOf('doubt', { x, y }, null), rnd(3000, 6500));
+    }
+  }
+
+  // "X es inocente": me lo creo según cuánto me fío de quien lo dice y de lo que yo sabía de X
+  considerClear(fromId, tgt, now) {
+    const p = this.p, m = this.meet;
+    if (p.role === 'impostor' || !m || this.mem.dead.has(tgt)) return;
+    if (this.proof(tgt) || this.mem.knownImp.has(fromId) || this.proof(fromId)) return;
+    const c = Math.max(0.1, Math.min(0.85, 0.5 - (this.susp(fromId) - 0.12) * 0.9 - (this.susp(tgt) - 0.12) * 0.6));
+    if (!chance(c)) return;
+    this.addSusp(tgt, -0.14 * (1 - this.susp(fromId)));
+    if (m.pledge === tgt && this.susp(tgt) < 0.4) m.pledge = null;
+    if (m.reacts < 4 && chance(0.45)) { m.reacts++; this.queueSay(this.pairOf('trustClear', { x: this.nameOf(tgt), y: this.nameOf(fromId) }, { kind: 'clear', target: tgt }), rnd(3000, 6500)); }
+  }
+
+  // "saltemos": según lo convencido que esté yo de que hay un culpable claro
+  hearSkip(fromId, now) {
+    const p = this.p, m = this.meet;
+    m.heard = m.heard || new Set();
+    if (m.heard.has('skip:' + fromId)) return;
+    m.heard.add('skip:' + fromId);
+    const top = this.topSuspect(false);
+    const y = this.nameOf(fromId);
+    if (p.role === 'impostor') {
+      if (chance(0.4)) m.skipWish = true;
+      return;
+    }
+    const sure = top && (this.proof(top.id) || top.s >= 0.6);
+    if (!sure && !this.mem.knownImp.size && chance(0.55 - this.susp(fromId) * 0.4)) {
+      m.skipWish = true;
+      if (m.pledge) m.pledge = null;
+      if (m.reacts < 4 && chance(0.6)) { m.reacts++; this.queueSay(this.pairOf('skipFollow', { y }, null), rnd(3000, 6000)); }
+    } else if (m.reacts < 4 && chance(0.4)) {
+      m.reacts++;
+      this.queueSay(this.pairOf('skipRefuse', { y }, null), rnd(3000, 6500));
+    }
+    void now;
   }
 
   alibiReply(now) {
@@ -1320,6 +1440,7 @@ export class Brain {
       const doomed = [...this.mem.acc].find(([id, n]) => this.mates.has(id) && n >= need);
       if (doomed && chance(0.55)) choice = doomed[0]; // el compañero ya está perdido: votarle disimula
       else if (m.pledge && alive.some((q) => q.id === m.pledge)) choice = m.pledge; // lo que dije en el chat
+      else if (m.skipWish) choice = 'skip';
       else {
         let best = null, bs = -1;
         for (const q of crew) {
@@ -1332,6 +1453,7 @@ export class Brain {
       const top = this.topSuspect(true);
       const thr = alive.length <= 3 ? 0.28 : 0.45;
       if (top && top.s >= thr) choice = top.id;
+      if (m.skipWish && !(top && this.proof(top.id))) choice = 'skip'; // me convencieron de saltar y no tengo una prueba
       if (m.pledge && alive.some((q) => q.id === m.pledge) && !this.mem.clear.has(m.pledge) && (this.susp(m.pledge) >= 0.2 || chance(0.7))) choice = m.pledge; // cumple lo que dijo
       if (p.judge && !p.judgeUsed && top && this.proof(top.id)) {
         this.send({ t: 'judge', target: top.id }); // una prueba directa: el Juez sentencia
