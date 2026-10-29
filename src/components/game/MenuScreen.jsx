@@ -70,6 +70,10 @@ export default function MenuScreen({ name, onSaveName, code, onCode, onCreate, o
         <p className="max-w-[460px] text-center text-[13px] text-[#9bb8a6]">
           {tr('Mueve con WASD / flechas (o el joystick táctil). E = usar, Q = eliminar, R = reportar, X = apagón, V = rejilla (impostor), I = interrogar (detective). Si se te cae la conexión, vuelve a entrar con el mismo código: recuperas tu sitio y tu rol.')}
         </p>
+        <p className="text-center text-[13px] text-[#9bb8a6]">
+          {tr('Sugerencias:')}{' '}
+          <a className="font-bold text-[#e9c46a] underline-offset-2 hover:underline" href="mailto:jofremorros@gmail.com">jofremorros@gmail.com</a>
+        </p>
       </div>
 
       {!named || renaming ? (
