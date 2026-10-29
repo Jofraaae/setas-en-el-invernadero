@@ -1256,6 +1256,7 @@ class GameRoom {
         if (!target || !target.alive || target.id === p.id) return;
         p.judgeUsed = true;
         p.judgeTarget = target.id;
+        p.judgeAt = Date.now(); // si hay varios jueces, decide el primero en sentenciar
         this.broadcast({ t: 'voted', id: p.id }); // su sentencia cuenta como voto: el resto lo ve votado
         conn.send({ t: 'judgeAck' });
         if (this.allVoted()) this.endMeeting();
@@ -1717,9 +1718,9 @@ class GameRoom {
     if (this.phase !== 'meeting' || !this.meeting) return;
     const votes = [...this.meeting.votes].map(([from, to]) => ({ from, to }));
     // el Juez que ha gastado su sentencia decide la expulsión por encima de los votos
-    // con varios jueces, decide uno solo: la sentencia de los demás no se gasta
-    const judges = [...this.players.values()].filter((p) => p.judge && p.judgeTarget);
-    const judge = judges.length ? judges[Math.floor(Math.random() * judges.length)] : null;
+    // con varios jueces decide uno solo, el primero que sentenció: la sentencia de los demás no se gasta
+    const judges = [...this.players.values()].filter((p) => p.judge && p.judgeTarget).sort((a, b) => (a.judgeAt || 0) - (b.judgeAt || 0));
+    const judge = judges[0] || null;
     for (const j of judges) if (j !== judge) { j.judgeTarget = null; j.judgeUsed = false; this.sendTo(j, { t: 'judgeRefund' }); }
     let ejected = null;
     let judgeInfo = null;
