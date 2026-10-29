@@ -4,6 +4,20 @@ import VentBar from '@/components/game/VentBar';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
 
+// Los botones actúan al TOCARLOS, no al soltar. Con el joystick pulsado con un dedo, el navegador
+// no genera el "click" del segundo dedo (lo toma por parte de un gesto de varios dedos), así que
+// antes no se podía matar, reportar ni usar nada mientras andabas. El click solo se acepta cuando
+// viene del teclado (detail 0), para no disparar dos veces.
+const tap = (fn) => ({
+  onPointerDown: (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.currentTarget.disabled) return;
+    e.preventDefault();
+    fn();
+  },
+  onClick: (e) => { if (e.detail === 0) fn(); },
+});
+
 export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, onSab, onReactor, onVent, onVentTo, onShift, onInvis, onGuard, onBlind, onSci, onInterro, onTrack }) {
   const [, force] = useState(0);
 
@@ -128,7 +142,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
 
       <button
         className="pointer-events-auto absolute bottom-2.5 left-2.5 rounded-xl border-2 border-white/15 bg-[rgba(10,22,16,.78)] px-3.5 py-2.5 text-[13px] font-bold text-[#eaf5ec] shadow-[0_4px_14px_rgba(0,0,0,.45)] transition hover:brightness-110"
-        onClick={() => { sfx('click'); onMap(); }}
+        {...tap(() => { sfx('click'); onMap(); })}
       >
         {tr('🗺 MAPA [M]')}
       </button>
@@ -176,7 +190,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             </div>
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#e9c46a] px-4 py-3.5 text-[15px] font-bold text-[#261c05] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-              onClick={() => { sfx('taskOpen'); onUse(); }}
+              {...tap(() => { sfx('taskOpen'); onUse(); })}
               disabled={!canUse}
             >
               {useLabel}
@@ -185,7 +199,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
               <>
                 <button
                   className="pointer-events-auto min-w-[140px] rounded-xl bg-[#7b2cbf] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                  onClick={() => { sfx('sabotage'); onSab(); }}
+                  {...tap(() => { sfx('sabotage'); onSab(); })}
                   disabled={frz || st.scd > 0 || !!st.dark || !!st.rx}
                 >
                   {st.dark ? tr('APAGÓN ACTIVO') : st.scd > 0 ? tr('APAGÓN ({s})', { s: Math.ceil(st.scd / 1000) }) : tr('APAGÓN [X]')}
@@ -193,7 +207,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 {g.rmeta ? (
                   <button
                     className="pointer-events-auto min-w-[140px] rounded-xl bg-[#c9184a] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                    onClick={() => { sfx('switch'); onReactor(); }}
+                    {...tap(() => { sfx('switch'); onReactor(); })}
                     disabled={frz || st.rcd > 0 || !!st.rx || st.dark}
                   >
                     {st.rcd > 0 ? tr('REACTOR ({s})', { s: Math.ceil(st.rcd / 1000) }) : tr('REACTOR [C]')}
@@ -207,7 +221,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {blinder ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#5c2a86] px-4 py-3.5 text-[15px] font-bold text-[#f0e0ff] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={() => { sfx('switch'); onBlind(); }}
+                {...tap(() => { sfx('switch'); onBlind(); })}
                 disabled={st.blcd > 0 || !nearBlind}
               >
                 {st.blcd > 0 ? tr('CEGAR ({s})', { s: Math.ceil(st.blcd / 1000) }) : nearBlind ? tr('CEGAR [B]') : tr('ACÉRCATE PARA CEGAR')}
@@ -216,7 +230,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {keymaster ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#2a7fa8] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110"
-                onClick={() => { sfx('click'); onMap(); }}
+                {...tap(() => { sfx('click'); onMap(); })}
               >
                 {st.kycd > 0 ? tr('LLAVE ({s})', { s: Math.ceil(st.kycd / 1000) }) : st.drs && st.drs.length ? tr('🔓 ABRIR PUERTAS [M]') : tr('LLAVE LISTA')}
               </button>
@@ -224,7 +238,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {angel ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#3aa0b8] px-4 py-3.5 text-[15px] font-bold text-[#04222a] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={() => { sfx('switch'); onGuard(); }}
+                {...tap(() => { sfx('switch'); onGuard(); })}
                 disabled={st.gcd > 0 || !nearCrew}
               >
                 {st.gcd > 0 ? tr('ESCUDO ({s})', { s: Math.ceil(st.gcd / 1000) }) : tr('PROTEGER [T]')}
@@ -238,7 +252,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 {g.shifter ? (
                   <button
                     className="pointer-events-auto min-w-[140px] rounded-xl bg-[#3a0ca3] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                    onClick={() => { sfx('switch'); onShift(); }}
+                    {...tap(() => { sfx('switch'); onShift(); })}
                     disabled={frz || !!st.form || st.shcd > 0 || !g.me.alive}
                   >
                     {st.shcd > 0 ? tr('CAMBIAR FORMA ({s})', { s: Math.ceil(st.shcd / 1000) }) : tr('CAMBIAR FORMA [F]')}
@@ -247,7 +261,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 {g.spectre ? (
                   <button
                     className="pointer-events-auto min-w-[140px] rounded-xl bg-[#2b0a3a] px-4 py-3.5 text-[15px] font-bold text-[#d7c4ff] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                    onClick={() => { sfx('switch'); onInvis(); }}
+                    {...tap(() => { sfx('switch'); onInvis(); })}
                     disabled={frz || st.inv > 0 || st.icd > 0 || g.vent.in || !g.me.alive}
                   >
                     {st.inv > 0 ? tr('INVISIBLE ({s})', { s: Math.ceil(st.inv / 1000) }) : st.icd > 0 ? tr('INVISIBLE ({s})', { s: Math.ceil(st.icd / 1000) }) : tr('INVISIBLE [G]')}
@@ -255,7 +269,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 ) : null}
                 <button
                   className="pointer-events-auto min-w-[140px] rounded-xl bg-[#7b2cbf] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                  onClick={() => { sfx('sabotage'); onSab(); }}
+                  {...tap(() => { sfx('sabotage'); onSab(); })}
                   disabled={frz || st.scd > 0 || !!st.dark || !!st.rx || !g.me.alive}
                 >
                   {st.dark ? tr('APAGÓN ACTIVO') : st.scd > 0 ? tr('APAGÓN ({s})', { s: Math.ceil(st.scd / 1000) }) : tr('APAGÓN [X]')}
@@ -263,7 +277,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 {g.rmeta ? (
                   <button
                     className="pointer-events-auto min-w-[140px] rounded-xl bg-[#c9184a] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                    onClick={() => { sfx('switch'); onReactor(); }}
+                    {...tap(() => { sfx('switch'); onReactor(); })}
                     disabled={frz || st.rcd > 0 || !!st.rx || st.dark || !g.me.alive}
                   >
                     {st.rcd > 0 ? tr('REACTOR ({s})', { s: Math.ceil(st.rcd / 1000) }) : tr('REACTOR [C]')}
@@ -271,14 +285,14 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                 ) : null}
                 <button
                   className="pointer-events-auto min-w-[140px] rounded-xl bg-[#e63946] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                  onClick={() => { sfx('kill'); onKill(); }}
+                  {...tap(() => { sfx('kill'); onKill(); })}
                   disabled={frz || !c.target || st.kcd > 0 || !g.me.alive}
                 >
                   {st.kcd > 0 ? tr('ELIMINAR ({s})', { s: Math.ceil(st.kcd / 1000) }) : tr('ELIMINAR [Q]')}
                 </button>
                 <button
                   className="pointer-events-auto min-w-[140px] rounded-xl bg-[#9d4edd] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                  onClick={onVent}
+                  {...tap(onVent)}
                   disabled={frz || !c.vent}
                 >
                   {tr('REJILLA [V]')}
@@ -287,14 +301,14 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             ) : null}
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#ff9f1c] px-4 py-3.5 text-[15px] font-bold text-[#2b1a03] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-              onClick={() => { sfx('button'); onRep(); }}
+              {...tap(() => { sfx('button'); onRep(); })}
               disabled={frz || !c.body}
             >
               {tr('REPORTAR [R]')}
             </button>
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#e9c46a] px-4 py-3.5 text-[15px] font-bold text-[#261c05] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-              onClick={() => { sfx('taskOpen'); onUse(); }}
+              {...tap(() => { sfx('taskOpen'); onUse(); })}
               disabled={!canUse}
             >
               {useLabel}
@@ -302,7 +316,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {engineer ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#9d4edd] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={onVent}
+                {...tap(onVent)}
                 disabled={frz || !c.vent || st.vcd > 0}
               >
                 {st.vcd > 0 ? tr('REJILLA ({s})', { s: Math.ceil(st.vcd / 1000) }) : tr('REJILLA [V]')}
@@ -311,7 +325,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {scientist ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#3aa0b8] px-4 py-3.5 text-[15px] font-bold text-[#04222a] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={() => { sfx('switch'); onSci(); }}
+                {...tap(() => { sfx('switch'); onSci(); })}
                 disabled={frz || st.sciCd > 0 || st.sciL <= 0 || g.vent.in}
               >
                 {st.sciL <= 0
@@ -326,7 +340,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {tracker ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#4361ee] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={() => { sfx('switch'); onTrack(); }}
+                {...tap(() => { sfx('switch'); onTrack(); })}
                 disabled={frz || !!trk || st.trkcd > 0 || !c.track}
               >
                 {trk
@@ -341,7 +355,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             {detective ? (
               <button
                 className="pointer-events-auto min-w-[140px] rounded-xl bg-[#2a9d8f] px-4 py-3.5 text-[15px] font-bold text-[#04211d] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
-                onClick={() => { sfx('vote'); onInterro(); }}
+                {...tap(() => { sfx('vote'); onInterro(); })}
                 disabled={frz || g.detectiveUsed || !allTasks || !c.interro}
               >
                 {g.detectiveUsed
