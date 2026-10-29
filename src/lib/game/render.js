@@ -773,9 +773,27 @@ function drawDoors(ctx, g, doorArt) {
   for (const d of g.doors) if (closed.has(d.id)) paint(ctx, d);
 }
 
-function drawBody(c, x, y, color) {
+// Hacia qué lado cae cada cuerpo: sale del id, así que todo el mundo lo ve igual.
+function bodyDir(id) {
+  let h = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return (h & 1) ? 1 : -1;
+}
+
+// k: cuánto ha crecido el charco de sangre (0..1); dir: hacia qué lado yace
+function drawBody(c, x, y, color, dir = 1, k = 1) {
   c.save();
   c.translate(x, y);
+  // charco de sangre debajo (crece mientras cae)
+  if (k > 0) {
+    c.fillStyle = 'rgba(122,14,28,.62)';
+    c.beginPath();
+    c.ellipse(-2 * dir, 7, 30 * k, 11 * k, 0, 0, 7);
+    c.ellipse(10 * dir, 10, 14 * k, 6 * k, 0, 0, 7);
+    c.fill();
+  }
+  c.scale(dir, 1);
   c.fillStyle = 'rgba(0,0,0,.3)';
   c.beginPath();
   c.ellipse(0, 6, 24, 8, 0, 0, 7);
@@ -796,6 +814,127 @@ function drawBody(c, x, y, color) {
   c.moveTo(23, -1);
   c.lineTo(18, 4);
   c.stroke();
+  c.restore();
+}
+
+/* ---------- el golpe: la caída del cuerpo y la sangre ---------- */
+export const BODY_FX_MS = 1500; // lo que dura todo el efecto desde que cae
+const FALL_MS = 520; // lo que tarda en caer el seta
+const ss = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// Las gotas salen de una sola vez, con valores al azar fijados al crear el efecto
+function makeGore() {
+  const parts = [];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  // salpicón del golpe: sale en todas direcciones, algo más hacia arriba
+  for (let i = 0; i < 30; i++) {
+    const a = rnd(0, Math.PI * 2);
+    const sp = rnd(60, 230);
+    parts.push({ d: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 - rnd(40, 120), r: rnd(1.6, 4.6), c: Math.random() < 0.28 ? '#d62839' : '#8f1424', oy: -14 });
+  }
+  // al tocar el suelo, otro chorro más corto y bajo
+  for (let i = 0; i < 14; i++) {
+    const a = rnd(-Math.PI, 0);
+    const sp = rnd(40, 150);
+    parts.push({ d: FALL_MS * 0.8 / 1000, vx: Math.cos(a) * sp * 1.3, vy: Math.sin(a) * sp * 0.7, r: rnd(1.4, 3.6), c: '#a3162a', oy: 4 });
+  }
+  return parts;
+}
+
+// Dibuja la caída (el seta de pie que se desploma, luego ya tumbado) y devuelve true mientras dure
+function drawFall(c, fx, id, x, y, color, el) {
+  const dir = bodyDir(id);
+  const p = Math.min(1, el / FALL_MS);
+  // cae acelerando y rebota un poco al tocar el suelo
+  let ang = (Math.PI / 2) * Math.min(1, p * p * 1.05);
+  if (p > 0.85) ang -= Math.sin(((p - 0.85) / 0.15) * Math.PI) * 0.1;
+  const standing = 1 - ss(0.72, 1, p); // el seta de pie se va
+  const lying = ss(0.55, 1, p); // el cuerpo tumbado aparece
+  // el seta se empuja un poco hacia atrás al recibir el golpe
+  const knock = (1 - p) * Math.sin(Math.min(1, el / 140) * Math.PI) * 6 * -dir;
+  if (standing > 0.01) {
+    c.save();
+    c.globalAlpha = standing;
+    c.translate(x + knock, y + 14);
+    c.rotate(-dir * ang);
+    drawShroom(c, 0, -14, color, { alive: true, t: 0, face: -dir, moving: false });
+    c.restore();
+  }
+  if (lying > 0.01) {
+    c.save();
+    c.globalAlpha = lying;
+    drawBody(c, x, y, color, dir, ss(0.3, 1, p));
+    c.restore();
+  }
+  // golpe de aire al aterrizar: un anillo de polvo que se abre
+  if (el > FALL_MS * 0.78 && el < FALL_MS * 0.78 + 320) {
+    const q = (el - FALL_MS * 0.78) / 320;
+    c.save();
+    c.globalAlpha = 0.45 * (1 - q);
+    c.strokeStyle = '#f3e9d2';
+    c.lineWidth = 3 * (1 - q) + 1;
+    c.beginPath();
+    c.ellipse(x, y + 8, 14 + q * 38, 5 + q * 12, 0, 0, 7);
+    c.stroke();
+    c.restore();
+  }
+}
+
+// Las gotas de sangre: salen disparadas, caen con la gravedad y se quedan en el suelo un momento
+function drawGore(c, fx, x, y, el) {
+  if (!fx.parts) fx.parts = makeGore();
+  const t = el / 1000;
+  // fogonazo rojo del golpe, solo un instante
+  if (el < 170) {
+    const q = el / 170;
+    c.save();
+    c.globalAlpha = 0.55 * (1 - q);
+    const gr = c.createRadialGradient(x, y - 6, 2, x, y - 6, 20 + q * 52);
+    gr.addColorStop(0, 'rgba(255,80,90,.95)');
+    gr.addColorStop(1, 'rgba(160,10,30,0)');
+    c.fillStyle = gr;
+    c.beginPath();
+    c.arc(x, y - 6, 20 + q * 52, 0, 7);
+    c.fill();
+    // tres rayas del zarpazo
+    c.globalAlpha = 0.9 * (1 - q);
+    c.strokeStyle = '#ffe3e6';
+    c.lineWidth = 2.5;
+    for (let i = -1; i <= 1; i++) {
+      c.beginPath();
+      c.moveTo(x - 22 + i * 7 + q * 8, y - 26 + i * 5 - q * 4);
+      c.lineTo(x + 20 + i * 7 + q * 14, y + 4 + i * 5 + q * 6);
+      c.stroke();
+    }
+    c.restore();
+  }
+  const fade = 1 - ss(BODY_FX_MS - 500, BODY_FX_MS, el);
+  c.save();
+  for (const q of fx.parts) {
+    const tt = t - q.d;
+    if (tt < 0) continue;
+    const gy = y + 10; // el suelo
+    let px = x + q.vx * tt;
+    let py = y + q.oy + q.vy * tt + 0.5 * 620 * tt * tt;
+    let r = q.r;
+    if (py >= gy) {
+      // ya ha caído: se queda como una mancha un poco achatada
+      const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 2 * 620 * (gy - (y + q.oy)))) / 620; // instante en que toca
+      px = x + q.vx * Math.min(tt, tl) * 0.9;
+      py = gy + ((q.vx * 7) % 5);
+      c.globalAlpha = fade * 0.85;
+      c.fillStyle = q.c;
+      c.beginPath();
+      c.ellipse(px, py, r * 1.3, r * 0.7, 0, 0, 7);
+      c.fill();
+    } else {
+      c.globalAlpha = fade;
+      c.fillStyle = q.c;
+      c.beginPath();
+      c.arc(px, py, r, 0, 7);
+      c.fill();
+    }
+  }
   c.restore();
 }
 
@@ -1044,9 +1183,9 @@ function drawViperBody(c, x, y, color, ph, T) {
   c.beginPath();
   c.rect(x - 36, top, 72, 30 * cut + 2);
   c.clip();
-  drawBody(c, x, y, color);
+  drawBody(c, x, y, color, 1, 0);
   c.globalAlpha = 0.35; // el toque verde de la Víbora
-  drawBody(c, x, y, '#38d95e');
+  drawBody(c, x, y, '#38d95e', 1, 0);
   c.restore();
   // burbujas: suben y estallan mientras el cuerpo dura
   for (let i = 0; i < 5; i++) {
@@ -1123,11 +1262,18 @@ export function drawFrame(o) {
   drawButton(ctx, g.btn.x, g.btn.y, T, g.meetUsed, !!(g.st.dark || g.st.rx), A.button);
   for (const t of g.tasks) drawTaskMark(ctx, t, T, g.done.has(t.id));
   // los cuerpos de la Víbora se deshacen con veneno verde: el resto de cuerpos siguen igual
+  const fxNow = performance.now();
+  const gored = [];
   for (const b of g.bodies) {
     const ph = b[4] || 0;
+    const bf = g.bodyFx && g.bodyFx.get(b[0]);
+    const el = bf ? fxNow - bf.at : Infinity;
     if (ph) drawViperBody(ctx, b[1], b[2], b[3], ph, T);
-    else drawBody(ctx, b[1], b[2], b[3]);
+    else if (el < FALL_MS) drawFall(ctx, bf, b[0], b[1], b[2], b[3], el);
+    else drawBody(ctx, b[1], b[2], b[3], bodyDir(b[0]));
+    if (bf && el < BODY_FX_MS) gored.push([bf, b[1], b[2], el]);
   }
+  for (const [bf, bx, by, el] of gored) drawGore(ctx, bf, bx, by, el);
   const list = [];
   let myFx = null;
   // efectos en curso (transformación y vuelta a su forma): segundos desde el cambio

@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { makeGrid } from '@/lib/game/grid';
 import { announceRoom, forgetRoom } from '@/lib/game/rooms';
 import { loop, sfx, stopLoop } from '@/lib/game/sound';
-import { buildWorld } from '@/lib/game/render';
+import { buildWorld, BODY_FX_MS } from '@/lib/game/render';
 import { contextOf } from '@/lib/game/context';
 import { sendInput } from '@/lib/game/predict';
 import MenuScreen from '@/components/game/MenuScreen';
@@ -186,6 +186,7 @@ export default function Home() {
     g.meetUsed = !!m.bu; // 1 = esta sala ya te tiene apuntada la reunión gastada
     g.others.clear();
     g.bodies = [];
+    g.bodyFx = new Map();
     g.fx.clear();
     g.ventFx.clear();
     g.saves = [];
@@ -320,6 +321,17 @@ export default function Home() {
     g.vent.in = !!m.vi;
     if (m.bu) g.meetUsed = true; // tu reunión ya gastada: lo confirma la sala (una por jugador)
     g.bodies = m.b || [];
+    // cuerpo recién caído (lo dice su edad): arranca la animación de la caída y la sangre en su sitio.
+    // Solo llegan los cuerpos que este jugador ve, así que no delata muertes lejanas.
+    {
+      const nowMs = performance.now();
+      if (!g.bodyFx) g.bodyFx = new Map();
+      for (const b of g.bodies) {
+        const age = b[5] ?? 99999;
+        if (age < BODY_FX_MS && !g.bodyFx.has(b[0])) g.bodyFx.set(b[0], { at: nowMs - age, x: b[1], y: b[2] });
+      }
+      for (const [id, f] of g.bodyFx) if (nowMs - f.at > BODY_FX_MS + 500) g.bodyFx.delete(id);
+    }
     const seen = new Set();
     const nowMs = performance.now();
     for (const [id, x, y, a, iv, bl] of m.ps || []) {
