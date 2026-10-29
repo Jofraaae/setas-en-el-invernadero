@@ -23,8 +23,9 @@ export default function MenuScreen({ name, onSaveName, code, onCode, onCreate, o
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
       <div className="m-auto flex w-full flex-col items-center gap-4">
-        <h1 className="text-center text-[clamp(26px,5vw,42px)] font-black tracking-tight text-[#eaf5ec]">
-          {tr('🍄 Among Shrooms')}
+        <h1 className="flex items-center justify-center gap-3 text-center text-[clamp(26px,5vw,42px)] font-black tracking-tight text-[#eaf5ec]">
+          <img src="/logo-seta.png" alt="" className="h-[1.6em] w-[1.6em] rounded-xl" style={{ imageRendering: 'pixelated' }} draggable={false} />
+          {tr('Among Shrooms')}
         </h1>
         <p className="text-center text-[12px] font-semibold tracking-wide text-[#6f8c7c]">{tr('Made By: Jofre Morros Borràs')}</p>
         <p className="max-w-md text-center text-sm text-[#9bb8a6]">

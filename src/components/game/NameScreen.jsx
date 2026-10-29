@@ -39,8 +39,9 @@ export default function NameScreen({ current, onSave, onCancel }) {
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
       <div className="m-auto flex w-full max-w-[420px] flex-col items-center gap-4">
-        <h1 className="text-center text-[clamp(26px,5vw,42px)] font-black tracking-tight text-[#eaf5ec]">
-          {tr('🍄 Among Shrooms')}
+        <h1 className="flex items-center justify-center gap-3 text-center text-[clamp(26px,5vw,42px)] font-black tracking-tight text-[#eaf5ec]">
+          <img src="/logo-seta.png" alt="" className="h-[1.6em] w-[1.6em] rounded-xl" style={{ imageRendering: 'pixelated' }} draggable={false} />
+          {tr('Among Shrooms')}
         </h1>
 
         <div className="flex w-full flex-col gap-3 rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-5">
