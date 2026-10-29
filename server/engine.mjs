@@ -16,6 +16,7 @@ const TICK_MS = 50;
 const SPEED = 250;
 const RADIUS = 16;
 const KILL_RANGE = 80;
+const KILL_SLACK = 24; // margen de red al matar
 const USE_RANGE = 90;
 const REPORT_RANGE = 120;
 const INTERROG_RANGE = 110; // alcance del Detective: hay que tener a alguien al lado para interrogarle
@@ -885,7 +886,9 @@ class GameRoom {
       }
       case 'kill': {
         if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive || p.inVent || this.frozen(p, now) || now < p.killReadyAt || (p.invisUntil || 0) > now) return;
-        let best = null, bd = KILL_RANGE;
+        // un pequeño margen sobre el alcance del cliente: con el retardo de red, quien va andando
+        // llega a la sala unos píxeles más lejos de donde pulsó el botón
+        let best = null, bd = KILL_RANGE + KILL_SLACK;
         for (const q of this.players.values()) {
           if (!q.alive || q.role === 'impostor') continue;
           const d = dist(p, q);
@@ -899,6 +902,16 @@ class GameRoom {
           p.killReadyAt = now + FAIL_KILL_CD_MS;
           this.broadcast({ t: 'saved', id: best.id, x: best.x, y: best.y, by: p.id });
           return this.save();
+        }
+        // Como en el Among Us de verdad, el impostor se lanza sobre la víctima: acaba en el sitio
+        // donde cae el cuerpo (el cliente lo ve como un deslizamiento rápido). Solo si no hay un
+        // muro o una puerta cerrada por medio.
+        const lungeFrom = { x: p.x, y: p.y };
+        if (sees(this.m, p, best, KILL_RANGE + KILL_SLACK, this.closedDoors(now))) {
+          p.x = best.x;
+          p.y = best.y;
+          this.markSeg(p, now); // el tramo de movimiento en vigor empieza ya en el nuevo punto
+          this.broadcast({ t: 'lunge', id: p.id, fx: Math.round(lungeFrom.x), fy: Math.round(lungeFrom.y), x: Math.round(p.x), y: Math.round(p.y) });
         }
         best.alive = false;
         best.dx = best.dy = 0;
