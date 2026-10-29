@@ -12,7 +12,7 @@ function fade(hex, a) {
   const n = parseInt(String(hex).slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-export default function MapOverlay({ g, onClose, onDoors }) {
+export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
   const [, force] = useState(0);
   // mientras está abierto se refresca solo: los segundos de las puertas van bajando
   useEffect(() => {
@@ -24,6 +24,8 @@ export default function MapOverlay({ g, onClose, onDoors }) {
   const floors = g.floors || [];
   const doors = g.doors || [];
   const isImp = g.role === 'impostor';
+  // el Guardallaves (tripulante ya caído) también ve las puertas cerradas y puede abrirlas
+  const isKey = g.ghost === 'keymaster' && !g.me.alive && g.role === 'crew';
   const sab = !!(g.st.dark || g.st.rx);
   // el impostor puede cerrar puertas también estando muerto
   const canClose = isImp && !sab && !(g.vent && g.vent.in) && !(g.st.fz > 0);
@@ -35,9 +37,9 @@ export default function MapOverlay({ g, onClose, onDoors }) {
   const W = Math.round(world.w * sc);
   const H = Math.round(world.h * sc);
 
-  // Las puertas cerradas solo las ven en el mapa los impostores (vivos o muertos): para la
-  // tripulación, viva o fantasma, el mapa no dice nada de ellas.
-  const closed = new Map(isImp ? (g.st.drs || []).map(([id, left]) => [id, left]) : []);
+  // Las puertas cerradas solo las ven en el mapa los impostores (vivos o muertos) y el
+  // Guardallaves: para el resto de la tripulación, viva o fantasma, el mapa no dice nada de ellas.
+  const closed = new Map(isImp || isKey ? (g.st.drs || []).map(([id, left]) => [id, left]) : []);
   const salas = floors.map((f, i) => ({ i, f })).filter((r) => r.f[5] && doors.some((d) => (d.rooms || []).includes(r.i)));
   const leftOf = (room) => {
     let best = 0;
@@ -110,13 +112,30 @@ export default function MapOverlay({ g, onClose, onDoors }) {
             />
           ))}
 
-          {isImp ? salas.map(({ i, f }) => {
+          {isImp || isKey ? salas.map(({ i, f }) => {
             const left = leftOf(i);
             const wait = cd.get(i) || 0;
             // En la sala del botón de emergencia el candado se baja: puesto en el centro
             // caía justo encima del punto rojo y costaba acertarle.
             const onBtn = g.btn.x >= f[0] && g.btn.x <= f[0] + f[2] && g.btn.y >= f[1] && g.btn.y <= f[1] + f[3];
             const lock = f[7] && f[7].lock ? f[7].lock : [f[0] + f[2] / 2, f[1] + f[3] / 2];
+            if (isKey) {
+              // candado ABIERTO: solo se puede tocar si esa sala tiene una puerta cerrada y la llave está lista
+              const keyWait = g.st.kycd || 0;
+              const can = left > 0 && keyWait <= 0;
+              return (
+                <button
+                  key={i}
+                  title={tr('Puertas de {name}', { name: tr(f[5]) })}
+                  className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 px-2 py-1 text-[13px] font-bold leading-none shadow-[0_2px_6px_rgba(0,0,0,.5)] transition disabled:cursor-not-allowed ${can ? 'border-[#9fe3ff] bg-[#1c5f86] text-white hover:bg-[#2a7fa8]' : 'border-white/25 bg-[rgba(10,22,16,.85)] text-[#eaf5ec] opacity-45'}`}
+                  style={{ left: onBtn ? g.btn.x * sc : lock[0] * sc, top: onBtn ? g.btn.y * sc + 26 : lock[1] * sc }}
+                  disabled={!can}
+                  onClick={() => { sfx('switch'); onUnlock(i); }}
+                >
+                  {left > 0 ? (keyWait > 0 ? `⏳${Math.ceil(keyWait / 1000)}` : `🔓 ${Math.ceil(left / 1000)}s`) : '🔓'}
+                </button>
+              );
+            }
             return (
               <button
                 key={i}
@@ -165,7 +184,11 @@ export default function MapOverlay({ g, onClose, onDoors }) {
             ? sab
               ? tr('Con un sabotaje en marcha no se pueden cerrar puertas.')
               : tr('Toca el candado de una sala para cerrar sus puertas 10 s: nadie puede abrirlas antes y tardan 20 s en poder cerrarse otra vez.')
-            : tr('Ves el mapa entero, con el nombre de cada zona.')}
+            : isKey
+              ? (g.st.kycd > 0
+                ? tr('La llave se está recargando: {s} s.', { s: Math.ceil(g.st.kycd / 1000) })
+                : tr('Toca el candado abierto 🔓 de una sala con las puertas cerradas para abrirlas. Después la llave tarda en recargarse.'))
+              : tr('Ves el mapa entero, con el nombre de cada zona.')}
           <div className="text-[11px]">{tr('Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia')}</div>
           {trk ? (
             <div className="text-[11px] font-bold text-[#cdf3ff]">

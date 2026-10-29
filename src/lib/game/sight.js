@@ -43,14 +43,15 @@ function visibilityPolygon(grid, x0, y0, radius) {
   return pts;
 }
 
-// Mientras el jugador apenas se mueve, el polígono se reaprovecha: mismo dibujo con
-// un tercio de trabajo. Al cambiar de partida la rejilla es otra y se recalcula solo.
-let cache = null;
+// Mientras la fuente de luz apenas se mueve, el polígono se reaprovecha: mismo dibujo con un
+// tercio de trabajo. Cada fuente (el propio jugador, cada farol) usa su hueco de caché para no
+// pisarse. Al cambiar de partida la rejilla es otra y se recalcula solo.
+const cache = [];
 
-export function lightPolygon(grid, x, y, radius) {
-  const c = cache;
+export function lightPolygon(grid, x, y, radius, slot = 0) {
+  const c = cache[slot];
   if (c && c.grid === grid && c.r === radius && Math.abs(c.x - x) < SLACK && Math.abs(c.y - y) < SLACK) return c.pts;
   const pts = visibilityPolygon(grid, x, y, radius);
-  cache = { grid, x, y, r: radius, pts };
+  cache[slot] = { grid, x, y, r: radius, pts };
   return pts;
 }

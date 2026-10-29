@@ -4,7 +4,7 @@ import VentBar from '@/components/game/VentBar';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
 
-export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, onSab, onReactor, onVent, onVentTo, onShift, onInvis, onGuard, onSci, onInterro, onTrack }) {
+export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, onSab, onReactor, onVent, onVentTo, onShift, onInvis, onGuard, onBlind, onSci, onInterro, onTrack }) {
   const [, force] = useState(0);
 
   useEffect(() => {
@@ -34,12 +34,19 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
           : c.atBtn && c.btnCd > 0 ? tr('REUNIÓN ({s})', { s: Math.ceil(c.btnCd / 1000) })
             : c.atBtn ? (c.meetUsed ? tr('YA USASTE TU REUNIÓN') : tr('REUNIÓN BLOQUEADA'))
               : tr('USAR [E]');
-  const canUse = !frz && !!(c.hold || c.panel || c.task || c.btn);
+  const canUse = !frz && !(st.bl > 0 && !dead) && !!(c.hold || c.panel || c.task || c.btn);
   const meetBlocked = c.meetBlocked;
-  const angel = !!g.angel;
+  const ghost = g.ghost || ''; // rol de fantasma: solo se conoce una vez muerto
+  const angel = ghost === 'angel';
+  const blinder = ghost === 'blinder';
+  const keymaster = ghost === 'keymaster';
+  const lantern = ghost === 'lantern';
+  const GHOST_NAME = { angel: tr('ÁNGEL GUARDIÁN'), lantern: tr('FAROL'), keymaster: tr('GUARDALLAVES'), blinder: tr('CEGADOR') };
   // El Ángel solo puede escudar a quien tenga al lado; el servidor comprueba además que
   // sea un tripulante vivo, así que aquí basta con mirar quién anda cerca.
   const nearCrew = angel && [...g.others].some(([, o]) => o.alive && Math.hypot(o.tx - g.me.x, o.ty - g.me.y) <= g.cfg.useRange);
+  // el Cegador necesita un tripulante vivo cerca (el servidor comprueba además que no sea un impostor)
+  const nearBlind = blinder && [...g.others].some(([id, o]) => o.alive && !o.bl && !g.mates.includes(id) && Math.hypot(o.tx - g.me.x, o.ty - g.me.y) <= (g.cfg.blindRange || 130));
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -65,10 +72,10 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
         <div className="rounded-full bg-[rgba(10,22,16,.78)] px-3 py-1.5 font-extrabold">
           <span style={{ color: dead ? '#9bb8a6' : isImp ? '#ff7b86' : '#80ed99' }}>
             {dead
-              ? (angel ? tr('FANTASMA · ÁNGEL GUARDIÁN') : tr('FANTASMA'))
+              ? (GHOST_NAME[ghost] ? `${tr('FANTASMA')} · ${GHOST_NAME[ghost]}` : isImp ? tr('FANTASMA · IMPOSTOR') : tr('FANTASMA'))
               : isImp
                 ? (g.spectre ? tr('IMPOSTOR · ESPECTRO') : g.viper ? tr('IMPOSTOR · VÍBORA') : g.shifter ? tr('IMPOSTOR · CAMBIAFORMAS') : tr('IMPOSTOR'))
-                : (engineer ? tr('TRIPULANTE · INGENIERO') : g.alerter ? tr('TRIPULANTE · ALERTADOR') : g.judge ? tr('TRIPULANTE · JUEZ') : angel ? tr('TRIPULANTE · ÁNGEL GUARDIÁN') : scientist ? tr('TRIPULANTE · CIENTÍFICO') : detective ? tr('TRIPULANTE · DETECTIVE') : tracker ? tr('TRIPULANTE · LOCALIZADOR') : tr('TRIPULANTE'))}
+                : (engineer ? tr('TRIPULANTE · INGENIERO') : g.alerter ? tr('TRIPULANTE · ALERTADOR') : g.judge ? tr('TRIPULANTE · JUEZ') : scientist ? tr('TRIPULANTE · CIENTÍFICO') : detective ? tr('TRIPULANTE · DETECTIVE') : tracker ? tr('TRIPULANTE · LOCALIZADOR') : tr('TRIPULANTE'))}
           </span>
         </div>
         {/* segundos que quedan de la transformación y de la congelación, justo debajo del rol */}
@@ -87,6 +94,11 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
         {st.inv > 0 ? (
           <div className="rounded-full bg-[rgba(40,10,60,.85)] px-3 py-1.5 text-[12px] font-bold text-[#d7c4ff]">
             {tr('Invisible · {s}s', { s: Math.ceil(st.inv / 1000) })}
+          </div>
+        ) : null}
+        {st.bl > 0 && !dead ? (
+          <div className="rounded-full bg-[rgba(60,40,100,.92)] px-3 py-1.5 text-[12px] font-bold text-[#e4dcff]">
+            {tr('Cegado · {s}s', { s: Math.ceil(st.bl / 1000) })}
           </div>
         ) : null}
         {g.meetUsed ? (
@@ -159,6 +171,8 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
             <div className="rounded-xl bg-[rgba(10,22,16,.78)] px-4 py-3 text-center text-sm font-bold text-[#9bb8a6]">
               {tr('Eres un fantasma')}
               <div className="text-[12px] font-semibold">{tr('Sigue con tus misiones pendientes')}</div>
+              {lantern ? <div className="mt-1 text-[12px] font-semibold text-[#ffd98a]">{tr('Con un apagón, iluminas a tu alrededor')}</div> : null}
+              {keymaster ? <div className="mt-1 text-[12px] font-semibold text-[#9fe3ff]">{tr('Abre las puertas cerradas desde el mapa [M]')}</div> : null}
             </div>
             <button
               className="pointer-events-auto min-w-[140px] rounded-xl bg-[#e9c46a] px-4 py-3.5 text-[15px] font-bold text-[#261c05] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
@@ -189,6 +203,23 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
                   {tr('Las puertas se cierran desde el mapa [M]')}
                 </div>
               </>
+            ) : null}
+            {blinder ? (
+              <button
+                className="pointer-events-auto min-w-[140px] rounded-xl bg-[#5c2a86] px-4 py-3.5 text-[15px] font-bold text-[#f0e0ff] shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110 disabled:opacity-35"
+                onClick={() => { sfx('switch'); onBlind(); }}
+                disabled={st.blcd > 0 || !nearBlind}
+              >
+                {st.blcd > 0 ? tr('CEGAR ({s})', { s: Math.ceil(st.blcd / 1000) }) : nearBlind ? tr('CEGAR [B]') : tr('ACÉRCATE PARA CEGAR')}
+              </button>
+            ) : null}
+            {keymaster ? (
+              <button
+                className="pointer-events-auto min-w-[140px] rounded-xl bg-[#2a7fa8] px-4 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_14px_rgba(0,0,0,.5)] transition hover:brightness-110"
+                onClick={() => { sfx('click'); onMap(); }}
+              >
+                {st.kycd > 0 ? tr('LLAVE ({s})', { s: Math.ceil(st.kycd / 1000) }) : st.drs && st.drs.length ? tr('🔓 ABRIR PUERTAS [M]') : tr('LLAVE LISTA')}
+              </button>
             ) : null}
             {angel ? (
               <button
