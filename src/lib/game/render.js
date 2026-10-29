@@ -846,6 +846,25 @@ export function drawShroom(c, x, y, color, o) {
   c.arc(1, 8, 2.3, 0, 7);
   c.arc(9, 8, 2.3, 0, 7);
   c.fill();
+  // cegado por un Cegador: los ojos se ven cubiertos por una nube lechosa que da vueltas
+  if (o.blind && o.alive) {
+    const gr = c.createRadialGradient(5, 8, 1, 5, 8, 17);
+    gr.addColorStop(0, 'rgba(240,244,255,.97)');
+    gr.addColorStop(0.55, 'rgba(205,214,240,.8)');
+    gr.addColorStop(1, 'rgba(190,200,232,0)');
+    c.fillStyle = gr;
+    c.beginPath();
+    c.ellipse(5, 8, 17, 12, 0, 0, 7);
+    c.fill();
+    for (let i = 0; i < 5; i++) {
+      const a = o.t * 3.2 + i * 1.26;
+      const rad = 9 + 3 * Math.sin(o.t * 4 + i);
+      c.fillStyle = i % 2 ? 'rgba(225,230,250,.78)' : 'rgba(170,180,220,.7)';
+      c.beginPath();
+      c.arc(5 + Math.cos(a) * rad, 8 + Math.sin(a) * rad * 0.55, 3.4, 0, 7);
+      c.fill();
+    }
+  }
   c.restore();
   // Espectro invisible: aura fantasmal morada con volutas de humo que ascienden
   if (o.invis && o.alive) {
@@ -1145,13 +1164,13 @@ export function drawFrame(o) {
   };
   if (!(g.vent && g.vent.in)) add(g.myId, g.me.x, g.me.y, {
     alive: g.me.alive, t: T, face: g.me.face, moving: g.me.moving, red: g.role === 'impostor',
-    invis: g.st.inv > 0,
+    invis: g.st.inv > 0, blind: g.st.bl > 0,
   });
   for (const [id, op] of g.others) {
     add(id, op.x, op.y, {
       alive: op.alive, t: T, face: op.face, moving: op.moving,
       red: g.role === 'impostor' && g.mates.includes(id),
-      invis: !!op.inv,
+      invis: !!op.inv, blind: !!op.bl,
     });
   }
   list.sort((a, b) => a.y - b.y);
@@ -1212,9 +1231,29 @@ export function drawFrame(o) {
         fctx.restore();
       }
     }
+    // Faroles: con el apagón, cada fantasma Farol abre un círculo de luz que respeta las paredes
+    if (blackout && g.st.lamps && g.sightGrid) {
+      g.st.lamps.forEach(([lx, ly, lr], i) => {
+        const lp = lightPolygon(g.sightGrid, lx, ly, lr, i + 1);
+        if (!lp || lp.length <= 4) return;
+        const gx = (lx - cx) * s, gy = (ly - cy) * s, gR = lr * s;
+        const lg = fctx.createRadialGradient(gx, gy, gR * 0.15, gx, gy, gR);
+        lg.addColorStop(0, 'rgba(0,0,0,.95)');
+        lg.addColorStop(0.6, 'rgba(0,0,0,.78)');
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        fctx.fillStyle = lg;
+        fctx.beginPath();
+        fctx.moveTo((lp[0] - cx) * s, (lp[1] - cy) * s);
+        for (let k = 2; k < lp.length; k += 2) fctx.lineTo((lp[k] - cx) * s, (lp[k + 1] - cy) * s);
+        fctx.closePath();
+        fctx.fill();
+      });
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(fogC, 0, 0);
   }
+  // el brillo cálido de cada farol se nota (a quien vea su luz y al propio fantasma)
+  if (g.st.dark && g.st.lamps && g.sightGrid) drawLampGlow(ctx, g, cx, cy, s, T);
 
   // destello propio: el cambio también se nota en tus propios ojos
   if (myFx) {
@@ -1224,10 +1263,58 @@ export function drawFrame(o) {
       : `rgba(231,214,255,${0.26 * (1 - myFx.p)})`;
     ctx.fillRect(0, 0, W * dpr, H * dpr);
   }
+  // cegado por un Cegador: nada se ve durante unos segundos
+  if (g.st.bl > 0 && g.me.alive) drawBlindness(ctx, g, W * dpr, H * dpr, T);
   // el Alertador avisa a todos al morir: flecha en el borde señalando su cuerpo
   drawAlertArrow(ctx, g, cx, cy, s, W, H, dpr, T);
   // y el reactor sabotaleado: luz roja y flechas a las consolas A y B
   drawReactorAlarm(ctx, g, cx, cy, s, W, H, dpr, T);
+}
+
+/* Luz cálida de los faroles: un resplandor suave que sigue las paredes (misma luz que abre la niebla). */
+function drawLampGlow(ctx, g, cx, cy, s, T) {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  g.st.lamps.forEach(([lx, ly, lr], i) => {
+    const lp = lightPolygon(g.sightGrid, lx, ly, lr, i + 1);
+    if (!lp || lp.length <= 4) return;
+    const gx = (lx - cx) * s, gy = (ly - cy) * s, gR = lr * s;
+    const pulse = 0.5 + 0.5 * Math.sin(T * 2.2 + i);
+    const lg = ctx.createRadialGradient(gx, gy, gR * 0.05, gx, gy, gR);
+    lg.addColorStop(0, `rgba(255,214,120,${0.2 + 0.06 * pulse})`);
+    lg.addColorStop(0.6, 'rgba(255,170,70,.07)');
+    lg.addColorStop(1, 'rgba(255,150,50,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo((lp[0] - cx) * s, (lp[1] - cy) * s);
+    for (let k = 2; k < lp.length; k += 2) ctx.lineTo((lp[k] - cx) * s, (lp[k + 1] - cy) * s);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+/* Ceguera: la pantalla se cubre de una niebla oscura y lechosa en movimiento. No se ve el mundo. */
+function drawBlindness(c, g, Wd, Hd, T) {
+  const a = Math.min(1, g.st.bl / 450); // se aclara solo en el último momento
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = `rgba(7,5,14,${0.995 * a})`;
+  c.fillRect(0, 0, Wd, Hd);
+  const m = Math.max(Wd, Hd);
+  for (let i = 0; i < 9; i++) {
+    const t = T * (0.25 + 0.05 * i) + i * 2.1;
+    const x = Wd * (0.5 + 0.42 * Math.sin(t * 1.1 + i));
+    const y = Hd * (0.5 + 0.4 * Math.cos(t * 0.9 + i * 1.7));
+    const r = m * (0.22 + 0.08 * Math.sin(t * 1.7 + i));
+    const gr = c.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${i % 2 ? '120,126,170' : '86,70,130'},${0.3 * a})`);
+    gr.addColorStop(1, 'rgba(60,50,100,0)');
+    c.fillStyle = gr;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  c.restore();
 }
 
 /* Alarma del reactor, en pantalla para todos (vivos, muertos, impostores): borde rojo que parpadea y una

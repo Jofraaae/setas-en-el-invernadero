@@ -38,6 +38,9 @@ const GUARD_RANGE = 110;      // alcance del Ángel para escudar a un tripulante
 const FAIL_KILL_CD_MS = 10000; // si el impostor intenta matar y el escudo lo impide, su recarga es fija
 const JUDGE_RESULT_MS = 15000; // el resultado del Juez tiene una secuencia con varias frases
 const INVIS_MS = 10000;       // el Espectro se vuelve invisible durante este tiempo
+const BLIND_RANGE = 130;      // alcance del Cegador: hay que tener a un tripulante vivo al lado para cegarle
+const GHOST_CREW = ['angel', 'lantern', 'keymaster']; // roles de fantasma de la tripulación (secretos hasta morir)
+const GHOST_IMP = ['blinder'];                        // roles de fantasma de los impostores
 const HOLD_RANGE = 90;        // distancia para mantener una consola
 const OFFLINE_GRACE_MS = 60000; // margen para volver: una pestaña en segundo plano no te saca de la sala
 const WATCH_MS = 15000;
@@ -46,8 +49,13 @@ const ROOM_SYNC_MS = 15000;   // cada cuánto se refresca el anuncio de esta sal
 const LOBBY_CHAT_MAX = 40;
 
 // [mínimo, máximo, paso]. imps 0 = automático.
-const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30 };
-const RANGES = { imps: [0, 3, 1], killCd: [5, 60, 5], sabCd: [10, 90, 5], reactorCd: [10, 180, 10], btnCd: [0, 60, 5], meetSec: [10, 180, 5], voteSec: [20, 90, 5], tasks: [1, 8, 1], speed: [60, 140, 10], vision: [50, 200, 10], shifter: [0, 1, 1], shiftCd: [10, 90, 5], viper: [0, 1, 1], rotSec: [5, 45, 5], engineer: [0, 1, 1], engCd: [5, 60, 5], alerter: [0, 1, 1], judge: [0, 1, 1], angel: [0, 1, 1], angelCd: [10, 180, 10], scientist: [0, 1, 1], scientistCd: [5, 60, 5], spectre: [0, 1, 1], spectreCd: [10, 90, 5], detective: [0, 1, 1], tracker: [0, 1, 1], trackerMs: [10, 90, 5], trackerCd: [10, 90, 5] };
+const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30, lantern: 1, lanternR: 250, keymaster: 1, keyCd: 40, blinder: 1, blindCd: 30, blindSec: 5 };
+// Los roles llevan una cantidad (0 = fuera de la partida). El tope real lo pone cada sala según sus
+// jugadores (ver roleLimit): aquí solo va el máximo posible con la sala llena.
+const RANGES = { imps: [0, 7, 1], killCd: [5, 60, 5], sabCd: [10, 90, 5], reactorCd: [10, 180, 10], btnCd: [0, 60, 5], meetSec: [10, 180, 5], voteSec: [20, 90, 5], tasks: [1, 8, 1], speed: [60, 140, 10], vision: [50, 200, 10], shifter: [0, 7, 1], shiftCd: [10, 90, 5], viper: [0, 7, 1], rotSec: [5, 45, 5], engineer: [0, 14, 1], engCd: [5, 60, 5], alerter: [0, 14, 1], judge: [0, 14, 1], angel: [0, 14, 1], angelCd: [10, 180, 10], scientist: [0, 14, 1], scientistCd: [5, 60, 5], spectre: [0, 7, 1], spectreCd: [10, 90, 5], detective: [0, 14, 1], tracker: [0, 14, 1], trackerMs: [10, 90, 5], trackerCd: [10, 90, 5], lantern: [0, 14, 1], lanternR: [150, 400, 50], keymaster: [0, 14, 1], keyCd: [10, 120, 5], blinder: [0, 7, 1], blindCd: [10, 120, 5], blindSec: [2, 15, 1] };
+// Qué ajustes son una cantidad de jugadores con ese rol, y de qué bando salen.
+const CREW_ROLE_KEYS = ['engineer', 'alerter', 'judge', 'scientist', 'detective', 'tracker', 'angel', 'lantern', 'keymaster'];
+const IMP_ROLE_KEYS = ['shifter', 'viper', 'spectre', 'blinder'];
 
 // El invernadero de siempre ocupa la izquierda; a su derecha queda una franja ancha donde
 // viven las tres salas nuevas, cada una al final de su pasillo y con holgura por delante,
@@ -810,6 +818,9 @@ class GameRoom {
         if (!Number.isFinite(v)) return;
         v = Math.max(r[0], Math.min(r[1], v));
         v = Math.min(r[1], r[0] + Math.round((v - r[0]) / r[2]) * r[2]);
+        // las cantidades de cada rol no pueden pasar de los jugadores de la sala ahora mismo
+        const lim = this.roleLimit(msg.k);
+        if (lim !== null) v = Math.min(v, lim);
         this.settings[msg.k] = v;
         this.broadcast(this.lobbyInfo());
         return this.save();
@@ -819,7 +830,7 @@ class GameRoom {
         for (const q of this.players.values()) {
           q.alive = true; q.role = 'crew'; q.done = []; q.inVent = false; q.ventId = null; q.meetUsed = false;
           q.shifter = false; q.viper = false; q.engineer = false; q.alerter = false; q.judge = false; q.judgeUsed = false; q.judgeTarget = null; q.shiftTo = null; q.shiftAt = 0; q.shiftUntil = 0; q.frozenUntil = 0; q.shiftReadyAt = 0; q.ventReadyAt = 0; q.spectre = false; q.invisUntil = 0; q.invisReadyAt = 0;
-          q.angel = false; q.guardReadyAt = 0; q.shieldUntil = 0;
+          q.ghost = ''; q.guardReadyAt = 0; q.shieldUntil = 0; q.keyReadyAt = 0; q.blindReadyAt = 0; q.blindUntil = 0;
           q.scientist = false; q.sciReadyAt = 0; q.sciLeft = SCI_BATTERY_MS; q.sciOn = false;
           q.detective = false; q.detectiveUsed = false; q.detectiveTarget = null;
           q.tracker = false; q.trackerTarget = null; q.trackerUntil = 0; q.trackerReadyAt = 0;
@@ -862,7 +873,7 @@ class GameRoom {
         return;
       }
       case 'task': {
-        if (this.phase !== 'playing' || this.frozen(p, now)) return; // los fantasmas también terminan sus misiones
+        if (this.phase !== 'playing' || this.frozen(p, now) || (p.blindUntil || 0) > now) return; // los fantasmas también terminan sus misiones; un cegado no ve la misión
         if (!Number.isInteger(msg.id) || !p.tasks.includes(msg.id) || p.done.includes(msg.id) || p.inVent) return;
         if (dist(p, this.m.tasks[msg.id]) > USE_RANGE + 20) return;
         p.done.push(msg.id);
@@ -905,7 +916,7 @@ class GameRoom {
         if (rot) this.broadcast({ t: 'venom', x: best.x, y: best.y, id: best.id, ms: VIPER_FX_MS });
         p.killReadyAt = now + this.settings.killCd * 1000;
         // aviso privado de muerte: solo lo recibe quien ha caído, y con quién lo ha matado
-        this.sendTo(best, { t: 'died', by: p.id, name: p.name, color: p.color, angel: !!best.angel }); // si era el Ángel Guardián, se entera ahora
+        this.sendTo(best, { t: 'died', by: p.id, name: p.name, color: p.color, ghost: best.ghost || '', angel: best.ghost === 'angel' }); // su rol de fantasma lo descubre ahora
         // el Alertador avisa a todos al morir: una flecha señala dónde está su cuerpo
         if (best.alerter) this.broadcast({ t: 'alertDeath', x: best.x, y: best.y, name: best.name, color: best.color, ms: ALERT_MS });
         // y si alguien le tenía puesto el localizador, se apaga en el mismo instante de la muerte
@@ -1052,7 +1063,7 @@ class GameRoom {
       case 'guard': {
         // el Ángel Guardián ya ha caído: escuda a un tripulante vivo que tenga cerca. Al
         // protegido no se le avisa: el escudo solo se nota si un impostor intenta matarlo.
-        if (this.phase !== 'playing' || !p.angel || p.alive) return;
+        if (this.phase !== 'playing' || p.ghost !== 'angel' || p.alive) return;
         if (now < (p.guardReadyAt || 0)) return;
         let ward = null, wd = GUARD_RANGE;
         for (const q of this.players.values()) {
@@ -1064,6 +1075,44 @@ class GameRoom {
         ward.shieldUntil = now + GUARD_MS;
         p.guardReadyAt = now + this.settings.angelCd * 1000;
         conn.send({ t: 'guardAck', ms: GUARD_MS });
+        return this.save();
+      }
+      case 'blind': {
+        // el Cegador (impostor ya caído) ciega 5 s a un tripulante vivo que tenga al lado: el
+        // cegado no ve nada y su misión se cierra. Lo notan todos: sus ojos se ven nublados.
+        if (this.phase !== 'playing' || p.ghost !== 'blinder' || p.alive || p.role !== 'impostor') return;
+        if (now < (p.blindReadyAt || 0)) return conn.send({ t: 'error', msg: 'El cegador todavía se está recargando.' });
+        let best = null, bd = BLIND_RANGE;
+        for (const q of this.players.values()) {
+          if (q === p || !q.alive || q.role !== 'crew' || (q.blindUntil || 0) > now) continue;
+          const d = dist(p, q);
+          if (d <= bd) { bd = d; best = q; }
+        }
+        if (!best) return conn.send({ t: 'error', msg: 'Acércate a un tripulante para cegarle.' });
+        const ms = this.settings.blindSec * 1000;
+        best.blindUntil = now + ms;
+        best.sciOn = false; // sin vista tampoco se mira el panel del científico
+        p.blindReadyAt = now + this.settings.blindCd * 1000;
+        this.sendTo(best, { t: 'blinded', ms }); // se le cierra lo que tuviera abierto
+        conn.send({ t: 'blindAck', name: best.name, color: best.color, ms });
+        return this.save();
+      }
+      case 'unlock': {
+        // el Guardallaves (tripulante ya caído) abre las puertas que el impostor ha cerrado en una
+        // sala. Solo vale si de verdad hay alguna cerrada; después debe esperar su recarga.
+        if (this.phase !== 'playing' || p.ghost !== 'keymaster' || p.alive || p.role !== 'crew') return;
+        if (now < (p.keyReadyAt || 0)) return conn.send({ t: 'error', msg: 'La llave todavía se está recargando.' });
+        const ids = this.m.byRoom.get(Math.round(Number(msg.room)));
+        const shut = (ids || []).filter((id) => (this.doorAt.get(id) || 0) > now);
+        if (!shut.length) return conn.send({ t: 'error', msg: 'Esa sala no tiene puertas cerradas.' });
+        for (const id of shut) {
+          this.doorAt.delete(id);
+          const d = this.m.doors[id];
+          if (d) for (const r of d.rooms || []) this.doorReady.set(r, now + DOOR_CD_MS); // como si se abrieran solas
+        }
+        p.keyReadyAt = now + this.settings.keyCd * 1000;
+        this.broadcast({ t: 'doorsOpen', ids: shut });
+        conn.send({ t: 'unlockAck', ms: this.settings.keyCd * 1000 });
         return this.save();
       }
       case 'invis': {
@@ -1207,6 +1256,7 @@ class GameRoom {
         if (!target || !target.alive || target.id === p.id) return;
         p.judgeUsed = true;
         p.judgeTarget = target.id;
+        p.judgeAt = Date.now(); // si hay varios jueces, decide el primero en sentenciar
         this.broadcast({ t: 'voted', id: p.id }); // su sentencia cuenta como voto: el resto lo ve votado
         conn.send({ t: 'judgeAck' });
         if (this.allVoted()) this.endMeeting();
@@ -1291,7 +1341,7 @@ class GameRoom {
       inVent: false, ventId: null, meetUsed: false,
       shifter: false, viper: false, engineer: false, alerter: false, judge: false, judgeUsed: false, judgeTarget: null, shiftTo: null, shiftAt: 0, shiftUntil: 0, frozenUntil: 0, shiftReadyAt: 0, ventReadyAt: 0,
       spectre: false, invisUntil: 0, invisReadyAt: 0,
-      angel: false, guardReadyAt: 0, shieldUntil: 0,
+      ghost: '', guardReadyAt: 0, shieldUntil: 0, keyReadyAt: 0, blindReadyAt: 0, blindUntil: 0,
       scientist: false, sciReadyAt: 0, sciLeft: SCI_BATTERY_MS, sciOn: false,
       detective: false, detectiveUsed: false, detectiveTarget: null,
       tracker: false, trackerTarget: null, trackerUntil: 0, trackerReadyAt: 0,
@@ -1339,8 +1389,7 @@ class GameRoom {
   startGame() {
     const list = shuffle([...this.players.values()]);
     const S = this.settings;
-    const maxImp = Math.max(1, Math.floor((list.length - 1) / 2));
-    const nImp = Math.min(S.imps === 0 ? (list.length >= 7 ? 2 : 1) : S.imps, maxImp);
+    const nImp = this.impCount(list.length);
     const now = Date.now();
     list.forEach((p, i) => {
       p.role = i < nImp ? 'impostor' : 'crew';
@@ -1366,9 +1415,12 @@ class GameRoom {
       p.spectre = false;
       p.invisUntil = 0;
       p.invisReadyAt = 0;
-      p.angel = false;
+      p.ghost = '';
       p.guardReadyAt = 0;
       p.shieldUntil = 0;
+      p.keyReadyAt = 0;
+      p.blindReadyAt = 0;
+      p.blindUntil = 0;
       p.detective = false;
       p.detectiveUsed = false;
       p.detectiveTarget = null;
@@ -1381,54 +1433,24 @@ class GameRoom {
       p.sciLeft = SCI_BATTERY_MS;
       p.sciOn = false;
     });
-    // Roles de impostor: se reparten al azar entre los impostores. Con tres o más
-    // impostores uno se queda sin habilidad: un impostor normal, sin más.
-    const impRoles = [];
-    if (S.shifter) impRoles.push('shifter');
-    if (S.spectre) impRoles.push('spectre');
-    if (S.viper) impRoles.push('viper');
-    const impList = shuffle(list.filter((p) => p.role === 'impostor'));
-    for (const [i, r] of shuffle(impRoles).slice(0, impList.length >= 3 ? impList.length - 1 : impList.length).entries()) {
-      impList[i][r] = true;
-    }
-    if (S.engineer) {
-      const cw = list.find((p) => p.role === 'crew');
-      if (cw) cw.engineer = true;
-    }
-    // el Alertador es un tripulante distinto del ingeniero: al morir avisa a todos
-    if (S.alerter) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer);
-      if (cw) cw.alerter = true;
-    }
-    // el Juez es un tripulante distinto: su sentencia en la reunión decide la expulsión
-    if (S.judge) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter);
-      if (cw) cw.judge = true;
-    }
-    // el Científico es otro tripulante más: su panel enseña quién sigue vivo
-    if (S.scientist) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge && !p.angel);
-      if (cw) cw.scientist = true;
-    }
-    // el Detective es otro tripulante: una vez termina sus misiones puede interrogar a alguien
-    if (S.detective) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge && !p.angel && !p.scientist);
-      if (cw) cw.detective = true;
-    }
-    // el Localizador es otro tripulante: marca a quien tenga al lado y lo sigue en el mapa
-    if (S.tracker) {
-      const cw = list.find((p) => p.role === 'crew' && !p.engineer && !p.alerter && !p.judge && !p.angel && !p.scientist && !p.detective);
-      if (cw) cw.tracker = true;
-    }
-    // El Ángel Guardián NO es un rol visible: se suma a un tripulante que ya tiene otro (ingeniero,
-    // localizador…) y su dueño no sabe que lo tiene hasta que muere. Solo si no hay ningún
-    // tripulante con otro rol se le da a uno corriente.
-    if (S.angel) {
-      const crew = list.filter((p) => p.role === 'crew');
-      const withRole = crew.filter((p) => p.engineer || p.alerter || p.judge || p.scientist || p.detective || p.tracker);
-      const pick = shuffle(withRole.length ? withRole : crew)[0];
-      if (pick) pick.angel = true;
-    }
+    // Cada rol lleva su cantidad (los ajustes de la sala). Se reparten al azar entre quienes aún
+    // no tienen rol de ese tipo: si piden más de los que caben, los que sobran se quedan fuera
+    // y el resto son tripulantes (o impostores) corrientes.
+    const deal = (pool, keys, give) => {
+      const bag = [];
+      for (const k of keys) for (let i = 0; i < Math.min(S[k] || 0, pool.length); i++) bag.push(k);
+      const order = shuffle(pool.slice());
+      shuffle(bag).slice(0, order.length).forEach((k, i) => give(order[i], k));
+    };
+    const crewList = list.filter((p) => p.role === 'crew');
+    const impList = list.filter((p) => p.role === 'impostor');
+    // Roles en vida: el cambiaformas, la víbora, el espectro, el ingeniero, el alertador, el juez...
+    deal(impList, ['shifter', 'viper', 'spectre'], (p, k) => { p[k] = true; });
+    deal(crewList, ['engineer', 'alerter', 'judge', 'scientist', 'detective', 'tracker'], (p, k) => { p[k] = true; });
+    // Roles de fantasma: otro reparto aparte, también al azar y también secreto. Cada jugador puede
+    // tener uno (da igual cuál lleve en vida) y no lo sabe hasta que muere.
+    deal(crewList, GHOST_CREW, (p, k) => { p.ghost = k; });
+    deal(impList, GHOST_IMP, (p, k) => { p.ghost = k; });
     this.bodies = [];
     this.dark = false;
     this.reactor = null;
@@ -1443,10 +1465,10 @@ class GameRoom {
     for (const p of list) {
       this.sendTo(p, {
         t: 'start', role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
-        shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: false /* oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
+        shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, ghost: '', angel: false /* el rol de fantasma queda oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
         tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
         rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
-        speed: SPEED * S.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
+        speed: SPEED * S.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE, blindRange: BLIND_RANGE,
         bu: 0,
         tms: S.trackerMs, tcd: S.trackerCd, // el Localizador enseña sus tiempos en su carta de rol
         you: [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10], // tu punto de salida: el cliente arranca ahí, nunca dentro de un objeto
@@ -1627,6 +1649,7 @@ class GameRoom {
       p.shiftUntil = 0;
       p.frozenUntil = 0;
       p.invisUntil = 0; // la reunión corta la invisibilidad del Espectro
+      p.blindUntil = 0; // y la ceguera: se vota viendo
       p.judgeTarget = null; // la diana del Juez se reinicia cada reunión (el uso ya gastado sigue quemado)
       // el panel del científico se cierra al convocarse la reunión: al volver toca esperar su recarga
       if (p.sciOn) {
@@ -1662,6 +1685,11 @@ class GameRoom {
     return this.save();
   }
 
+  // Un jugador que acaba de morir (expulsado) descubre ahora su rol de fantasma, si lo tenía.
+  revealGhost(p) {
+    if (p.ghost) this.sendTo(p, { t: 'ghostOn', ghost: p.ghost });
+  }
+
   // Cómo se llama el rol de un jugador, para el informe del Detective.
   roleTitle(p) {
     if (p.role === 'impostor') {
@@ -1690,7 +1718,10 @@ class GameRoom {
     if (this.phase !== 'meeting' || !this.meeting) return;
     const votes = [...this.meeting.votes].map(([from, to]) => ({ from, to }));
     // el Juez que ha gastado su sentencia decide la expulsión por encima de los votos
-    const judge = [...this.players.values()].find((p) => p.judge && p.judgeTarget);
+    // con varios jueces decide uno solo, el primero que sentenció: la sentencia de los demás no se gasta
+    const judges = [...this.players.values()].filter((p) => p.judge && p.judgeTarget).sort((a, b) => (a.judgeAt || 0) - (b.judgeAt || 0));
+    const judge = judges[0] || null;
+    for (const j of judges) if (j !== judge) { j.judgeTarget = null; j.judgeUsed = false; this.sendTo(j, { t: 'judgeRefund' }); }
     let ejected = null;
     let judgeInfo = null;
     let tie = false;
@@ -1700,7 +1731,7 @@ class GameRoom {
       // acertó: se va el impostor señalado; falló: el Juez paga con su propia expulsión
       const ep = success ? target : judge;
       ep.alive = false;
-      if (ep.angel) this.sendTo(ep, { t: 'angelOn' }); // expulsado: ahora sabe que es el Ángel Guardián
+      this.revealGhost(ep); // expulsado: ahora descubre su rol de fantasma
       ejected = { id: ep.id, name: ep.name, color: ep.color, wasImpostor: ep.role === 'impostor' };
       judgeInfo = {
         judgeName: judge.name, judgeColor: judge.color,
@@ -1721,7 +1752,7 @@ class GameRoom {
         const ep = this.players.get(bestT[0]);
         if (ep) {
           ep.alive = false;
-          if (ep.angel) this.sendTo(ep, { t: 'angelOn' });
+          this.revealGhost(ep);
           ejected = { id: ep.id, name: ep.name, color: ep.color, wasImpostor: ep.role === 'impostor' };
         }
       }
@@ -1787,7 +1818,7 @@ class GameRoom {
     this.reactor = null;
     this.lastEnd = {
       t: 'end', winner,
-      roles: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, role: p.role, alive: p.alive, shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, angel: !!p.angel, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker })),
+      roles: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, role: p.role, alive: p.alive, shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, ghost: p.ghost || '', angel: p.ghost === 'angel', scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker })),
     };
     this.broadcast(this.lastEnd);
     this.syncRoom(); // partida terminada: la sala sale del listado hasta que el anfitrión reabra
@@ -1960,6 +1991,12 @@ class GameRoom {
       else sh[q.id] = q.shiftTo;
     }
     const prog = this.taskTotal ? this.taskDone / this.taskTotal : 0;
+    // Faroles: con el apagón, cada fantasma Farol ilumina a su alrededor un círculo de luz (varias
+    // veces lo que ve un tripulante a oscuras). La luz sigue las paredes: no atraviesa muros.
+    const lampR = Math.round(Math.round(420 * this.settings.vision / 100) * DARK_VISION * this.settings.lanternR / 100);
+    const lamps = dark
+      ? [...this.players.values()].filter((q) => !q.alive && q.ghost === 'lantern' && !q.offline).map((q) => ({ x: Math.round(q.x), y: Math.round(q.y), r: lampR }))
+      : [];
     const conns = new Map(this.getConnections().map((c) => [c.id, c]));
     for (const p of this.players.values()) {
       const conn = conns.get(p.connId);
@@ -1978,7 +2015,11 @@ class GameRoom {
       const darkCrew = dark && p.role === 'crew';
       const vr = ghost ? 0 : darkCrew ? Math.round(base * DARK_VISION) : base;
       const sr = ghost ? 0 : darkCrew ? vr : Math.round(SIGHT_BASE * this.settings.vision / 100);
-      const seen = (o) => ghost || sees(this.m, p, o, sr, closed);
+      const blind = (p.blindUntil || 0) > now; // el Cegador le ha cegado: no ve a nadie ni nada
+      const fullSr = Math.round(SIGHT_BASE * this.settings.vision / 100);
+      // a oscuras, además de su círculo corto, se ve lo que alumbre un Farol (y ella lo vea)
+      const lit = (o) => lamps.some((l) => Math.hypot(o.x - l.x, o.y - l.y) <= l.r && sees(this.m, l, o, l.r, closed) && sees(this.m, p, o, fullSr, closed));
+      const seen = (o) => !blind && (ghost || sees(this.m, p, o, sr, closed) || (darkCrew && lamps.length > 0 && lit(o)));
       const ps = [];
       for (const q of this.players.values()) {
         if (q === p) continue;
@@ -1987,7 +2028,7 @@ class GameRoom {
         const qInvis = (q.invisUntil || 0) > now;
         // el Espectro invisible no lo ven los tripulantes (ni los fantasmas): como si no estuviera
         if (qInvis && p.role !== 'impostor') continue;
-        if (seen(q)) ps.push([q.id, Math.round(q.x), Math.round(q.y), q.alive ? 1 : 0, qInvis ? 1 : 0]);
+        if (seen(q)) ps.push([q.id, Math.round(q.x), Math.round(q.y), q.alive ? 1 : 0, qInvis ? 1 : 0, (q.blindUntil || 0) > now ? 1 : 0]);
       }
       const b = [];
       for (const bd of this.bodies) if (seen(bd)) b.push([bd.id, Math.round(bd.x), Math.round(bd.y), bd.color, this.bodyPhase(bd, now)]);
@@ -2022,6 +2063,10 @@ class GameRoom {
         trk,
         trkcd: Math.max(0, (p.trackerReadyAt || 0) - now),
         gcd: Math.max(0, (p.guardReadyAt || 0) - now),
+        kycd: Math.max(0, (p.keyReadyAt || 0) - now),     // espera del Guardallaves para volver a abrir una puerta
+        blcd: Math.max(0, (p.blindReadyAt || 0) - now),   // espera del Cegador
+        bl: blind ? Math.max(0, p.blindUntil - now) : 0,  // lo que le queda de ceguera
+        lamps: lamps.length ? lamps.map((l) => [l.x, l.y, l.r]) : null,
         // puertas cerradas ahora mismo, con lo que les queda para abrirse
         drs: closed.map((d) => [d.id, Math.max(0, (this.doorAt.get(d.id) || 0) - now)]),
         // salas que no se pueden cerrar todavía: [sala, ms que le quedan]
@@ -2033,10 +2078,29 @@ class GameRoom {
 
   /* ---------- estado / persistencia ---------- */
 
+  /* Cuántos impostores habrá con los jugadores de ahora: "auto" reparte 1 (2 a partir de 7) y
+     nunca son tantos que la tripulación empiece en minoría. */
+  impCount(n = this.players.size) {
+    const maxImp = Math.max(1, Math.floor((n - 1) / 2));
+    return Math.min(this.settings.imps === 0 ? (n >= 7 ? 2 : 1) : this.settings.imps, maxImp);
+  }
+
+  /* Tope de un ajuste de cantidad según los jugadores que hay: los roles de tripulante, tantos como
+     tripulantes; los de impostor, tantos como impostores. Siempre cabe al menos uno (para poder
+     encenderlo mientras los demás aún no han entrado). null = el ajuste no es una cantidad. */
+  roleLimit(k, n = this.players.size) {
+    if (k === 'imps') return Math.max(1, Math.floor((n - 1) / 2));
+    const nImp = this.impCount(n);
+    if (CREW_ROLE_KEYS.includes(k)) return Math.max(1, n - nImp);
+    if (IMP_ROLE_KEYS.includes(k)) return Math.max(1, nImp);
+    return null;
+  }
+
   lobbyInfo() {
     return {
       t: 'lobby', phase: this.phase, code: this.code, hostId: this.hostSeat, map: this.map,
       min: MIN_PLAYERS, max: this.capacity, mode: this.mode, vis: this.visibility, country: this.country, colors: COLORS, settings: this.settings, ranges: RANGES,
+      limits: { imps: this.roleLimit('imps'), crew: this.roleLimit('engineer'), imp: this.roleLimit('shifter'), nImp: this.impCount() },
       players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot })),
       chat: this.lobbyChat,
     };
@@ -2055,10 +2119,10 @@ class GameRoom {
     conn.send({
       t: 'start', resync: true, seq: p.seq || 0, alive: p.alive, dark: this.dark,
       you: [p.x, p.y], role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
-      shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, angel: !!(p.angel && !p.alive) /* solo se sabe al morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
+      shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, ghost: p.alive ? '' : (p.ghost || ''), angel: !!(p.ghost === 'angel' && !p.alive) /* el rol de fantasma solo se sabe al morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
       tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
       rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
-      speed: SPEED * this.settings.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE,
+      speed: SPEED * this.settings.speed / 100, radius: RADIUS, killRange: KILL_RANGE, useRange: USE_RANGE, reportRange: REPORT_RANGE, trackRange: TRACK_RANGE, blindRange: BLIND_RANGE,
       bu: p.meetUsed ? 1 : 0,
     });
     const cur = p.inVent ? this.m.vents.find((v) => v.id === p.ventId) : null;
@@ -2116,7 +2180,12 @@ class GameRoom {
     this.doorAt = new Map(Array.isArray(s.doorAt) ? s.doorAt : []);
     this.doorReady = new Map(Array.isArray(s.doorReady) ? s.doorReady : []);
     this.players = new Map();
-    for (const p of s.players || []) this.players.set(p.id, { ...p, done: Array.isArray(p.done) ? p.done : [] });
+    for (const p of s.players || []) {
+      const q = { ...p, done: Array.isArray(p.done) ? p.done : [] };
+      if (q.angel && !q.ghost) q.ghost = 'angel'; // partidas guardadas antes de los roles de fantasma
+      delete q.angel;
+      this.players.set(q.id, q);
+    }
     this.bots.sync();
     this.meeting = s.meeting
       ? {

@@ -27,8 +27,13 @@ export default function EndScreen({ end, isHost, onAgain }) {
             <span className={r.role === 'impostor' ? 'font-bold text-[#ff7b86]' : 'text-[#9bb8a6]'}>
               {r.role === 'impostor'
                 ? (r.spectre ? tr('Impostor · Espectro') : r.viper ? tr('Impostor · Víbora') : r.shifter ? tr('Impostor · Cambiaformas') : tr('Impostor'))
-                : (r.engineer ? tr('Tripulante · Ingeniero') : r.alerter ? tr('Tripulante · Alertador') : r.judge ? tr('Tripulante · Juez') : r.angel ? tr('Tripulante · Ángel Guardián') : r.scientist ? tr('Tripulante · Científico') : r.detective ? tr('Tripulante · Detective') : r.tracker ? tr('Tripulante · Localizador') : tr('Tripulante'))}
+                : (r.engineer ? tr('Tripulante · Ingeniero') : r.alerter ? tr('Tripulante · Alertador') : r.judge ? tr('Tripulante · Juez') : r.scientist ? tr('Tripulante · Científico') : r.detective ? tr('Tripulante · Detective') : r.tracker ? tr('Tripulante · Localizador') : tr('Tripulante'))}
             </span>
+            {r.ghost ? (
+              <span className="text-[11px] font-semibold text-[#b9a8e8]">
+                {{ angel: tr('👻 Ángel Guardián'), lantern: tr('👻 Farol'), keymaster: tr('👻 Guardallaves'), blinder: tr('👻 Cegador') }[r.ghost] || null}
+              </span>
+            ) : null}
           </div>
         ))}
       </div>

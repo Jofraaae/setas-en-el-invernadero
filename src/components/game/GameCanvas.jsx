@@ -61,6 +61,7 @@ export default function GameCanvas({ g, send }) {
         else if (k === 'f') g.act.shift();
         else if (k === 'g') g.act.invis();
         else if (k === 't') g.act.guard();
+        else if (k === 'b') g.act.blind();
         else if (k === 'h') g.act.sci();
         else if (k === 'i') g.act.interro();
         else if (k === 'l') g.act.track();

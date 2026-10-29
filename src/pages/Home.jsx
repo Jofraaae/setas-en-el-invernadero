@@ -23,7 +23,7 @@ import ShiftPicker from '@/components/game/ShiftPicker';
 import ScientistPanel from '@/components/game/ScientistPanel';
 import MapOverlay from '@/components/game/MapOverlay';
 import SoundToggle from '@/components/game/SoundToggle';
-import { tr, tServer, useLang, getLang } from '@/lib/i18n';
+import { tr, trMark, tServer, useLang, getLang } from '@/lib/i18n';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const DEATH_MS = 2400; // duración de la animación privada de muerte
@@ -84,14 +84,14 @@ export default function Home() {
       lastIn: { dx: 0, dy: 0 }, lastSend: 0, inMoving: false, lastEff: 0, frameT: 0,
       pend: [], inSeq: 0,
       others: new Map(), bodies: [],
-      st: { prog: 0, dark: false, vr: 420, sr: 420, kcd: 0, scd: 0, rcd: 0, sq: 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 },
+      st: { prog: 0, dark: false, vr: 420, sr: 420, kcd: 0, scd: 0, rcd: 0, sq: 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, kycd: 0, blcd: 0, bl: 0, lamps: null, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 },
       world: { w: 4200, h: 2700 }, floors: [], obst: [], grid: null, sightGrid: null, map: 'greenhouse',
       btn: { x: 1300, y: 900 }, pnl: { x: 220, y: 790 }, rmeta: null, rpts: [],
       cfg: { speed: 230, radius: 16, killRange: 80, useRange: 90, reportRange: 120, trackRange: 120 },
       roster: new Map(), gone: new Set(), tasks: [], done: new Set(),
       vents: [], vent: { in: false, id: null, net: null, vents: [] },
       doors: [], doorKey: null,
-      role: 'crew', mates: [], myId: null, hostId: null, shifter: false, viper: false, engineer: false, alerter: false, judge: false, judgeUsed: false, angel: false, scientist: false, spectre: false, detective: false, detectiveUsed: false, tracker: false, interroName: '', alert: null,
+      role: 'crew', mates: [], myId: null, hostId: null, shifter: false, viper: false, engineer: false, alerter: false, judge: false, judgeUsed: false, ghost: '', scientist: false, spectre: false, detective: false, detectiveUsed: false, tracker: false, interroName: '', alert: null,
       meetUsed: false, snap: true, miniOpen: false, inputLock: false, mini: null,
       mapC: null, miniC: null, act: {}, fx: new Map(), ventFx: new Map(), saves: [], puffs: [],
       off: null, ackDir: null,
@@ -128,7 +128,7 @@ export default function Home() {
       g.me.alive = m.alive !== false;
       g.judge = !!m.judge;
       g.judgeUsed = !!m.judgeUsed;
-      g.angel = !!m.angel;
+      g.ghost = m.ghost || (m.angel ? 'angel' : ''); // solo llega si ya has muerto
       g.scientist = !!m.scientist;
       g.viper = !!m.viper;
       g.spectre = !!m.spectre;
@@ -152,7 +152,7 @@ export default function Home() {
     g.alerter = !!m.alerter;
     g.judge = !!m.judge;
     g.judgeUsed = !!m.judgeUsed;
-    g.angel = !!m.angel;
+    g.ghost = m.ghost || (m.angel ? 'angel' : '');
     g.scientist = !!m.scientist;
     g.viper = !!m.viper;
     g.spectre = !!m.spectre;
@@ -182,7 +182,7 @@ export default function Home() {
     g.vent = { in: false, id: null, net: null, vents: [] };
     g.doors = m.doors || []; // puertas de cada sala: dónde están y a qué salas pertenecen
     g.doorKey = null;
-    g.cfg = { speed: m.speed, radius: m.radius, killRange: m.killRange, useRange: m.useRange, reportRange: m.reportRange, trackRange: m.trackRange || m.reportRange };
+    g.cfg = { speed: m.speed, radius: m.radius, killRange: m.killRange, useRange: m.useRange, reportRange: m.reportRange, trackRange: m.trackRange || m.reportRange, blindRange: m.blindRange || 130 };
     g.meetUsed = !!m.bu; // 1 = esta sala ya te tiene apuntada la reunión gastada
     g.others.clear();
     g.bodies = [];
@@ -204,7 +204,7 @@ export default function Home() {
     setMini(null);
     setMapOpen(false);
     setShiftPick(null);
-    g.st = { prog: 0, dark: false, vr: 420, sr: 420, kcd: 0, scd: 0, rcd: 0, sq: 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 };
+    g.st = { prog: 0, dark: false, vr: 420, sr: 420, kcd: 0, scd: 0, rcd: 0, sq: 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, kycd: 0, blcd: 0, bl: 0, lamps: null, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 };
     const built = buildWorld(m.world, m.floors, m.obst, m.button, m.vents || [], {
       map: g.map, panel: m.panel, rcore: g.rmeta && g.rmeta.core, rpts: g.rpts, tasks: g.tasks,
     });
@@ -227,7 +227,7 @@ export default function Home() {
     g.me.x = yo[0];
     g.me.y = yo[1];
     if (m.phase === 'roles') {
-      setReveal({ role: m.role, color: mine.color, name: mine.name, mates, taskCount: g.tasks.length, shifter: !!m.shifter, viper: !!m.viper, engineer: !!m.engineer, alerter: !!m.alerter, judge: !!m.judge, angel: !!m.angel, scientist: !!m.scientist, spectre: !!m.spectre, detective: !!m.detective, tracker: !!m.tracker, trackerMs: m.tms || 40, trackerCd: m.tcd || 30 });
+      setReveal({ role: m.role, color: mine.color, name: mine.name, mates, taskCount: g.tasks.length, shifter: !!m.shifter, viper: !!m.viper, engineer: !!m.engineer, alerter: !!m.alerter, judge: !!m.judge, scientist: !!m.scientist, spectre: !!m.spectre, detective: !!m.detective, tracker: !!m.tracker, trackerMs: m.tms || 40, trackerCd: m.tcd || 30 });
       go('roles');
     } else {
       setReveal(null);
@@ -279,6 +279,10 @@ export default function Home() {
       inv: m.inv || 0, icd: m.icd || 0,
       bcd: m.bcd || 0,
       gcd: m.gcd || 0,
+      kycd: m.kycd || 0,     // espera del Guardallaves
+      blcd: m.blcd || 0,     // espera del Cegador
+      bl: m.bl || 0,         // ms que te quedan ciego (0 = ves)
+      lamps: m.lamps || null, // faroles encendidos con el apagón: [x, y, radio]
       tm: m.tm || 0,
       trk: m.trk || null,      // jugador marcado con el localizador: dónde está y cuánto le queda
       trkcd: m.trkcd || 0,    // y la espera del Localizador para poner otro
@@ -318,7 +322,7 @@ export default function Home() {
     g.bodies = m.b || [];
     const seen = new Set();
     const nowMs = performance.now();
-    for (const [id, x, y, a, iv] of m.ps || []) {
+    for (const [id, x, y, a, iv, bl] of m.ps || []) {
       seen.add(id);
       let o = g.others.get(id);
       if (!o) {
@@ -333,6 +337,7 @@ export default function Home() {
       o.ty = y;
       o.alive = !!a;
       o.inv = !!iv;
+      o.bl = !!bl; // un Cegador le ha nublado la vista: se le ven los ojos nublados
     }
     for (const id of [...g.others.keys()]) if (!seen.has(id)) g.others.delete(id);
   }, [g]);
@@ -417,6 +422,19 @@ export default function Home() {
     setError('');
     go('menu');
   }, [closeConn, code, g, go, lobbyCount]);
+
+  // Al morir (o ser expulsado) cada jugador descubre su rol de fantasma: sustituye en el HUD al rol
+  // que llevaba en vida. Sin rol de fantasma se sigue siendo un fantasma corriente.
+  const learnGhost = (ghost) => {
+    g.ghost = ghost || '';
+    const msg = {
+      angel: trMark('¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.'),
+      lantern: trMark('¡Eras el Farol! Cuando el impostor apague las luces, iluminas a tu alrededor y los tripulantes vivos ven un poco más.'),
+      keymaster: trMark('¡Eras el Guardallaves! Abre el mapa [M] y toca un candado abierto para abrir las puertas que haya cerrado el impostor.'),
+      blinder: trMark('¡Eras el Cegador! Con [B] ciegas a un tripulante que tengas al lado: no verá nada unos segundos.'),
+    }[g.ghost];
+    if (msg) toast({ description: tr(msg), duration: 9000 });
+  };
 
   handlerRef.current = (m) => {
     if (!m || typeof m.t !== 'string') return;
@@ -513,21 +531,43 @@ export default function Home() {
         setShiftPick(null);
         setSci(false);
         setDeath({ name: m.name || tr('Alguien'), color: m.color || '#e63946' });
-        // el rol de Ángel Guardián no se conoce en vida: se descubre aquí, al morir
-        if (m.angel) {
-          g.angel = true;
-          toast({ description: tr('¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.'), duration: 9000 });
-        }
+        // el rol de fantasma no se conoce en vida: se descubre aquí, al morir
+        learnGhost(m.ghost || (m.angel ? 'angel' : ''));
         window.setTimeout(() => {
           setDeath(null);
           g.inputLock = false;
         }, DEATH_MS);
         break;
       }
-      case 'angelOn':
-        // expulsado en una votación: también ahora descubre que es el Ángel Guardián
-        g.angel = true;
-        toast({ description: tr('¡Eras el Ángel Guardián! Con [T] puedes escudar al tripulante que tengas al lado.'), duration: 9000 });
+      case 'ghostOn':
+        // expulsado en una votación: también ahora descubre su rol de fantasma
+        learnGhost(m.ghost);
+        break;
+      case 'angelOn': // salas con el servidor anterior
+        learnGhost('angel');
+        break;
+      case 'judgeRefund':
+        // había otro Juez y su sentencia fue la que decidió: la tuya no se gasta
+        g.judgeUsed = false;
+        break;
+      case 'blinded':
+        // un Cegador te ha cegado: se cierra lo que tuvieras abierto y no ves nada
+        sfx('freeze');
+        g.miniOpen = false;
+        g.mini = null;
+        g.inputLock = false;
+        setMini(null);
+        setSci(false);
+        setMapOpen(false);
+        setShiftPick(null);
+        break;
+      case 'blindAck':
+        sfx('switch');
+        toast({ description: tr('Has cegado a {name} durante {s} s.', { name: m.name, s: Math.round((m.ms || 0) / 1000) }), duration: 4000 });
+        break;
+      case 'unlockAck':
+        sfx('doorOpen');
+        toast({ description: tr('Puertas abiertas. La llave vuelve a estar lista en {s} s.', { s: Math.round((m.ms || 0) / 1000) }), duration: 4000 });
         break;
       case 'alertDeath': {
         // el Alertador ha caído: todos ven una flecha que señala su cuerpo
@@ -725,7 +765,7 @@ export default function Home() {
   }, [closeMini, send, g]);
 
   const useAction = useCallback(() => {
-    if (screenRef.current !== 'playing' || g.miniOpen) return;
+    if (screenRef.current !== 'playing' || g.miniOpen || (g.st.bl > 0 && g.me.alive)) return; // cegado: no ve nada, ni misiones
     const c = contextOf(g);
     if (c.hold) { sfx('switch'); send({ t: 'hold', side: c.hold.side }); }
     else if (c.panel) { sfx('taskOpen'); openMini({ id: -1, name: tr('Reiniciar el cuadro eléctrico'), game: 'switch', lights: true }); }
@@ -750,7 +790,7 @@ export default function Home() {
   const closeMap = useCallback(() => setMapOpen(false), []);
 
   const mapAction = useCallback(() => {
-    if (screenRef.current !== 'playing' || g.miniOpen || g.vent.in) return;
+    if (screenRef.current !== 'playing' || g.miniOpen || g.vent.in || (g.st.bl > 0 && g.me.alive)) return; // cegado: tampoco hay mapa
     sfx('click');
     setMapOpen((v) => !v);
   }, [g]);
@@ -787,9 +827,16 @@ export default function Home() {
   // el Ángel Guardián ya muerto escuda al tripulante que tenga al lado; el protegido no
   // se entera de nada, solo se ve el escudo si el impostor intenta matarlo
   const guardAction = useCallback(() => {
-    if (screenRef.current !== 'playing' || !g.angel || g.me.alive || g.miniOpen) return;
+    if (screenRef.current !== 'playing' || g.ghost !== 'angel' || g.me.alive || g.miniOpen) return;
     if (g.st.gcd > 0) return;
     send({ t: 'guard' });
+  }, [g, send]);
+
+  // el Cegador (impostor ya caído) ciega a un tripulante vivo que tenga al lado
+  const blindAction = useCallback(() => {
+    if (screenRef.current !== 'playing' || g.ghost !== 'blinder' || g.me.alive || g.miniOpen) return;
+    if (g.st.blcd > 0) return;
+    send({ t: 'blind' });
   }, [g, send]);
 
   // shapeshifter: elegir a quién imitar; la sala confirma con la lista de vivos
@@ -843,7 +890,7 @@ export default function Home() {
   }, [g, send]);
 
   useEffect(() => {
-    g.act = { use: useAction, kill: killAction, report: reportAction, sab: sabAction, vent: ventAction, ventTo: ventToAction, rtor: reactorAction, shift: openShift, invis: invisAction, guard: guardAction, sci: sciAction, interro: interroAction, track: trackAction, map: mapAction, mapOff: closeMap };
+    g.act = { use: useAction, kill: killAction, report: reportAction, sab: sabAction, vent: ventAction, ventTo: ventToAction, rtor: reactorAction, shift: openShift, invis: invisAction, guard: guardAction, blind: blindAction, sci: sciAction, interro: interroAction, track: trackAction, map: mapAction, mapOff: closeMap };
   });
 
   // El anuncio de la sala en el listado lo lleva la propia sala (un solo escritor, la
@@ -971,11 +1018,12 @@ export default function Home() {
             onShift={openShift}
             onInvis={invisAction}
             onGuard={guardAction}
+            onBlind={blindAction}
             onSci={sciAction}
             onInterro={interroAction}
             onTrack={trackAction}
           />
-          {mapOpen ? <MapOverlay g={g} onClose={closeMap} onDoors={(room) => send({ t: 'doors', room })} /> : null}
+          {mapOpen ? <MapOverlay g={g} onClose={closeMap} onDoors={(room) => send({ t: 'doors', room })} onUnlock={(room) => send({ t: 'unlock', room })} /> : null}
           {shiftPick ? <ShiftPicker players={shiftPick.players} loaded={shiftPick.loaded} onPick={pickShift} onCancel={closeShift} /> : null}
           {sci ? <ScientistPanel g={g} onClose={closeSci} /> : null}
         </>

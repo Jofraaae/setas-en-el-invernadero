@@ -159,6 +159,7 @@ export class Brain {
       }
     }
     if (!p.alive) return;
+    if ((p.blindUntil || 0) > now) return; // un Cegador le ha cegado: no ve a nadie
     const closed = R.closedDoors(now);
     const sr = mgr.sightOf(p, now);
     const count = new Map();
@@ -386,6 +387,7 @@ export class Brain {
       if (this.visBodies.some((b) => !this.mem.bodies.get(b.id)?.reported)) cancel = true;
       if (this.reactorDuty(now)) cancel = true;
     }
+    if ((p.blindUntil || 0) > now) cancel = true; // cegado: ni ve ni puede seguir con su misión
     if (w.kind === 'panel' && !R.dark) cancel = true;
     if (w.kind === 'hold' && !R.reactor) cancel = true;
     if (cancel) { this.work = null; this.goal = null; this.nextThink = 0; return; }
@@ -476,8 +478,38 @@ export class Brain {
 
   decideGhost(now) {
     const p = this.p, R = this.mgr.room;
-    if (p.role === 'impostor') { this.sabotageLogic(now); return this.mk('stay', 'stay', p.x, p.y, 0); }
-    if (p.angel && now >= (p.guardReadyAt || 0)) {
+    if (p.role === 'impostor') {
+      this.sabotageLogic(now);
+      // el Cegador va a por un tripulante vivo cercano y le ciega (con calma: no lo hace siempre que puede)
+      if (p.ghost === 'blinder' && now >= (p.blindReadyAt || 0) && now >= (this.nextBlind || 0)) {
+        let best = null, bd = 1e9;
+        for (const q of R.players.values()) {
+          if (q === p || !q.alive || q.role !== 'crew' || (q.blindUntil || 0) > now) continue;
+          const d = Math.hypot(q.x - p.x, q.y - p.y);
+          if (d < bd) { bd = d; best = q; }
+        }
+        if (!best || bd > 1400 || !chance(0.5)) { this.nextBlind = now + rnd(4000, 9000); }
+        else {
+          return this.mk('blind', 'blind:' + best.id, best.x, best.y, 70, () => { this.send({ t: 'blind' }); this.nextBlind = now + rnd(3000, 6000); this.goal = null; },
+            { urgent: true, follow: () => (best.alive ? { x: best.x, y: best.y } : null), valid: () => best.alive && now >= 0 });
+        }
+      }
+      return this.mk('stay', 'stay', p.x, p.y, 0);
+    }
+    // el Guardallaves abre una puerta cerrada por el impostor, tras unos segundos de "no sé qué pasa"
+    if (p.ghost === 'keymaster' && now >= (p.keyReadyAt || 0)) {
+      const shut = R.closedDoors(now);
+      if (!shut.length) this.keySeenAt = 0;
+      else {
+        if (!this.keySeenAt) this.keySeenAt = now + rnd(1500, 4500);
+        if (now >= this.keySeenAt) {
+          const room = (shut[0].rooms || [])[0];
+          this.keySeenAt = 0;
+          if (room !== undefined) this.send({ t: 'unlock', room });
+        }
+      }
+    }
+    if (p.ghost === 'angel' && now >= (p.guardReadyAt || 0)) {
       let best = null, bs = 9;
       for (const q of R.players.values()) {
         if (q === p || !q.alive || this.mem.knownImp.has(q.id)) continue;

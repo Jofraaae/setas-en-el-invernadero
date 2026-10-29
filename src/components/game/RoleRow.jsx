@@ -4,9 +4,12 @@ import { tr } from '@/lib/i18n';
 
 const ON = 'rounded-full bg-[#3f7d5f] px-3 py-1 text-[12px] font-bold text-[#eaf5ec] transition hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-40';
 const OFF = 'rounded-full bg-[#3a4a42] px-3 py-1 text-[12px] font-bold text-[#9bb8a6] transition hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-40';
+const STEP = 'rounded-md bg-[#2f5a48] px-2 text-base leading-tight text-[#eaf5ec] transition hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-30';
 
-// Un rol especial: su interruptor y, si está activo, su espera propia justo debajo.
-export default function RoleRow({ role, on, cd, cdStep, cdMin, cdMax, extra, locked, onToggle, onCd }) {
+// Un rol: su interruptor Sí/No, al lado cuántos jugadores lo tendrán y, si está activo, sus esperas
+// y tiempos propios justo debajo. `count` ya llega recortado al tope de jugadores de la sala.
+export default function RoleRow({ role, count, limit, cd, cdStep, cdMin, cdMax, extra, locked, onCount, onCd }) {
+  const on = count > 0;
   return (
     <div className="rounded-[10px] bg-[#234036] px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-2">
@@ -14,13 +17,22 @@ export default function RoleRow({ role, on, cd, cdStep, cdMin, cdMax, extra, loc
           <b>{tr(role.name)}</b>
           <span className="block text-[11px] text-[#7f9c8c]">{tr(role.desc)}</span>
         </span>
-        <button
-          className={on ? ON : OFF}
-          onClick={() => { sfx('click'); onToggle(on ? 0 : 1); }}
-          disabled={locked}
-        >
-          {on ? tr('Sí') : tr('No')}
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {on ? (
+            <div className="flex items-center gap-1" title={tr('Cuántos jugadores tendrán este rol')}>
+              <button className={STEP} onClick={() => { sfx('click'); onCount(count - 1); }} disabled={locked}>−</button>
+              <b className="min-w-[22px] text-center tabular-nums">{count}</b>
+              <button className={STEP} onClick={() => { sfx('click'); onCount(count + 1); }} disabled={locked || count >= limit}>+</button>
+            </div>
+          ) : null}
+          <button
+            className={on ? ON : OFF}
+            onClick={() => { sfx('click'); onCount(on ? 0 : 1); }}
+            disabled={locked}
+          >
+            {on ? tr('Sí') : tr('No')}
+          </button>
+        </div>
       </div>
       {on && role.cd ? (
         <div className="mt-1.5">
@@ -34,7 +46,7 @@ export default function RoleRow({ role, on, cd, cdStep, cdMin, cdMax, extra, loc
           />
         </div>
       ) : null}
-      {/* roles con dos números (el Localizador): el segundo ajuste va justo debajo */}
+      {/* roles con otro ajuste más (Localizador, Cegador, Farol): va justo debajo */}
       {on && extra ? (
         <div className="mt-1.5">
           <SettingRow

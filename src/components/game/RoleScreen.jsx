@@ -6,7 +6,7 @@ import { tr } from '@/lib/i18n';
 const SECONDS = 5;
 const FALLBACK_MS = 5600; // el servidor avisa con 'go'; esto es solo una red de seguridad
 
-export default function RoleScreen({ role, color, name, mates = [], taskCount = 0, shifter = false, viper = false, engineer = false, alerter = false, judge = false, angel = false, scientist = false, spectre = false, detective = false, tracker = false, trackerMs = 40, trackerCd = 30, onDone }) {
+export default function RoleScreen({ role, color, name, mates = [], taskCount = 0, shifter = false, viper = false, engineer = false, alerter = false, judge = false, scientist = false, spectre = false, detective = false, tracker = false, trackerMs = 40, trackerCd = 30, onDone }) {
   const [left, setLeft] = useState(SECONDS);
   const fired = useRef(false);
 
@@ -75,11 +75,6 @@ export default function RoleScreen({ role, color, name, mates = [], taskCount = 
       {judge ? (
         <div className="rounded-xl border border-[#b8860b] bg-[rgba(90,60,5,.4)] px-4 py-2 text-sm text-[#ffe3a3]">
           <b>{tr('Juez:')}</b> {tr('1 sentencia por partida; si fallas, te expulsan a ti.')}
-        </div>
-      ) : null}
-      {angel ? (
-        <div className="rounded-xl border border-[#3aa0b8] bg-[rgba(20,70,85,.45)] px-4 py-2 text-sm text-[#cdf3ff]">
-          <b>{tr('Ángel Guardián:')}</b> {tr('ya muerto, escuda con [T] al tripulante de al lado: aguanta una muerte.')}
         </div>
       ) : null}
       {scientist ? (
