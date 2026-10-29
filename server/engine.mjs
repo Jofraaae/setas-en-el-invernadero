@@ -2044,7 +2044,7 @@ class GameRoom {
         if (seen(q)) ps.push([q.id, Math.round(q.x), Math.round(q.y), q.alive ? 1 : 0, qInvis ? 1 : 0, (q.blindUntil || 0) > now ? 1 : 0]);
       }
       const b = [];
-      for (const bd of this.bodies) if (seen(bd)) b.push([bd.id, Math.round(bd.x), Math.round(bd.y), bd.color, this.bodyPhase(bd, now)]);
+      for (const bd of this.bodies) if (seen(bd)) b.push([bd.id, Math.round(bd.x), Math.round(bd.y), bd.color, this.bodyPhase(bd, now), Math.max(0, Math.min(60000, now - (bd.at || now)))]); // el 6º: ms desde que cayó (para la animación)
       conn.send({
         // bx/by: dónde empezó la orden en vigor (sq). El cliente reconstruye su posición a
         // partir de ahí con la duración de cada orden, igual que hace esta sala.
