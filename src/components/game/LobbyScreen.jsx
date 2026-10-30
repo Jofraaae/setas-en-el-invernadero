@@ -4,12 +4,18 @@ import LobbyChat from './LobbyChat';
 import PlayerCard from './PlayerCard';
 import LobbySettings from './LobbySettings';
 import MapPicker from './MapPicker';
-import { tr } from '@/lib/i18n';
+import { tr, trMark } from '@/lib/i18n';
+
+const SIDES = [
+  { id: 'random', icon: '🎲', label: trMark('Aleatorio') },
+  { id: 'impostor', icon: '🔪', label: trMark('Impostor') },
+  { id: 'crew', icon: '🌱', label: trMark('Tripulante') },
+];
 
 const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-3 font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-3 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
-export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick, onAddBots, onVis }) {
+export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, onStart, onLeave, onCopy, chat, onChat, onKick, onAddBots, onVis, onWant }) {
   const [nBots, setNBots] = useState(1);
   const bots = lobby.players.filter((p) => p.bot);
   const free = Math.max(0, lobby.max - lobby.players.length);
@@ -27,24 +33,59 @@ export default function LobbyScreen({ lobby, myId, onColor, onSetting, onMap, on
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
       <div className="m-auto flex w-full max-w-[700px] flex-col items-center gap-3">
-        <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}{lobby.mode === 'bots' ? ' · ' + tr('Sala de bots') : ''}</p>
-        <div className="text-[clamp(40px,10vw,56px)] font-black leading-none tracking-[10px] text-[#e9c46a]">
-          {lobby.code}
-        </div>
-        <button className={BTN_ALT} onClick={() => { sfx('click'); onCopy(); }}>{tr('Copiar código / enlace')}</button>
-        <div className="flex flex-wrap items-center justify-center gap-2 text-[12px]">
-          <span className="rounded-full bg-[#234036] px-3 py-1 font-bold text-[#bfe3cf]">
-            {lobby.vis === 'private' ? tr('🔒 Privada: solo entra quien tenga el código') : tr('🌐 Pública: sale en Salas activas')}
-          </span>
-          {isHost ? (
-            <button
-              className="rounded-lg bg-[#2f5a48] px-3 py-1 font-bold text-[#eaf5ec] transition hover:brightness-110"
-              onClick={() => { sfx('click'); onVis(lobby.vis === 'private' ? 'public' : 'private'); }}
-            >
-              {lobby.vis === 'private' ? tr('Hacer pública') : tr('Hacer privada')}
-            </button>
-          ) : null}
-        </div>
+        {lobby.mode === 'bots' ? (
+          <>
+            <p className="text-[clamp(26px,6vw,36px)] font-black text-[#e9c46a]">🤖 {tr('Sala de bots')}</p>
+            <span className="rounded-full bg-[#234036] px-3 py-1 text-[12px] font-bold text-[#bfe3cf]">
+              {tr('🔒 Privada: nadie más puede entrar')}
+            </span>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-[#9bb8a6]">{tr('Código de sala')}</p>
+            <div className="text-[clamp(40px,10vw,56px)] font-black leading-none tracking-[10px] text-[#e9c46a]">
+              {lobby.code}
+            </div>
+            <button className={BTN_ALT} onClick={() => { sfx('click'); onCopy(); }}>{tr('Copiar código / enlace')}</button>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[12px]">
+              <span className="rounded-full bg-[#234036] px-3 py-1 font-bold text-[#bfe3cf]">
+                {lobby.vis === 'private' ? tr('🔒 Privada: solo entra quien tenga el código') : tr('🌐 Pública: sale en Salas activas')}
+              </span>
+              {isHost ? (
+                <button
+                  className="rounded-lg bg-[#2f5a48] px-3 py-1 font-bold text-[#eaf5ec] transition hover:brightness-110"
+                  onClick={() => { sfx('click'); onVis(lobby.vis === 'private' ? 'public' : 'private'); }}
+                >
+                  {lobby.vis === 'private' ? tr('Hacer pública') : tr('Hacer privada')}
+                </button>
+              ) : null}
+            </div>
+
+          </>
+        )}
+
+        {lobby.mode === 'bots' && isHost ? (
+          <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4">
+            <h2 className="text-[12px] font-black uppercase tracking-[2px] text-[#e9c46a]">{tr('Tu rol en la partida')}</h2>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {SIDES.map((o) => {
+                const sel = (lobby.want || 'random') === o.id;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    aria-pressed={sel}
+                    onClick={() => { sfx('click'); onWant(o.id); }}
+                    className={`rounded-xl border-[3px] px-2 py-2.5 text-center text-sm font-extrabold transition ${sel ? 'border-[#e9c46a] bg-[#234036] text-[#e9c46a]' : 'border-white/10 text-[#eaf5ec] opacity-80 hover:opacity-100'}`}
+                  >
+                    {o.icon} {tr(o.label)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-[#7f9c8c]">{tr('Elige si quieres ser impostor, tripulante o dejarlo al azar. Los bots se reparten el resto.')}</p>
+          </div>
+        ) : null}
 
         <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4">
           <div className="flex items-baseline justify-between">
