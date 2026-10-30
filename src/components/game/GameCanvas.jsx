@@ -188,6 +188,16 @@ export default function GameCanvas({ g, send }) {
       // a aplicar las órdenes que aún no ha confirmado. Una posición vieja nunca pisa a la
       // nueva, así que hacer una tarea (o ver subir su barra) no mueve al jugador hacia atrás.
       reconcile(g, now, dt);
+      // Salto del impostor sobre su víctima: manda sobre la reconciliación y dura unos 90 ms
+      if (g.dash) {
+        const k = (now - g.dash.at) / g.dash.ms;
+        if (k >= 1) { g.me.x = g.dash.tx; g.me.y = g.dash.ty; g.dash = null; }
+        else {
+          const e = 1 - (1 - Math.max(0, k)) ** 3; // sale disparado y frena al llegar
+          g.me.x = g.dash.fx + (g.dash.tx - g.dash.fx) * e;
+          g.me.y = g.dash.fy + (g.dash.ty - g.dash.fy) * e;
+        }
+      }
 
       // Los demás se dibujan interpolando entre los dos últimos avisos de su posición. Antes
       // se les perseguía con un suavizado exponencial y, como los avisos llegan cada 50 ms y
