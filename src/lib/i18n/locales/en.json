@@ -669,5 +669,11 @@
  "¡Eras el Cegador! Con [B] ciegas a un tripulante que tengas al lado: no verá nada unos segundos.": "You were the Blinder! With [B] you blind a crewmate next to you: they won't see anything for a few seconds.",
  "Has cegado a {name} durante {s} s.": "You blinded {name} for {s} s.",
  "Puertas abiertas. La llave vuelve a estar lista en {s} s.": "Doors open. The key is ready again in {s} s.",
- "Sugerencias:": "Suggestions:"
+ "Sugerencias:": "Suggestions:",
+ "🔒 Las salas de bots son siempre privadas: nadie más puede entrar.": "🔒 Bot rooms are always private: nobody else can join.",
+ "🔒 Privada: nadie más puede entrar": "🔒 Private: nobody else can join",
+ "Tu rol en la partida": "Your role in the game",
+ "Elige si quieres ser impostor, tripulante o dejarlo al azar. Los bots se reparten el resto.": "Choose whether you want to be the impostor, a crewmate or leave it to chance. The bots take the rest.",
+ "Aleatorio": "Random",
+ "Es una sala de bots: es privada y nadie más puede entrar.": "This is a bot room: it is private and nobody else can join."
 }

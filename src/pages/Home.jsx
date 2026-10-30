@@ -1088,6 +1088,7 @@ export default function Home() {
           onKick={(id, mode) => send({ t: 'kick', id, mode })}
           onAddBots={(n) => send({ t: 'addBot', n })}
           onVis={(vis) => send({ t: 'vis', vis })}
+          onWant={(v) => send({ t: 'want', v })}
         />
       ) : null}
 

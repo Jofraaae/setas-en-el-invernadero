@@ -78,6 +78,11 @@ export default function CreateRoomScreen({ busy, error, onCreate, onBack }) {
           </div>
         </div>
 
+        {mode === 'bots' ? (
+          <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4 text-center text-sm font-bold text-[#bfe3cf]">
+            {tr('🔒 Las salas de bots son siempre privadas: nadie más puede entrar.')}
+          </div>
+        ) : (
         <div className="w-full rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-4">
           <h2 className="text-[12px] font-black uppercase tracking-[2px] text-[#e9c46a]">{tr('Visibilidad')}</h2>
           <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -99,10 +104,12 @@ export default function CreateRoomScreen({ busy, error, onCreate, onBack }) {
           </div>
         </div>
 
+        )}
+
         <div className="min-h-[1.2em] text-sm text-[#ff8a8a]">{error}</div>
         <div className="flex gap-3">
           <button className={BTN_ALT} onClick={() => { sfx('back'); onBack(); }} disabled={busy}>{tr('Volver')}</button>
-          <button className={BTN} onClick={() => { sfx('click'); onCreate({ cap, map, mode, vis }); }} disabled={busy}>
+          <button className={BTN} onClick={() => { sfx('click'); onCreate({ cap, map, mode, vis: mode === 'bots' ? 'private' : vis }); }} disabled={busy}>
             {busy ? tr('Conectando…') : tr('Crear sala')}
           </button>
         </div>

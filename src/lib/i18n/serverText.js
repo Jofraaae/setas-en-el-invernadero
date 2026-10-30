@@ -100,6 +100,7 @@ export const SERVER_TEXT = [
   trMark('No existe esa sala. Comprueba el código.'),
   trMark('La partida ya ha empezado.'),
   trMark('La sala está llena.'),
+  trMark('Es una sala de bots: es privada y nadie más puede entrar.'),
   trMark('Plaza de la Asamblea'),
   trMark('Casa Seta'),
   trMark('Casa del Té'),

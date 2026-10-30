@@ -665,6 +665,7 @@ class GameRoom {
   country = '';          // país (ISO-2) desde donde se creó la sala
   createdAt = 0;
   capacity = MAX_PLAYERS; // máximo de jugadores (personas + bots) que eligió el anfitrión al crear la sala
+  want = 'random';       // salas de bots: el bando que pide el anfitrión ('random' | 'impostor' | 'crew')
   mode = 'online';        // 'online': sale en el listado · 'bots': sala privada pensada para jugar con bots
   lang = 'es';            // idioma en el que hablan los bots si no se sabe el de cada jugador
   bots = new BotManager(this, BOT_ENV);
@@ -794,10 +795,19 @@ class GameRoom {
         if (this.players.size < MIN_PLAYERS) return conn.send({ t: 'error', msg: `Hacen falta al menos ${MIN_PLAYERS} jugadores.` });
         return this.startGame();
       }
+      case 'want': {
+        // salas de bots: el anfitrión elige si quiere ser impostor, tripulante o dejarlo al azar
+        if (this.phase !== 'lobby' || this.hostSeat !== p.id || this.mode !== 'bots') return;
+        if (msg.v !== 'random' && msg.v !== 'impostor' && msg.v !== 'crew') return;
+        this.want = msg.v;
+        this.broadcast(this.lobbyInfo());
+        return this.save();
+      }
       case 'vis': {
         // el anfitrión puede hacer la sala pública o privada también desde la sala de espera
         if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
         if (msg.vis !== 'public' && msg.vis !== 'private') return;
+        if (this.mode === 'bots') return; // las salas de bots son siempre privadas
         this.visibility = msg.vis;
         this.broadcast(this.lobbyInfo());
         this.syncRoom();
@@ -1294,7 +1304,8 @@ class GameRoom {
     this.mode = msg.mode === 'bots' ? 'bots' : 'online';
     this.lang = msg.lang === 'en' ? 'en' : 'es';
     // pública o privada: sin indicar nada, las salas de bots eran privadas y las demás públicas
-    this.visibility = msg.vis === 'private' ? 'private' : msg.vis === 'public' ? 'public' : (this.mode === 'bots' ? 'private' : 'public');
+    // Una sala de bots es siempre privada: nadie más puede entrar. Las demás, lo que se pida (públicas por defecto).
+    this.visibility = this.mode === 'bots' ? 'private' : msg.vis === 'private' ? 'private' : 'public';
     // el país lo manda la cabecera del proxy (si la hay); si no, la pista del cliente (su zona horaria)
     this.country = cleanCountry(conn.country) || cleanCountry(msg.country);
     this.createdAt = Date.now();
@@ -1312,6 +1323,7 @@ class GameRoom {
     const code = String(msg.code || '').toUpperCase().trim();
     if (!this.code || this.players.size === 0) return conn.send({ t: 'error', msg: 'No existe esa sala. Comprueba el código.', out: true });
     if (code !== this.code) return conn.send({ t: 'error', msg: 'No existe esa sala. Comprueba el código.' });
+    if (this.mode === 'bots') return conn.send({ t: 'error', msg: 'Es una sala de bots: es privada y nadie más puede entrar.', out: true });
     if (this.phase !== 'lobby') return conn.send({ t: 'error', msg: 'La partida ya ha empezado.', out: true });
     if (this.players.size >= this.capacity) return conn.send({ t: 'error', msg: 'La sala está llena.' });
     this.addPlayer(conn, msg.name, msg.lang);
@@ -1403,6 +1415,15 @@ class GameRoom {
     const list = shuffle([...this.players.values()]);
     const S = this.settings;
     const nImp = this.impCount(list.length);
+    // sala de bots: el anfitrión puede pedir bando. Los impostores son los primeros de la lista, así que
+    // se le sube al principio (impostor) o se le baja al final (tripulante); con 'random' no se toca.
+    if (this.mode === 'bots' && this.want !== 'random' && nImp > 0 && nImp < list.length) {
+      const hi = list.findIndex((q) => q.id === this.hostSeat);
+      if (hi >= 0) {
+        const [h] = list.splice(hi, 1);
+        if (this.want === 'impostor') list.unshift(h); else list.push(h);
+      }
+    }
     const now = Date.now();
     list.forEach((p, i) => {
       p.role = i < nImp ? 'impostor' : 'crew';
@@ -2112,7 +2133,7 @@ class GameRoom {
   lobbyInfo() {
     return {
       t: 'lobby', phase: this.phase, code: this.code, hostId: this.hostSeat, map: this.map,
-      min: MIN_PLAYERS, max: this.capacity, mode: this.mode, vis: this.visibility, country: this.country, colors: COLORS, settings: this.settings, ranges: RANGES,
+      min: MIN_PLAYERS, max: this.capacity, mode: this.mode, vis: this.visibility, want: this.want, country: this.country, colors: COLORS, settings: this.settings, ranges: RANGES,
       limits: { imps: this.roleLimit('imps'), crew: this.roleLimit('engineer'), imp: this.roleLimit('shifter'), nImp: this.impCount() },
       players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot })),
       chat: this.lobbyChat,
@@ -2151,7 +2172,7 @@ class GameRoom {
   async save() {
     this.savedAt = Date.now();
     await this.rt.storage.put('st', {
-      code: this.code, map: this.map, capacity: this.capacity, mode: this.mode, visibility: this.visibility, country: this.country, createdAt: this.createdAt, lang: this.lang, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
+      code: this.code, map: this.map, capacity: this.capacity, mode: this.mode, visibility: this.visibility, want: this.want, country: this.country, createdAt: this.createdAt, lang: this.lang, hostSeat: this.hostSeat, nextSeat: this.nextSeat, phase: this.phase,
       settings: this.settings, bodies: this.bodies, taskDone: this.taskDone, taskTotal: this.taskTotal,
       dark: this.dark, reactor: this.reactor, resultUntil: this.resultUntil, rolesUntil: this.rolesUntil,
       sabLockAt: this.sabLockAt, rtLockAt: this.rtLockAt,
@@ -2172,7 +2193,8 @@ class GameRoom {
     this.map = MAPS[s.map] ? s.map : DEFAULT_MAP;
     this.capacity = clamp(Number(s.capacity) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
     this.mode = s.mode === 'bots' ? 'bots' : 'online';
-    this.visibility = s.visibility === 'private' || s.visibility === 'public' ? s.visibility : (this.mode === 'bots' ? 'private' : 'public');
+    this.visibility = this.mode === 'bots' ? 'private' : s.visibility === 'private' || s.visibility === 'public' ? s.visibility : 'public';
+    this.want = s.want === 'impostor' || s.want === 'crew' ? s.want : 'random';
     this.country = cleanCountry(s.country);
     this.createdAt = Number(s.createdAt) || 0;
     this.lang = s.lang === 'en' ? 'en' : 'es';
@@ -2215,6 +2237,7 @@ class GameRoom {
     this.map = DEFAULT_MAP;
     this.capacity = MAX_PLAYERS;
     this.mode = 'online';
+    this.want = 'random';
     this.visibility = 'public';
     this.country = '';
     this.createdAt = 0;
