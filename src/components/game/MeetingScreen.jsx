@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import MiniShroom from './MiniShroom';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
+import { useCompact } from '@/lib/useCompact';
 
-const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-2.5 font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
-const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-2.5 font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
+const BTN = 'rounded-xl bg-[#e9c46a] px-4 py-2.5 max-[600px]:px-3 max-[600px]:py-1.5 max-[600px]:text-sm font-bold text-[#261c05] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
+const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-2.5 max-[600px]:px-3 max-[600px]:py-1.5 max-[600px]:text-sm font-bold text-[#eaf5ec] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
 export default function MeetingScreen({ data, myId, alive, role, mates, roster, chat, gone, interro, judge, judgeUsed, onVote, onSkip, onJudge, onChat }) {
+  const { compact, landscape } = useCompact();
   const [sel, setSel] = useState(null);
   const [voted, setVoted] = useState(!!data.voted?.has(myId));
   const [text, setText] = useState('');
@@ -54,10 +56,10 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
 
   return (
     <div
-      className="absolute inset-0 z-20 flex flex-col items-center gap-2.5 overflow-auto p-4"
+      className={`absolute inset-0 z-20 flex flex-col items-center overflow-auto ${compact ? 'gap-1.5 p-2' : 'gap-2.5 p-4'}`}
       style={{ background: 'radial-gradient(circle at 50% 30%, #1d3a2d, #09130e 70%)' }}
     >
-      <div className="text-center text-[clamp(18px,3vw,26px)] font-extrabold text-[#eaf5ec]">{title}</div>
+      <div className={`text-center font-extrabold text-[#eaf5ec] ${compact ? 'text-[14px] leading-tight' : 'text-[clamp(18px,3vw,26px)]'}`}>{title}</div>
 
       {interro ? (
         <div className="w-full max-w-[980px] rounded-xl border-2 border-[#2a9d8f] bg-[rgba(42,157,143,.2)] px-4 py-2 text-center">
@@ -75,15 +77,15 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
       ) : null}
 
       <div
-        className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${
+        className={`rounded-full font-extrabold ${compact ? 'px-3 py-0.5 text-[11px]' : 'px-4 py-1.5 text-sm'} ${
           voting ? 'bg-[#e9c46a] text-[#261c05]' : 'bg-[#2f5a48] text-[#eaf5ec]'
         }`}
       >
         {voting ? tr('Votación abierta · {s}s', { s: left }) : tr('Deliberación · la votación empieza en {s}s', { s: left })}
       </div>
 
-      <div className="grid min-h-0 w-full max-w-[980px] flex-1 grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="grid content-start gap-2 overflow-auto [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]">
+      <div className={`grid min-h-0 w-full max-w-[980px] flex-1 gap-3 ${compact && landscape ? 'grid-cols-2 gap-2' : 'grid-cols-1 md:grid-cols-2'}`}>
+        <div className={`grid content-start overflow-auto ${compact ? 'gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(84px,1fr))]' : 'gap-2 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]'}`}>
           {players.map((p) => {
             const isMate = role === 'impostor' && mates.includes(p.id);
             const dead = !p.alive;
@@ -93,18 +95,18 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
               <div
                 key={p.id}
                 onClick={() => { if (!clickable) return; sfx('click'); setSel(p.id); }}
-                className={`relative flex flex-col items-center gap-0.5 rounded-xl border-[3px] bg-[#234036] p-2 text-center text-sm transition ${
+                className={`relative flex flex-col items-center gap-0.5 rounded-xl border-[3px] bg-[#234036] text-center transition ${compact ? 'p-1 text-[11px]' : 'p-2 text-sm'} ${
                   sel === p.id ? 'border-[#e9c46a]' : 'border-transparent'
                 } ${dead ? 'cursor-default opacity-40' : clickable ? 'cursor-pointer hover:brightness-110' : ''}`}
               >
                 <span
-                  className={`absolute right-1.5 top-1 text-[11px] font-bold ${
+                  className={`font-bold ${compact ? 'text-[9px] leading-none' : 'absolute right-1.5 top-1 text-[11px]'} ${
                     dead ? 'text-[#7d8f84]' : did ? 'text-[#80ed99]' : 'text-[#9bb8a6]'
                   }`}
                 >
                   {dead ? tr('✖ no vota') : did ? tr('✔ votó') : tr('… esperando')}
                 </span>
-                <MiniShroom color={p.color} size={46} dead={dead} />
+                <MiniShroom color={p.color} size={compact ? 30 : 46} dead={dead} />
                 <div className={isMate ? 'font-bold text-[#ff7b86]' : ''}>
                   {p.name}
                   {p.id === myId ? '\u00a0' + tr('(tú)') : ''}
@@ -115,8 +117,8 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
           })}
         </div>
 
-        <div className="flex min-h-0 flex-col gap-2 rounded-xl bg-[#1a3027] p-2.5">
-          <div className="flex flex-1 select-text flex-col gap-1 overflow-auto text-sm">
+        <div className={`flex min-h-0 flex-col rounded-xl bg-[#1a3027] ${compact ? 'gap-1 p-1.5' : 'gap-2 p-2.5'}`}>
+          <div className={`flex flex-1 select-text flex-col gap-1 overflow-auto ${compact ? 'text-[12px]' : 'text-sm'}`}>
             {chat.map((m, i) => (
               <div key={i} className={m.dead ? 'text-[#c9b8ff]' : ''}>
                 <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: m.color }} />
@@ -126,7 +128,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
           </div>
           <div className="flex gap-2">
             <input
-              className="w-full select-text rounded-xl border-2 border-[#2f5a48] bg-[#0f211a] px-3 py-2 text-[#eaf5ec] outline-none focus:border-[#e9c46a] disabled:opacity-50"
+              className={`w-full select-text rounded-xl border-2 border-[#2f5a48] bg-[#0f211a] px-3 text-[#eaf5ec] ${compact ? 'py-1 text-sm' : 'py-2'} outline-none focus:border-[#e9c46a] disabled:opacity-50`}
               maxLength={140}
               placeholder={alive ? tr('Escribe un mensaje…') : tr('Habla solo con los fantasmas…')}
               autoComplete="off"
@@ -146,7 +148,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2.5">
+      <div className={`flex flex-wrap items-center justify-center ${compact ? 'gap-1.5' : 'gap-2.5'}`}>
         {alive ? (
           <>
             {judge && jUsed ? null : (
@@ -157,7 +159,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
             )}
             {judge && !judgeUsed && !jUsed && voting && sel && !voted ? (
               <button
-                className="rounded-xl bg-[#7b3f00] px-4 py-2.5 font-bold text-[#ffe3a3] transition hover:brightness-110"
+                className="rounded-xl bg-[#7b3f00] px-4 py-2.5 max-[600px]:px-3 max-[600px]:py-1.5 max-[600px]:text-sm font-bold text-[#ffe3a3] transition hover:brightness-110"
                 onClick={() => { if (!sel) return; sfx('vote'); onJudge(sel); setJUsed(true); }}
               >
                 {tr('⚖ Juzgar (1 uso)')}
@@ -165,7 +167,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
             ) : null}
           </>
         ) : null}
-        <span className="max-w-[440px] text-center text-[#9bb8a6]">
+        <span className={`max-w-[440px] text-center text-[#9bb8a6] ${compact ? 'text-[11px] leading-tight' : ''}`}>
           {!alive
             ? tr('Eres un fantasma: no votas, y tu chat solo lo ven los demás muertos.')
             : judge && jUsed

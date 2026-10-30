@@ -1,9 +1,11 @@
 import MiniShroom from './MiniShroom';
 import { tr } from '@/lib/i18n';
+import { useCompact } from '@/lib/useCompact';
 
 /* Animación privada de muerte: solo la ve el jugador eliminado.
    Muestra el personaje de quien le ha matado y su nombre. */
 export default function DeathOverlay({ killer }) {
+  const { compact } = useCompact();
   return (
     <div
       className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2"
@@ -13,7 +15,7 @@ export default function DeathOverlay({ killer }) {
       }}
     >
       <div style={{ animation: 'deathStrike 1s ease-out' }}>
-        <MiniShroom color={killer.color} size={104} />
+        <MiniShroom color={killer.color} size={compact ? 64 : 104} />
       </div>
       <div
         className="px-4 text-center text-[clamp(20px,4.4vw,36px)] font-black text-[#ff8a95]"

@@ -24,6 +24,7 @@ import Sprout from './minigames/Sprout';
 import Count from './minigames/Count';
 import Scramble from './minigames/Scramble';
 import { tr } from '@/lib/i18n';
+import { useCompact } from '@/lib/useCompact';
 
 const GAMES = {
   seq: Seq,
@@ -54,9 +55,12 @@ const GAMES = {
 
 export default function MiniGame({ task, onFinish, onCancel }) {
   const Game = GAMES[task.game] || Seq;
+  const { compact } = useCompact();
+  // en una pantalla baja (móvil apaisado) el recuadro se reduce para que quepa entero
+  const zoom = compact && typeof window !== 'undefined' ? Math.max(0.62, Math.min(1, window.innerHeight / 580)) : 1;
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex w-full max-w-[420px] flex-col items-center gap-3.5 rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-5">
+    <div className="absolute inset-0 z-30 flex items-center justify-center overflow-auto bg-black/60 p-2 sm:p-4">
+      <div style={zoom < 1 ? { zoom } : undefined} className="flex w-full max-w-[420px] flex-col items-center gap-3.5 rounded-2xl border-2 border-[#2f5a48] bg-[#1a3027] p-5 max-[600px]:gap-2 max-[600px]:p-3">
         <h3 className="text-lg font-extrabold text-[#eaf5ec]">{tr(task.name)}</h3>
         <Game onFinish={() => { sfx('miniDone'); onFinish(); }} />
         <button className={BTN_ALT} onClick={() => { sfx('back'); onCancel(); }}>{tr('Cancelar')}</button>

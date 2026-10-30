@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import MiniShroom from '@/components/game/MiniShroom';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
+import { useCompact } from '@/lib/useCompact';
 
 const SECONDS = 5;
 const FALLBACK_MS = 5600; // el servidor avisa con 'go'; esto es solo una red de seguridad
 
 export default function RoleScreen({ role, color, name, mates = [], taskCount = 0, shifter = false, viper = false, engineer = false, alerter = false, judge = false, scientist = false, spectre = false, detective = false, tracker = false, trackerMs = 40, trackerCd = 30, onDone }) {
+  const { compact } = useCompact();
+  // en una pantalla baja (móvil apaisado) toda la tarjeta se reduce para que quepa entera
+  const zoom = compact && typeof window !== 'undefined' ? Math.max(0.5, Math.min(1, window.innerHeight / 640)) : 1;
   const [left, setLeft] = useState(SECONDS);
   const fired = useRef(false);
 
@@ -30,7 +34,8 @@ export default function RoleScreen({ role, color, name, mates = [], taskCount = 
   }, [isImp]);
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(circle_at_50%_38%,#17392d,#0a1410_72%)] px-6 text-center">
+    <div className="absolute inset-0 z-20 flex overflow-auto bg-[radial-gradient(circle_at_50%_38%,#17392d,#0a1410_72%)] px-6 text-center">
+      <div style={zoom < 1 ? { zoom } : undefined} className="m-auto flex flex-col items-center gap-4 py-4">
       <div className="text-xs uppercase tracking-[0.35em] text-[#9bb8a6]">{tr('Tu rol es')}</div>
       <MiniShroom color={color || '#4cc9f0'} size={104} />
       <h1 className="text-[clamp(34px,7vw,64px)] font-black leading-none" style={{ color: isImp ? '#ff7b86' : '#80ed99' }}>
@@ -99,6 +104,7 @@ export default function RoleScreen({ role, color, name, mates = [], taskCount = 
         <div className="h-2 w-full overflow-hidden rounded-full bg-[#0f211a]">
           <div className="h-full bg-[#80ed99] transition-[width] duration-100" style={{ width: `${(left / SECONDS) * 100}%` }} />
         </div>
+      </div>
       </div>
     </div>
   );
