@@ -22,10 +22,11 @@ const tap = (fn) => ({
 export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, onSab, onReactor, onVent, onVentTo, onShift, onInvis, onGuard, onBlind, onSci, onInterro, onTrack }) {
   const [, force] = useState(0);
   const { compact, coarse } = useCompact();
+  const [tasksOpen, setTasksOpen] = useState(false); // móvil: la lista de tareas va plegada
   const L = (t) => noKey(coarse, t); // sin atajos de teclado en el móvil
-  const BTN = compact ? 'min-w-[104px] rounded-lg px-2.5 py-2 text-[12px]' : 'min-w-[140px] rounded-xl px-4 py-3.5 text-[15px]';
-  const PILL = compact ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1.5 text-[12px]';
-  const PILL1 = compact ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1 text-[12px]';
+  const BTN = compact ? 'min-w-[84px] rounded-md px-2 py-1.5 text-[10px] leading-tight opacity-90' : 'min-w-[140px] rounded-xl px-4 py-3.5 text-[15px]';
+  const PILL = compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-3 py-1.5 text-[12px]';
+  const PILL1 = compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-3 py-1 text-[12px]';
 
   useEffect(() => {
     const iv = setInterval(() => force((n) => n + 1), 140);
@@ -71,7 +72,30 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <div className={`absolute flex flex-col items-start ${compact ? 'left-1.5 top-1.5 max-w-[46vw] min-w-[120px] gap-1' : 'left-2.5 top-2.5 min-w-[190px] gap-2'}`}>
-        <div className={`w-full bg-[rgba(10,22,16,.78)] text-[#eaf5ec] ${compact ? 'rounded-lg px-2 py-1.5 text-[11px] leading-snug' : 'rounded-xl px-3 py-2.5 text-sm leading-relaxed'}`}>
+        {compact ? (
+          <div className="w-full rounded-md bg-[rgba(10,22,16,.78)] px-1.5 py-1 text-[10px] leading-tight text-[#eaf5ec]">
+            <button
+              type="button"
+              className="pointer-events-auto flex w-full items-center justify-between gap-2 text-left font-bold"
+              {...tap(() => setTasksOpen((o) => !o))}
+            >
+              <span>{isImp ? tr('Tareas (falsas)') : tr('Tareas')} {doneIds.length}/{tasks.length}</span>
+              <span className="opacity-70">{tasksOpen ? '▴' : '▾'}</span>
+            </button>
+            {tasksOpen ? tasks.map((t) => {
+              const ok = doneIds.includes(t.id);
+              return (
+                <div key={t.id} className={`truncate ${ok ? 'text-[#80ed99] line-through opacity-80' : ''}`}>
+                  {ok ? '✔' : '•'} {tr(t.name)}
+                </div>
+              );
+            }) : null}
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-sm bg-[rgba(0,0,0,.35)]">
+              <div className="h-full transition-[width] duration-300" style={{ width: `${st.prog * 100}%`, background: 'linear-gradient(90deg,#4cc9f0,#80ed99)' }} />
+            </div>
+          </div>
+        ) : (
+        <div className="w-full rounded-xl bg-[rgba(10,22,16,.78)] px-3 py-2.5 text-sm leading-relaxed text-[#eaf5ec]">
           <b>{isImp ? tr('Tareas (falsas)') : tr('Tareas')}</b>
           {tasks.map((t) => {
             const ok = doneIds.includes(t.id);
@@ -89,7 +113,9 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
           </div>
         </div>
 
-        <div className={`rounded-full bg-[rgba(10,22,16,.78)] font-extrabold ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1.5'}`}>
+        )}
+
+        <div className={`rounded-full bg-[rgba(10,22,16,.78)] font-extrabold ${compact ? 'whitespace-nowrap px-2 py-0.5 text-[9px]' : 'px-3 py-1.5'}`}>
           <span style={{ color: dead ? '#9bb8a6' : isImp ? '#ff7b86' : '#80ed99' }}>
             {dead
               ? (GHOST_NAME[ghost] ? `${tr('FANTASMA')} · ${GHOST_NAME[ghost]}` : isImp ? tr('FANTASMA · IMPOSTOR') : tr('FANTASMA'))
@@ -129,7 +155,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
           <div className={`rounded-full bg-[rgba(10,22,16,.78)] ${PILL1} font-bold text-[#ff8a8a]`}>
             {tr('Tu reunión: bloqueada por el sabotaje')}
           </div>
-        ) : (
+        ) : compact ? null : (
           <div className={`rounded-full bg-[rgba(10,22,16,.78)] ${PILL1} font-bold text-[#80ed99]`}>
             {tr('Tu reunión: disponible')}
           </div>
@@ -147,7 +173,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
       </div>
 
       <button
-        className={`pointer-events-auto absolute ${compact ? 'bottom-1.5 left-1.5 rounded-lg px-2.5 py-1.5 text-[11px]' : 'bottom-2.5 left-2.5 rounded-xl px-3.5 py-2.5 text-[13px]'} border-2 border-white/15 bg-[rgba(10,22,16,.78)] font-bold text-[#eaf5ec] shadow-[0_4px_14px_rgba(0,0,0,.45)] transition hover:brightness-110`}
+        className={`pointer-events-auto absolute ${compact ? 'bottom-1.5 left-1.5 rounded-md px-2 py-1 text-[10px]' : 'bottom-2.5 left-2.5 rounded-xl px-3.5 py-2.5 text-[13px]'} border-2 border-white/15 bg-[rgba(10,22,16,.78)] font-bold text-[#eaf5ec] shadow-[0_4px_14px_rgba(0,0,0,.45)] transition hover:brightness-110`}
         {...tap(() => { sfx('click'); onMap(); })}
       >
         {L(tr('🗺 MAPA [M]'))}
@@ -183,7 +209,7 @@ export default function Hud({ g, tasks, doneIds, onMap, onUse, onKill, onRep, on
         </div>
       ) : null}
 
-      <div className={`absolute flex flex-col items-end ${compact ? 'right-1.5 top-1.5 gap-1.5' : 'right-2.5 top-2.5 gap-2.5'}`}>
+      <div className={`absolute flex flex-col items-end ${compact ? 'right-1.5 top-1.5 gap-1' : 'right-2.5 top-2.5 gap-2.5'}`}>
         {g.vent.in ? (
           <VentBar compact={compact} coarse={coarse} vent={g.vent} left={st.vleft} onTravel={onVentTo} onOut={onVent} />
         ) : dead ? (
