@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { makeGrid } from '@/lib/game/grid';
 import { announceRoom, forgetRoom } from '@/lib/game/rooms';
 import { loop, sfx, stopLoop } from '@/lib/game/sound';
-import { buildWorld, BODY_FX_MS } from '@/lib/game/render';
+import { buildWorld, BODY_FX_MS, DASH_MS } from '@/lib/game/render';
 import { contextOf } from '@/lib/game/context';
 import { sendInput } from '@/lib/game/predict';
 import MenuScreen from '@/components/game/MenuScreen';
@@ -191,6 +191,7 @@ export default function Home() {
     g.ventFx.clear();
     g.saves = [];
     g.puffs = [];
+    g.dash = null;
     g.off = null;
     g.ackDir = null;
     g.snap = true;
@@ -596,6 +597,17 @@ export default function Home() {
         // y se oyen subir cuando se cumplen los 10 s
         sfx('doorOpen');
         break;
+      case 'lunge': {
+        // El impostor se lanza sobre su víctima: un salto de ~90 ms con estela, como en el Among Us
+        // real. La posición de la sala pasa a ser la nueva ya (así la reconciliación no lo frena).
+        if (m.id !== g.myId) break;
+        g.srv.x = m.x;
+        g.srv.y = m.y;
+        g.srvB = { x: m.x, y: m.y };
+        g.dash = { fx: g.me.x, fy: g.me.y, tx: m.x, ty: m.y, at: performance.now(), ms: DASH_MS };
+        g.trail = { fx: g.me.x, fy: g.me.y, tx: m.x, ty: m.y, at: performance.now(), face: Math.sign(m.x - g.me.x) || g.me.face || 1 };
+        break;
+      }
       case 'venom':
         // la Víbora ha matado: el veneno borbotea sobre el cuerpo, lo ve todo el mundo
         sfx('venom');

@@ -818,6 +818,7 @@ function drawBody(c, x, y, color, dir = 1, k = 1) {
 }
 
 /* ---------- el golpe: la caída del cuerpo y la sangre ---------- */
+export const DASH_MS = 90; // lo que dura el salto del impostor sobre su víctima
 export const BODY_FX_MS = 1500; // lo que dura todo el efecto desde que cae
 const FALL_MS = 520; // lo que tarda en caer el seta
 const ss = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -906,6 +907,18 @@ function drawGore(c, fx, x, y, el) {
       c.lineTo(x + 20 + i * 7 + q * 14, y + 4 + i * 5 + q * 6);
       c.stroke();
     }
+    c.restore();
+  }
+  // aro rojo que se abre alrededor de la víctima, como en el Among Us de verdad
+  if (el < 380) {
+    const q = el / 380;
+    c.save();
+    c.globalAlpha = 0.85 * (1 - q);
+    c.strokeStyle = '#e0283c';
+    c.lineWidth = 5 * (1 - q) + 1;
+    c.beginPath();
+    c.arc(x, y - 4, 16 + q * 34, 0, 7);
+    c.stroke();
     c.restore();
   }
   const fade = 1 - ss(BODY_FX_MS - 500, BODY_FX_MS, el);
@@ -1274,6 +1287,23 @@ export function drawFrame(o) {
     if (bf && el < BODY_FX_MS) gored.push([bf, b[1], b[2], el]);
   }
   for (const [bf, bx, by, el] of gored) drawGore(ctx, bf, bx, by, el);
+  // estela del salto del impostor: copias que se desvanecen por el camino que ha recorrido
+  if (g.trail) {
+    const tel = fxNow - g.trail.at;
+    if (tel > 320) g.trail = null;
+    else {
+      const col = (g.roster.get(g.myId) || {}).color || '#e63946';
+      for (let i = 0; i < 5; i++) {
+        const f = i / 5;
+        const a = (1 - tel / 320) * (0.45 - f * 0.3);
+        if (a <= 0) continue;
+        ctx.save();
+        ctx.globalAlpha = a;
+        drawShroom(ctx, g.trail.fx + (g.trail.tx - g.trail.fx) * f, g.trail.fy + (g.trail.ty - g.trail.fy) * f, col, { alive: true, t: 0, face: g.trail.face, moving: true, red: true });
+        ctx.restore();
+      }
+    }
+  }
   const list = [];
   let myFx = null;
   // efectos en curso (transformación y vuelta a su forma): segundos desde el cambio

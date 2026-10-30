@@ -911,7 +911,7 @@ class GameRoom {
           p.x = best.x;
           p.y = best.y;
           this.markSeg(p, now); // el tramo de movimiento en vigor empieza ya en el nuevo punto
-          this.broadcast({ t: 'lunge', id: p.id, fx: Math.round(lungeFrom.x), fy: Math.round(lungeFrom.y), x: Math.round(p.x), y: Math.round(p.y) });
+          this.sendTo(p, { t: 'lunge', id: p.id, fx: Math.round(lungeFrom.x), fy: Math.round(lungeFrom.y), x: Math.round(p.x), y: Math.round(p.y) });
         }
         best.alive = false;
         best.dx = best.dy = 0;
