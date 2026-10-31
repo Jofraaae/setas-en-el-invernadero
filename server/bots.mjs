@@ -87,9 +87,15 @@ export class BotManager {
 
   /* ---------- altas / bajas ---------- */
 
+  // idioma de los nombres: el del humano de la sala (o el de la sala)
+  nameLang() {
+    const h = [...this.room.players.values()].find((q) => !q.bot && q.lang);
+    return (h ? h.lang : this.room.lang) === 'en' ? 'en' : 'es';
+  }
+
   // nombre al azar que nadie lleva ya
   newName() {
-    return pickBotName([...this.room.players.values()].map((q) => q.name));
+    return pickBotName([...this.room.players.values()].map((q) => q.name), Math.random, this.nameLang());
   }
 
   afterAdd(p) {
