@@ -33,6 +33,13 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
     setLeft(Math.max(0, Math.ceil(data.voteMs / 1000)));
   }, [data.voting, data.voteMs, voting]);
 
+  // el chat siempre muestra el último mensaje: no hace falta bajar a mano con la rueda
+  const chatRef = useRef(null);
+  useEffect(() => {
+    const el = chatRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chat, compact]);
+
   const caller = roster.get(data.callerId) || { name: tr('Alguien') };
   const title = data.reason === 'body'
     ? tr('🚨 {name} ha encontrado a {body}', { name: caller.name, body: data.bodyName })
@@ -118,7 +125,7 @@ export default function MeetingScreen({ data, myId, alive, role, mates, roster, 
         </div>
 
         <div className={`flex min-h-0 flex-col rounded-xl bg-[#1a3027] ${compact ? 'gap-1 p-1.5' : 'gap-2 p-2.5'}`}>
-          <div className={`flex flex-1 select-text flex-col gap-1 overflow-auto ${compact ? 'text-[12px]' : 'text-sm'}`}>
+          <div ref={chatRef} className={`flex min-h-0 flex-1 select-text flex-col gap-1 overflow-y-auto ${compact ? 'text-[12px]' : 'text-sm'}`}>
             {chat.map((m, i) => (
               <div key={i} className={m.dead ? 'text-[#c9b8ff]' : ''}>
                 <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: m.color }} />

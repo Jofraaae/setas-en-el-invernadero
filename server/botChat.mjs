@@ -14,12 +14,22 @@ export const BOT_NAMES = [
   'Cremini', 'Puffball', 'Chaga', 'Truffle', 'Morel', 'Porcini', 'Cap', 'Mossy', 'Capu', 'Pilz',
 ];
 
-export function pickBotName(taken, rnd = Math.random) {
+// nombres para salas en inglés: setas y hongos tal como se dicen allí
+export const BOT_NAMES_EN = [
+  'Boletus', 'Morel', 'Button', 'Truffle', 'Chanterelle', 'Amanita', 'Oyster', 'Shiitake', 'Portobello', 'Enoki',
+  'Mycelium', 'Sporey', 'Puffball', 'Russula', 'Hedgehog', 'Tinder', 'Stinkhorn', 'Parasol', 'Mushy', 'Milkcap',
+  'Cordyceps', 'Hypha', 'Blewit', 'Fairy Ring', 'Death Cap', 'Zen Fungus', 'Mold', 'Lichen', 'Moss', 'Fungi',
+  'Reishi', 'Maitake', 'Inkcap', 'Beardy', 'Shaggy Mane', 'Tongue', 'Crazy Shroom', 'Mycelius', 'Spore', 'Cremini',
+  'Chaga', 'Porcini', 'Cap', 'Mossy', 'Toadstool', 'Honey Fungus', 'Lion\'s Mane', 'Chicken of the Woods', 'Spud', 'Shroomy',
+];
+
+export function pickBotName(taken, rnd = Math.random, lang = 'es') {
+  const en = lang === 'en';
   const used = new Set([...taken].map((n) => String(n).toLowerCase()));
-  const pool = BOT_NAMES.filter((n) => !used.has(n.toLowerCase()));
+  const pool = (en ? BOT_NAMES_EN : BOT_NAMES).filter((n) => !used.has(n.toLowerCase()));
   if (pool.length) return pool[Math.floor(rnd() * pool.length)];
   for (let i = 2; i < 99; i++) {
-    const n = `Seta${i}`;
+    const n = `${en ? 'Shroom' : 'Seta'}${i}`;
     if (!used.has(n.toLowerCase())) return n;
   }
   return 'Bot';
@@ -184,6 +194,18 @@ const T = {
     ['Mmm, no me cuadra lo de {x}, {y}.', 'Hmm, the {x} thing does not add up, {y}.'],
     ['No sé, {y}. Tampoco hay motivos claros para votar a {x}.', 'I do not know, {y}. No clear reason to vote {x}.'],
   ],
+  // pedir que se explique, y reaccionar a la explicación
+  explainOk: [
+    ['Ahora sí, {y}: eso tiene sentido. Voto a {x}.', 'Now that makes sense, {y}. Voting {x}.'],
+    ['Vale, {y}, si lo viste tú, voy con {x}.', 'Okay {y}, if you saw it, I am with you on {x}.'],
+    ['Eso me convence, {y}. {x} va a mi lista.', 'That convinces me, {y}. {x} is on my list.'],
+    ['Gracias por explicarlo, {y}. A por {x}.', 'Thanks for explaining, {y}. Going for {x}.'],
+  ],
+  explainNo: [
+    ['Mmm, no me cuadra, {y}. Eso no basta para votar a {x}.', 'Hmm, it does not add up, {y}. That is not enough to vote {x}.'],
+    ['{y}, eso no explica nada de {x}. Sigo sin verlo.', '{y}, that does not explain anything about {x}. I still do not see it.'],
+    ['Puede ser, {y}, pero yo no lo vi así con {x}.', 'Maybe, {y}, but I did not see it that way with {x}.'],
+  ],
   trustClear: [
     ['Vale, {y}, entonces {x} está limpio. Me fío.', 'Okay {y}, so {x} is clean. I trust that.'],
     ['Eso cambia las cosas: {x} parece de fiar.', 'That changes things: {x} seems trustworthy.'],
@@ -274,6 +296,8 @@ const SKIP = /\b(skip\w*|saltar\w*|saltemos|salto|abstenc\w*|abstain|no votemos|
 // defender a alguien: "X es inocente", "X no fue", "confío en X"
 const CLEAR = /\b(inocente\w*|limpi[oa]\w*|no fue|no ha sido|no es (el )?impostor|no es sospechoso|confio|confiad|innocent|clean|safe|trust\w*|not (the )?impostor|wasn.?t)\b/;
 // defenderse a uno mismo: "yo no fui", "no soy el impostor"
+// una razón o una prueba ("porque lo vi", "estaba junto al cuerpo", "salió de la rejilla"...)
+const REASON = /\b(porque|por que|xq|pq|because|cause|since|vi a|lo vi|le vi|la vi|visto|vimos|saw|seen|ventil\w*|ventear|rejilla\w*|vent|mato|mataron|matar|mataba|matando|killed|killing|kill|cerca del cuerpo|junto al cuerpo|al lado del cuerpo|near the body|next to the body|beside the body|salio de|came out|salia de|was near|estaba cerca|estaba en|was in|was at|tareas falsas|fake tasks|no hace tareas|no hizo tareas|no hacia tareas|nunca hace|persegu\w*|chasing|followed|siguiendo|seguia|huia|huyo|ran away|fled|corria|mintio|miente|mentira|lied|lying)\b/;
 const SELF = /\b(yo no fui|no fui yo|no he sido yo|no he sido|no soy (el )?impostor|soy inocente|it wasn.?t me|i am innocent|i.?m innocent|i.?m not (the )?impostor|i did not|i didn.?t)\b/;
 
 /* Qué dice un mensaje: a quién nombra y qué pide. names = [{id, name}] de los jugadores vivos.
@@ -303,6 +327,7 @@ export function parseChat(text, names) {
     mentioned: found.map((f) => f.id),
     accuse: ACCUSE.test(t) && !clear,
     strong: STRONG.test(t) && !clear,
+    reason: (REASON.test(t) || STRONG.test(t)) && !clear,
     question: QUESTION.test(t),
     vote: !!vm && !clear,
     voteTargets: clear ? [] : voteTargets,
