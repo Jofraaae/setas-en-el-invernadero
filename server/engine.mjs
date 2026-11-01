@@ -2100,7 +2100,8 @@ class GameRoom {
         kycd: Math.max(0, (p.keyReadyAt || 0) - now),     // espera del Guardallaves para volver a abrir una puerta
         blcd: Math.max(0, (p.blindReadyAt || 0) - now),   // espera del Cegador
         bl: blind ? Math.max(0, p.blindUntil - now) : 0,  // lo que le queda de ceguera
-        lamps: lamps.length ? lamps.map((l) => [l.x, l.y, l.r]) : null,
+        // la luz del Farol es solo de la tripulación: un impostor (vivo o fantasma) ni la ve ni sabe dónde está
+        lamps: lamps.length && p.role !== 'impostor' ? lamps.map((l) => [l.x, l.y, l.r]) : null,
         // puertas cerradas ahora mismo, con lo que les queda para abrirse
         drs: closed.map((d) => [d.id, Math.max(0, (this.doorAt.get(d.id) || 0) - now)]),
         // salas que no se pueden cerrar todavía: [sala, ms que le quedan]
