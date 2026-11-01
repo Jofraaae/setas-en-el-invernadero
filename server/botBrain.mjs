@@ -761,10 +761,10 @@ export class Brain {
     const crewLeft = [...R.players.values()].filter((q) => q.alive && q.role !== 'impostor').length;
     const impsLeft = [...R.players.values()].filter((q) => q.alive && q.role === 'impostor').length;
     const winning = crewLeft <= impsLeft * 2; // este golpe casi decide la partida: merece el riesgo
-    if (ready && c.wit > 0 && c.near > 0 && !R.dark && !R.reactor && now >= R.sabLockAt && c.wit <= 3 && now - (this.lightsAt || 0) > 40000 && chance(0.012)) {
+    if (ready && c.wit > 0 && c.near > 0 && !R.dark && !R.reactor && now >= R.sabLockAt && c.wit <= 3 && now - (this.lightsAt || 0) > 40000 && this.ensureSabPlan(now).kind !== 'reactor' && chance(0.012)) {
       // hay gente mirando: apaga las luces para quedarse a solas con alguien
       this.lightsAt = now;
-      this.send({ t: 'sabotage' });
+      this.sendSab('sabotage', now);
     }
     if (ready && !invis && c.d <= E.KILL_RANGE - 12 && c.wit === 0
       && mgr.exposed({ x: p.x, y: p.y }, [c.q.id, p.id], now).length === 0
@@ -831,15 +831,18 @@ export class Brain {
     if (R.dark || R.reactor || R.frozen(p, now)) return;
     const crew = [...R.players.values()].filter((q) => q.alive && q.role !== 'impostor').length;
     const canR = now >= R.rtLockAt && crew >= 3, canL = now >= R.sabLockAt;
+    const plan = this.ensureSabPlan(now).kind;
+    // si el equipo esperaba el reactor y casi está listo, no se gasta el apagón ahora
+    const waitReactor = plan === 'reactor' && !canR && crew >= 3;
     if (a.wit > 0 || seen) {
       if (chance(0.75)) {
-        if (canR && (!canL || chance(0.6))) { this.send({ t: 'reactor' }); this.nextSab = now + 30000; }
-        else if (canL) { this.send({ t: 'sabotage' }); this.nextSab = now + 25000; }
+        if (canR && (!canL || chance(0.6))) this.sendSab('reactor', now);
+        else if (canL && !waitReactor) this.sendSab('sabotage', now);
       }
       return;
     }
-    if (canR && crew >= 4 && chance(0.35)) { this.send({ t: 'reactor' }); this.nextSab = now + 30000; }
-    else if (canL && chance(0.25)) { this.send({ t: 'sabotage' }); this.nextSab = now + 25000; }
+    if (canR && crew >= 4 && chance(0.35)) this.sendSab('reactor', now);
+    else if (canL && !waitReactor && chance(0.25)) this.sendSab('sabotage', now);
   }
 
   // al salir de la sala del cuerpo, a veces cierra sus puertas desde el mapa para retrasar que lo encuentren
@@ -888,16 +891,51 @@ export class Brain {
     return null;
   }
 
+  /* ¿Qué sabotaje toca? El apagón se recarga antes que el reactor (40 s frente a 60 s) y, sin planearlo, el bot
+     usaba siempre el apagón en cuanto podía: el reactor no salía nunca. Ahora el equipo impostor decide de
+     antemano cuál toca; si es el reactor y está a punto de recargarse, se espera a que esté listo. */
+  ensureSabPlan(now) {
+    const R = this.mgr.room, M = this.mgr.M, mgr = this.mgr;
+    const crew = [...R.players.values()].filter((q) => q.alive && q.role === 'crew').length;
+    if (!mgr.sabPlan || now - mgr.sabPlan.at > 150000) {
+      mgr.sabPlan = { kind: crew >= 3 && M && M.rpts && M.rpts.length >= 2 && chance(0.6) ? 'reactor' : 'lights', at: now };
+    }
+    return mgr.sabPlan;
+  }
+
+  sabChoice(now) {
+    const R = this.mgr.room, mgr = this.mgr;
+    const crew = [...R.players.values()].filter((q) => q.alive && q.role === 'crew').length;
+    this.ensureSabPlan(now);
+    if (mgr.sabPlan.kind === 'reactor') {
+      if (crew < 3) mgr.sabPlan = { kind: 'lights', at: now };
+      else if (now >= R.rtLockAt) return 'reactor';
+      else return null; // se espera a que el reactor se recargue (arreglar un apagón lo reinicia: no se gasta)
+    }
+    return now >= R.sabLockAt ? 'sabotage' : null;
+  }
+
+  sendSab(kind, now) {
+    this.mgr.sabPlan = null; // tras cada sabotaje se vuelve a elegir
+    this.send({ t: kind });
+    this.nextSab = now + (kind === 'reactor' ? 30000 : 25000);
+  }
+
   sabotageLogic(now) {
     const p = this.p, R = this.mgr.room;
     if (now < this.nextSab || R.dark || R.reactor || R.frozen(p, now)) return;
     this.nextSab = now + rnd(5000, 10000);
     const crew = [...R.players.values()].filter((q) => q.alive && q.role === 'crew').length;
     const killSoon = p.alive && p.killReadyAt - now < 9000;
-    if (now >= R.sabLockAt && chance(0.4) && (killSoon || !p.alive)) { this.send({ t: 'sabotage' }); this.nextSab = now + 25000; return; }
+    const kind = this.sabChoice(now);
+    if (!kind) return;
+    if (kind === 'sabotage') {
+      if (chance(0.4) && (killSoon || !p.alive)) this.sendSab('sabotage', now);
+      else if (chance(0.06)) this.sendSab('sabotage', now); // y de vez en cuando, porque sí: despista
+      return;
+    }
     // el reactor junta y reparte a la tripulación: si el golpe no está cerca, sirve para dispersarla y dejar a alguien solo
-    if (now >= R.rtLockAt && crew >= 4 && chance(killSoon ? 0.12 : 0.25)) { this.send({ t: 'reactor' }); this.nextSab = now + 30000; return; }
-    if (now >= R.rtLockAt && crew >= 3 && chance(0.1)) { this.send({ t: 'reactor' }); this.nextSab = now + 30000; }
+    if (crew >= 3 && chance(killSoon ? 0.3 : 0.55)) this.sendSab('reactor', now);
   }
 
   /* ----- rejillas ----- */
@@ -1260,6 +1298,9 @@ export class Brain {
     if (r.self && p.role !== 'impostor' && !this.proof(fromId) && this.susp(fromId) < 0.5) this.addSusp(fromId, -0.04);
     // "saltemos / no votemos a nadie"
     if (r.skip && !r.mentioned.length) { this.hearSkip(fromId, now); return; }
+    // una explicación ("porque lo vi en la rejilla") a quien antes acusó o a quien le pedimos que se explicara
+    const lc = m.lastCall && m.lastCall.get(fromId);
+    if (lc && !lc.done && now - lc.at < 50000 && r.reason && (!r.mentioned.length || r.mentioned.includes(lc.tgt))) { this.considerExplain(fromId, lc, r, now); return; }
     if (!r.mentioned.length) return;
     // "votad a X" / "voto a X": a mí me están señalando, o me piden que vote a otro
     if (r.vote && r.voteTargets.length) {
@@ -1297,7 +1338,8 @@ export class Brain {
     if (this.recentSeen(now).some((o) => o.id === tgt && now - o.t < 25000)) c -= 0.12; // lo vi trabajando hace nada
     c += Math.min(0.2, (this.mem.acc.get(tgt) || 0) * 0.06); // varios lo señalan
     for (const b of this.mem.bodies.values()) if ((b.near || []).includes(tgt)) { c += 0.15; break; } // estaba junto al cuerpo
-    if (r.strong) c += 0.12;
+    if (r.reason) c += 0.12;                    // da una razón
+    else if (r.strong) c += 0.12;
     else if (!r.accuse) c -= 0.1; // "votad a X" a secas, sin motivo
     return Math.max(0.08, Math.min(0.92, c));
   }
@@ -1312,6 +1354,10 @@ export class Brain {
     m.heard.add(key);
     this.mem.acc.set(tgt, (this.mem.acc.get(tgt) || 0) + 1);
     const x = this.nameOf(tgt), y = this.nameOf(fromId);
+    // se apunta por si luego explica por qué ("porque lo vi...")
+    m.lastCall = m.lastCall || new Map();
+    const lc = { tgt, at: now, done: false, asked: false };
+    m.lastCall.set(fromId, lc);
     if (p.role === 'impostor') {
       if (this.mates.has(tgt)) {
         // piden votar a mi compañero: lo defiendo y desconfío de quien lo pide
@@ -1323,12 +1369,13 @@ export class Brain {
       if (chance(0.7)) this.followCall(tgt, fromId, r, 0.35);
       return;
     }
-    if (chance(this.credit(fromId, tgt, r, now))) this.followCall(tgt, fromId, r, r.strong ? 0.3 : 0.22);
+    if (chance(this.credit(fromId, tgt, r, now))) { lc.done = true; this.followCall(tgt, fromId, r, r.strong ? 0.3 : 0.22); }
+    else if (!r.reason && this.askWhy(fromId, tgt, lc, now)) { /* ha pedido que se explique */ }
     else this.refuseCall(tgt, fromId, now);
   }
 
   // me lo creo: sube la sospecha, a veces me comprometo a votarle y lo digo
-  followCall(tgt, fromId, r, bump) {
+  followCall(tgt, fromId, r, bump, kind = 'follow') {
     const p = this.p, m = this.meet;
     this.addSusp(tgt, bump * (1 - this.susp(fromId)));
     // si me lo creo, normalmente me comprometo a votarle: más si me lo piden o dicen haberlo visto
@@ -1336,9 +1383,46 @@ export class Brain {
     if ((!m.pledge || chance(0.6)) && chance(commit)) m.pledge = tgt;
     if (m.reacts < 4 && chance(0.75)) {
       m.reacts++;
-      this.queueSay(this.pairOf('follow', { x: this.nameOf(tgt), y: this.nameOf(fromId) }, { kind: 'vote', target: tgt }), rnd(2800, 6000));
+      this.queueSay(this.pairOf(kind, { x: this.nameOf(tgt), y: this.nameOf(fromId) }, { kind: 'vote', target: tgt }), rnd(2800, 6000));
     }
     void p;
+  }
+
+  /* Una persona acusa sin dar razones y no me convence: a veces (solo uno de los bots por acusación) le pido
+     que se explique. Si luego lo hace y tiene sentido, me lo creo (considerExplain). */
+  askWhy(fromId, tgt, lc, now) {
+    const R = this.mgr.room, m = this.meet;
+    const from = R.players.get(fromId);
+    if (!from || from.bot || m.reacts >= 4) return false;
+    const asked = this.mgr.askedWhy || (this.mgr.askedWhy = new Map());
+    for (const [k, t] of asked) if (now - t > 45000) asked.delete(k);
+    const key = fromId + ':' + tgt;
+    if (asked.has(key) || !chance(0.65)) return false;
+    asked.set(key, now);
+    lc.asked = true;
+    m.reacts++;
+    this.queueSay(this.pairOf('askWhy', { x: this.nameOf(fromId), y: this.nameOf(tgt) }, null), rnd(2500, 5000));
+    return true;
+  }
+
+  // la persona ha explicado por qué: si cuadra con lo que sé (y encima me lo había preguntado), me lo creo
+  considerExplain(fromId, lc, r, now) {
+    const p = this.p, m = this.meet, tgt = lc.tgt;
+    lc.done = true;
+    if (!m || tgt === this.id || this.mem.dead.has(tgt)) return;
+    const x = this.nameOf(tgt), y = this.nameOf(fromId);
+    const rr = { ...r, accuse: true, strong: true, vote: true };
+    if (p.role === 'impostor') {
+      if (this.mates.has(tgt)) return;
+      if (chance(0.7)) this.followCall(tgt, fromId, rr, 0.3, 'explainOk');
+      return;
+    }
+    let c = this.credit(fromId, tgt, rr, now) + 0.2; // dar una razón pesa mucho
+    if (lc.asked) c += 0.1;                           // y más si me lo había preguntado yo
+    if (this.susp(tgt) > 0.3) c += 0.1;               // cuadra con lo que yo ya sospechaba
+    c = Math.max(0.1, Math.min(0.93, c));
+    if (chance(c)) this.followCall(tgt, fromId, rr, 0.3, 'explainOk');
+    else if (m.reacts < 4 && chance(0.6)) { m.reacts++; this.queueSay(this.pairOf('explainNo', { x, y }, null), rnd(3000, 6500)); }
   }
 
   // no me lo creo: no cambia mi voto y a veces lo digo
