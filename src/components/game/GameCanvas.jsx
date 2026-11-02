@@ -49,6 +49,9 @@ export default function GameCanvas({ g, send }) {
     const onKeyDown = (e) => {
       const tag = e.target && e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // Ctrl/Cmd/Alt + tecla es un atajo del navegador (recargar, copiar, cambiar de pestaña…), no del juego:
+      // sin esto, Ctrl+R reportaba, Ctrl+X sabotaba y, en Mac, Cmd+A dejaba la tecla 'a' atascada (no llega su keyup)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === ' ') e.preventDefault();
       if (!e.repeat) {

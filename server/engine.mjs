@@ -413,6 +413,8 @@ function propBox(t, k = 1) {
   return [Math.round(t.x - w / 2), Math.round(t.y - h / 2), w, h, 'prop'];
 }
 /* Los dos escenarios, ya armados: la sala elige uno y todo lo que dibuja y choca sale de ahí. */
+// ¿es un escenario de verdad? (con MAPS[x] a secas, '__proto__' o 'constructor' pasaban por escenario)
+const isMap = (k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(MAPS, k);
 const MAPS = {
   greenhouse: withDoors(buildMap({ ...GREENHOUSE, id: 'greenhouse', name: 'El Invernadero' })),
   micelaria: withDoors(buildMap({ ...MICELARIA, id: 'micelaria', name: 'Micelaria' })),
@@ -703,7 +705,7 @@ class GameRoom {
 
   /* El escenario de la partida: todo lo que se dibuja y todo lo que frena el paso sale de
      aquí, así que elegir mapa no toca ninguna regla del juego. */
-  get m() { return MAPS[this.map] || MAPS[DEFAULT_MAP]; }
+  get m() { return (isMap(this.map) && MAPS[this.map]) || MAPS[DEFAULT_MAP]; }
 
   /* ---------- ciclo de vida ---------- */
 
@@ -816,7 +818,7 @@ class GameRoom {
       case 'map': {
         // el anfitrión elige escenario en la sala de espera; la partida lo usa al arrancar
         if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
-        if (!MAPS[msg.map]) return;
+        if (!isMap(msg.map)) return;
         this.map = msg.map;
         this.broadcast(this.lobbyInfo());
         return this.save();
@@ -899,10 +901,12 @@ class GameRoom {
         // un pequeño margen sobre el alcance del cliente: con el retardo de red, quien va andando
         // llega a la sala unos píxeles más lejos de donde pulsó el botón
         let best = null, bd = KILL_RANGE + KILL_SLACK;
+        const shutKill = this.closedDoors(now);
         for (const q of this.players.values()) {
           if (!q.alive || q.role === 'impostor') continue;
           const d = dist(p, q);
-          if (d <= bd) { bd = d; best = q; }
+          // con un muro o una puerta cerrada por medio no se mata (el botón del cliente solo señala a quien se ve)
+          if (d <= bd && sees(this.m, p, q, KILL_RANGE + KILL_SLACK, shutKill)) { bd = d; best = q; }
         }
         if (!best) return;
         if ((best.shieldUntil || 0) > now) {
@@ -917,7 +921,7 @@ class GameRoom {
         // donde cae el cuerpo (el cliente lo ve como un deslizamiento rápido). Solo si no hay un
         // muro o una puerta cerrada por medio.
         const lungeFrom = { x: p.x, y: p.y };
-        if (sees(this.m, p, best, KILL_RANGE + KILL_SLACK, this.closedDoors(now))) {
+        {
           p.x = best.x;
           p.y = best.y;
           this.markSeg(p, now); // el tramo de movimiento en vigor empieza ya en el nuevo punto
@@ -959,7 +963,8 @@ class GameRoom {
         // Reportar cuerpos es libre: las veces que quieras. Solo el botón de emergencia
         // gasta la reunión única por partida (meetUsed no se mira aquí).
         if (this.phase !== 'playing' || !p.alive || p.inVent || this.frozen(p, now)) return;
-        const body = this.bodies.find((b) => dist(p, b) <= REPORT_RANGE);
+        const shutRep = this.closedDoors(now);
+        const body = this.bodies.find((b) => dist(p, b) <= REPORT_RANGE && sees(this.m, p, b, REPORT_RANGE, shutRep)); // sin muros por medio
         if (!body) return;
         return this.startMeeting(p, 'body', body.name);
       }
@@ -1300,7 +1305,7 @@ class GameRoom {
     this.reset(code);
     // lo elegido en la pantalla de crear sala: aforo, mapa y tipo de sala
     this.capacity = clamp(Math.round(Number(msg.cap)) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
-    if (MAPS[msg.map]) this.map = msg.map;
+    if (isMap(msg.map)) this.map = msg.map;
     this.mode = msg.mode === 'bots' ? 'bots' : 'online';
     this.lang = msg.lang === 'en' ? 'en' : 'es';
     // pública o privada: sin indicar nada, las salas de bots eran privadas y las demás públicas
@@ -2177,6 +2182,7 @@ class GameRoom {
       settings: this.settings, bodies: this.bodies, taskDone: this.taskDone, taskTotal: this.taskTotal,
       dark: this.dark, reactor: this.reactor, resultUntil: this.resultUntil, rolesUntil: this.rolesUntil,
       sabLockAt: this.sabLockAt, rtLockAt: this.rtLockAt,
+      meetCallerId: this.meetCallerId, meetReason: this.meetReason, meetBody: this.meetBody,
       lastResult: this.lastResult, lastEnd: this.lastEnd, lobbyChat: this.lobbyChat, banned: [...this.banned], doorAt: [...this.doorAt], doorReady: [...this.doorReady], savedAt: this.savedAt,
       meeting: this.meeting
         ? { votes: [...this.meeting.votes.entries()], discussUntil: this.meeting.discussUntil, voteUntil: this.meeting.voteUntil, open: this.meeting.open }
@@ -2191,7 +2197,7 @@ class GameRoom {
     this.hostSeat = s.hostSeat || null;
     this.nextSeat = s.nextSeat || 1;
     this.phase = s.phase || 'lobby';
-    this.map = MAPS[s.map] ? s.map : DEFAULT_MAP;
+    this.map = isMap(s.map) ? s.map : DEFAULT_MAP;
     this.capacity = clamp(Number(s.capacity) || MAX_PLAYERS, MIN_PLAYERS, MAX_PLAYERS);
     this.mode = s.mode === 'bots' ? 'bots' : 'online';
     this.visibility = this.mode === 'bots' ? 'private' : s.visibility === 'private' || s.visibility === 'public' ? s.visibility : 'public';
@@ -2210,6 +2216,9 @@ class GameRoom {
     this.resultUntil = s.resultUntil || 0;
     this.rolesUntil = s.rolesUntil || 0;
     this.lastResult = s.lastResult || null;
+    this.meetCallerId = s.meetCallerId || null;
+    this.meetReason = s.meetReason || null;
+    this.meetBody = s.meetBody || null;
     this.lastEnd = s.lastEnd || null;
     this.lobbyChat = Array.isArray(s.lobbyChat) ? s.lobbyChat : [];
     this.banned = new Set(Array.isArray(s.banned) ? s.banned : []);
