@@ -20,7 +20,7 @@ export const BOT_NAMES_EN = [
   'Mycelium', 'Sporey', 'Puffball', 'Russula', 'Hedgehog', 'Tinder', 'Stinkhorn', 'Parasol', 'Mushy', 'Milkcap',
   'Cordyceps', 'Hypha', 'Blewit', 'Fairy Ring', 'Death Cap', 'Zen Fungus', 'Mold', 'Lichen', 'Moss', 'Fungi',
   'Reishi', 'Maitake', 'Inkcap', 'Beardy', 'Shaggy Mane', 'Tongue', 'Crazy Shroom', 'Mycelius', 'Spore', 'Cremini',
-  'Chaga', 'Porcini', 'Cap', 'Mossy', 'Toadstool', 'Honey Fungus', 'Lion\'s Mane', 'Chicken of the Woods', 'Spud', 'Shroomy',
+  'Chaga', 'Porcini', 'Cap', 'Mossy', 'Toadstool', 'Honey Fungus', 'Lions Mane', 'Hen of Woods', 'Spud', 'Shroomy',
 ];
 
 export function pickBotName(taken, rnd = Math.random, lang = 'es') {

@@ -143,10 +143,11 @@ function sendJson(res, code, obj) {
 }
 
 function serveStatic(req, res, urlPath) {
-  let p = decodeURIComponent(urlPath.split('?')[0]);
+  let p;
+  try { p = decodeURIComponent(urlPath.split('?')[0]); } catch (e) { res.writeHead(400); return res.end('bad request'); } // un % mal formado no puede tumbar el servidor
   if (p === '/') p = '/index.html';
   const full = path.normalize(path.join(DIST, p));
-  if (!full.startsWith(DIST)) { res.writeHead(403); return res.end('forbidden'); }
+  if (full !== DIST && !full.startsWith(DIST + path.sep)) { res.writeHead(403); return res.end('forbidden'); }
   fs.readFile(full, (err, data) => {
     if (err) {
       // SPA: cualquier ruta desconocida devuelve index.html
@@ -182,7 +183,11 @@ const server = http.createServer((req, res) => {
 
 /* ---------- WebSocket: la misma API de mensajes que el actor ---------- */
 
-const wss = new WebSocketServer({ server, path: '/ws' });
+// Los mensajes del juego son diminutos (el mayor es un chat de 140 letras): por defecto ws admite
+// 100 MB por mensaje, lo que deja a cualquiera llenar la memoria del servidor con un solo envío.
+const MAX_MSG_BYTES = 8 * 1024;
+const MAX_MSGS_PER_SEC = 120; // el movimiento manda unas 25 órdenes por segundo: hay mucho margen
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
 
 /* País de quien se conecta, si el proxy que hay delante del servidor lo manda en una cabecera
    (Cloudflare, Vercel, CloudFront…). Si no hay ninguna, queda vacío y se usa la pista del cliente. */
@@ -194,6 +199,19 @@ function countryFromHeaders(h) {
   }
   return '';
 }
+
+/* Un fallo al procesar un mensaje (síncrono o en la promesa que devuelve el motor) no puede tumbar el
+   proceso: caería la partida de todas las salas. Se anota y la sala sigue. */
+function guard(fn, what) {
+  try {
+    const r = fn();
+    if (r && typeof r.catch === 'function') r.catch((e) => console.error(`✖ Error en ${what}:`, e));
+  } catch (e) {
+    console.error(`✖ Error en ${what}:`, e);
+  }
+}
+process.on('uncaughtException', (e) => console.error('✖ Excepción sin capturar:', e));
+process.on('unhandledRejection', (e) => console.error('✖ Promesa rechazada sin capturar:', e));
 
 wss.on('connection', (ws, req) => {
   const q = new URL(req.url, 'http://localhost').searchParams;
@@ -220,17 +238,22 @@ wss.on('connection', (ws, req) => {
     },
   };
   conns.set(connId, conn);
-  room.onOpen(conn);
+  guard(() => room.onOpen(conn), 'open');
 
+  let winStart = Date.now(), winCount = 0;
   ws.on('message', (buf) => {
+    // freno por conexión: quien inunda al servidor de mensajes se queda sin conexión
+    const t = Date.now();
+    if (t - winStart >= 1000) { winStart = t; winCount = 0; }
+    if (++winCount > MAX_MSGS_PER_SEC) { try { ws.close(4008, 'too many messages'); } catch (e) { /* ya cerrada */ } return; }
     let msg;
     try { msg = JSON.parse(buf.toString('utf8')); } catch (e) { return; }
-    room.onMessage(conn, msg);
+    guard(() => room.onMessage(conn, msg), 'message');
   });
   ws.on('close', () => {
     if (conns.get(connId) === conn) {
       conns.delete(connId);
-      room.onClose(conn);
+      guard(() => room.onClose(conn), 'close');
     }
   });
   ws.on('error', () => { /* el cierre se encarga de la limpieza */ });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { tr } from '@/lib/i18n';
 
@@ -8,24 +8,31 @@ const N = 5;
    también a los de al lado, así que el cuadro se desordena desde la posición correcta:
    siempre tiene solución y no basta con tocar solo los que están en OFF. */
 function scrambled() {
-  const a = Array.from({ length: N }, () => true);
-  const moves = 3 + Math.floor(Math.random() * 4);
-  for (let m = 0; m < moves; m++) {
-    const i = Math.floor(Math.random() * N);
-    for (let j = i - 1; j <= i + 1; j++) if (j >= 0 && j < N) a[j] = !a[j];
-  }
+  let a;
+  do {
+    a = Array.from({ length: N }, () => true);
+    const moves = 3 + Math.floor(Math.random() * 4);
+    for (let m = 0; m < moves; m++) {
+      const i = Math.floor(Math.random() * N);
+      for (let j = i - 1; j <= i + 1; j++) if (j >= 0 && j < N) a[j] = !a[j];
+    }
+  } while (a.every(Boolean)); // a veces las pulsaciones se anulaban y el cuadro salía ya resuelto: la tarea se daba por hecha sin tocar nada
   return a;
 }
 
 export default function Switches({ onFinish }) {
   const [on, setOn] = useState(scrambled);
   const ready = on.every(Boolean);
+  // onFinish llega como una flecha nueva en cada render del padre: si estuviera en las dependencias,
+  // cada re-render reiniciaría la espera de 600 ms
+  const finishRef = useRef(onFinish);
+  finishRef.current = onFinish;
 
   useEffect(() => {
     if (!ready) return undefined;
-    const t = setTimeout(onFinish, 600);
+    const t = setTimeout(() => finishRef.current(), 600);
     return () => clearTimeout(t);
-  }, [ready, onFinish]);
+  }, [ready]);
 
   const flip = (i) => {
     sfx('switch');
