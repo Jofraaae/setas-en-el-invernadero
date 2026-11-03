@@ -302,7 +302,7 @@ function buildMap(def) {
     rpts: def.rpts.map(at),
     props: tasks.map((t) => propBox(t, def.propScale || 1)),
     grid: makeGrid(world, floors, solid),
-    sight: makeGrid(world, floors, []),
+    sight: makeGrid(world, floors, [], true),
     doors: [], byRoom: new Map(),
     explicitDoors: def.doors || null, // Micelaria dice dónde están sus puertas; el invernadero las deduce
   };
@@ -337,6 +337,7 @@ const CODE_RE = /^[A-Z]{4}$/;
 // Un suelo puede traer, como octavo elemento, un objeto de opciones (solo Micelaria):
 //   poly   contorno libre en vez de rectángulo (el rectángulo x, y, w, h es su caja)
 //   carve  en vez de abrir suelo, lo cierra (ríos, estanques)
+//   seeThrough  (con carve) frena el paso pero no la vista: el agua del Pantano
 //   room   el contorno es el exterior de un edificio: los 2 anillos de celdas del borde son
 //          muro y lo de dentro, suelo. El cliente repite exactamente lo mismo (grid.js).
 function polyHas(pts, px, py) {
@@ -355,7 +356,7 @@ function erodeMask(m, w, h) {
   }
   return out;
 }
-function makeGrid(world, floors, obst) {
+function makeGrid(world, floors, obst, sight = false) {
   const gw = Math.ceil(world.w / 20), gh = Math.ceil(world.h / 20), cells = new Uint8Array(gw * gh);
   const fill = (r, v) => {
     const tx0 = Math.max(0, Math.floor(r[0] / 20)), tx1 = Math.min(gw, Math.ceil((r[0] + r[2]) / 20));
@@ -364,6 +365,7 @@ function makeGrid(world, floors, obst) {
   };
   floors.forEach((r) => {
     const o = r[7];
+    if (sight && o && o.seeThrough) return; // el agua frena el paso, pero no la vista (rejilla de luz)
     if (!o) { fill(r, 1); return; }
     if (!o.poly) { fill(r, o.carve ? 0 : 1); return; }
     // contorno libre: una celda es del suelo si su centro cae dentro del polígono

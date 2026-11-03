@@ -11,7 +11,7 @@ import { blob, blade, dome, moss, rr } from './micelariaArt';
 import { villageWallCell, villageWallTop, wallStyleAt } from './micelariaVillage';
 
 const TAU = Math.PI * 2;
-const { OUTDOORS, POND, WATERS, DOCKS, PATHS, CAMPO, MUERTOS, RAICES } = ART;
+const { POND, WATERS, DOCKS, LANES, WALK, CAMPO, MUERTOS, RAICES } = ART;
 
 // generador determinista para los objetos (no reciben el de la sala): el mismo dibujo en cada partida
 let SEED = 20261102;
@@ -25,6 +25,7 @@ const inPoly = (pts, x, y) => {
   }
   return c;
 };
+const inWalk = (x, y) => WALK.some((w) => inPoly(w, x, y));
 const onDock = (x, y) => DOCKS.some((d) => inPoly(d, x, y));
 const inWater = (x, y) => WATERS.some((w) => inPoly(w, x, y));
 
@@ -65,23 +66,34 @@ export const PANTANO_BG = '#0b1713';
    quieta y juncos, no vacío. */
 export function pantanoGround(c, world, r) {
   const g = c.createLinearGradient(0, 0, world.w * 0.3, world.h);
-  g.addColorStop(0, '#102520');
-  g.addColorStop(0.5, '#0d1d19');
-  g.addColorStop(1, '#0a1714');
+  g.addColorStop(0, '#0e211c');
+  g.addColorStop(0.5, '#0a1814');
+  g.addColorStop(1, '#08130f');
   c.fillStyle = g;
   c.fillRect(0, 0, world.w, world.h);
-  for (let i = 0; i < 260; i++) {
-    c.fillStyle = i % 3 ? 'rgba(38,84,66,.16)' : 'rgba(6,14,12,.26)';
-    blob(c, r() * world.w, r() * world.h, 70 + r() * 260, 10, i * 1.7, 0.7);
+  for (let i = 0; i < 200; i++) {
+    c.fillStyle = i % 3 ? 'rgba(30,70,56,.16)' : 'rgba(4,10,8,.3)';
+    blob(c, r() * world.w, r() * world.h, 70 + r() * 220, 10, i * 1.7, 0.7);
     c.fill();
   }
-  // charcos de fondo con un brillo verdoso, para que el borde del mapa no sea un muro liso
-  for (let i = 0; i < 90; i++) {
-    const x = r() * world.w, y = r() * world.h;
-    c.fillStyle = 'rgba(60,140,110,.12)';
-    c.beginPath();
-    c.ellipse(x, y, 20 + r() * 50, 8 + r() * 20, r() * TAU, 0, TAU);
-    c.fill();
+  // la espesura: todo lo que no es sendero, claro ni sala es una masa de árboles retorcidos,
+  // raíces y setas. Los suelos se pintan encima, así que aquí solo se ve lo que no se pisa.
+  const step = 64;
+  for (let y = -20; y < world.h + 40; y += step * 0.8) {
+    for (let x = -20; x < world.w + 40; x += step) {
+      const px = x + (r() - 0.5) * step * 0.9, py = y + (r() - 0.5) * step * 0.9;
+      const k = r();
+      if (k < 0.62) twistedTree(c, px, py, 26 + r() * 20, r, r() > 0.5);
+      else if (k < 0.78) deadTreeTop(c, px, py, 30 + r() * 12, r);
+      else if (k < 0.9) glowCluster(c, px, py, 16 + r() * 10, r);
+      else {
+        c.fillStyle = 'rgba(2,8,6,.5)';
+        c.beginPath();
+        c.ellipse(px, py, 30 + r() * 20, 18 + r() * 10, r() * TAU, 0, TAU);
+        c.fill();
+        reedsAt(c, px, py, r);
+      }
+    }
   }
 }
 
@@ -222,6 +234,21 @@ export const PANTANO_TEX = {
     }
     dots(c, x, y, w, h, r, (w * h) / 5200, '120,230,255', 1.7);
     dots(c, x, y, w, h, r, (w * h) / 20000, '200,150,255', 1.9);
+  },
+  ruin(c, x, y, w, h, r) { // losas de piedra antigua, agrietadas y con musgo
+    const t = 46;
+    for (let py = y; py < y + h; py += t) {
+      for (let px = x + ((Math.floor((py - y) / t) % 2) ? -t / 2 : 0); px < x + w; px += t) {
+        const k = r();
+        c.fillStyle = k > 0.66 ? '#69706c' : k > 0.33 ? '#5c635f' : '#4f5652';
+        c.fillRect(px + 1, py + 1, t - 2, t - 2);
+        c.fillStyle = 'rgba(255,255,255,.06)';
+        c.fillRect(px + 1, py + 1, t - 2, 3);
+        if (r() > 0.8) { c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(px + 6 + r() * 20, py + 4); c.lineTo(px + 8 + r() * 24, py + t - 5); c.stroke(); }
+      }
+    }
+    patches(c, x, y, w, h, r, (w * h) / 4200, ['rgba(50,96,60,.3)', 'rgba(20,30,24,.3)'], [8, 20], [4, 9]);
+    dots(c, x, y, w, h, r, (w * h) / 20000, '140,230,255', 1.6);
   },
   glowfield(c, x, y, w, h, r) { // el campo de setas: tierra negra con micelio y esporas de colores
     patches(c, x, y, w, h, r, (w * h) / 2600, ['rgba(16,30,28,.34)', 'rgba(46,80,70,.2)'], [10, 30], [6, 14]);
@@ -714,12 +741,13 @@ export function pantanoDecor(c, floors, r) {
   masked(c, (t) => {
     t.lineCap = 'round';
     t.lineJoin = 'round';
-    for (const p of PATHS) {
+    for (const L of LANES) {
+      const p = L.pts;
       t.strokeStyle = 'rgba(20,18,12,.3)';
-      t.lineWidth = 84;
+      t.lineWidth = L.w * 0.78;
       t.beginPath(); p.forEach((q, i) => (i ? t.lineTo(q[0], q[1]) : t.moveTo(q[0], q[1]))); t.stroke();
       t.strokeStyle = 'rgba(110,98,66,.2)';
-      t.lineWidth = 56;
+      t.lineWidth = L.w * 0.5;
       t.beginPath(); p.forEach((q, i) => (i ? t.lineTo(q[0], q[1]) : t.moveTo(q[0], q[1]))); t.stroke();
     }
   }, [...WATERS, ...roomPolys(floors), ...DOCKS]);
@@ -830,7 +858,7 @@ export function pantanoOverlay(c, floors, obst, r) {
   const cols = ['170,255,220', '255,230,150', '255,160,220'];
   for (let i = 0; i < 260; i++) {
     const x = 160 + r() * 3480, y = 200 + r() * 2000;
-    if (inWater(x, y) || !inPoly(OUTDOORS, x, y)) continue;
+    if (inWater(x, y) || !inWalk(x, y)) continue;
     glow(c, x, y, 7 + r() * 8, cols[Math.floor(r() * cols.length)], 0.5);
   }
 }

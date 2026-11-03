@@ -27,7 +27,7 @@ function erodeMask(m, w, h) {
   return out;
 }
 
-export function makeGrid(world, floors, obst) {
+export function makeGrid(world, floors, obst, sight = false) {
   const gw = Math.ceil(world.w / CELL), gh = Math.ceil(world.h / CELL), cells = new Uint8Array(gw * gh);
   const fill = (r, v) => {
     const tx0 = Math.max(0, Math.floor(r[0] / CELL)), tx1 = Math.min(gw, Math.ceil((r[0] + r[2]) / CELL));
@@ -36,6 +36,7 @@ export function makeGrid(world, floors, obst) {
   };
   floors.forEach((r) => {
     const o = r[7];
+    if (sight && o && o.seeThrough) return; // el agua frena el paso, pero no la vista (rejilla de luz)
     if (!o) { fill(r, 1); return; }
     if (!o.poly) { fill(r, o.carve ? 0 : 1); return; }
     const tx0 = Math.max(0, Math.floor(r[0] / CELL) - 1), tx1 = Math.min(gw, Math.ceil((r[0] + r[2]) / CELL) + 1);

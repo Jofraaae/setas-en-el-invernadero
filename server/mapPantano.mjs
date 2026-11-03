@@ -2,13 +2,13 @@
    gigantes y setas luminosas. Se arma igual que Micelaria (contornos libres, muros de edificio de
    dos celdas, puertas con hueco en el muro) y el motor lo trata como otro escenario más.
 
-   En el centro está la CHARCA CENTRAL, con una plataforma de MUELLES DE MADERA donde suena el
-   gong de las reuniones: cuatro pasarelas la unen con las orillas y un anillo de tablas rodea la
-   plataforma (rutas alternativas por encima del agua). Alrededor:
-     · Cabaña abandonada (noroeste, tres puertas)         · Cobertizo de las barcas (este)
-     · Cueva subterránea (sureste, dos bocas)             · Campo de setas gigantes (noreste)
-     · Zona de árboles muertos (oeste)                    · Raíces gigantes (sur)
-     · Sendero de las luciérnagas (norte)                 · una laguna con su embarcadero (suroeste)
+   Como en la Jungla de Among Us, no hay un descampado: todo lo que no es camino, claro o edificio
+   es vegetación espesa que ni se pisa ni deja ver. El juego se recorre por SENDEROS de unos 200 px
+   que unen claros y salas, con bifurcaciones y rutas alternativas:
+     · Charca central, con la plataforma del botón, cuatro pasarelas y un anillo de MUELLES DE MADERA
+     · Salas (9): Cabaña abandonada, Herbolario, Atalaya, Cobertizo de las barcas, Choza del
+       ermitaño, Cueva subterránea, Madriguera de raíces, Ruinas hundidas y Mausoleo hundido
+     · Claros: Campo de setas gigantes, Zona de árboles muertos, Raíces gigantes y la Laguna
    Todo va en píxeles reales (mundo de 3800×2400) y con la misma semilla en cada partida. */
 
 import {
@@ -26,28 +26,18 @@ const floor = (key, pts, color, name, tex, opts = {}) => {
 };
 const rect = (key, x, y, w, h, color, name, tex, opts = {}) => [x, y, w, h, color, name, tex, { key, ...opts }];
 
-// el pantano entero: todo el suelo exterior, de borde irregular
-const OUTDOORS = chaikin([
-  [330, 290], [1300, 200], [2300, 220], [3200, 190], [3580, 340], [3690, 900], [3710, 1500], [3610, 2100], [3320, 2290],
-  [2500, 2270], [1700, 2310], [900, 2290], [400, 2160], [170, 1600], [190, 900],
-], 3);
-
-// zonas abiertas con nombre (sin muro): el tipo de terreno y los objetos las distinguen
+// claros con nombre: el tipo de terreno y los objetos los distinguen
 const CAMPO = chaikin([[2500, 260], [3480, 230], [3600, 620], [3520, 1000], [3060, 1060], [2680, 980], [2470, 640]], 2);
 const MUERTOS = chaikin([[210, 1010], [860, 990], [1170, 1200], [1240, 1660], [950, 1860], [430, 1840], [230, 1540]], 2);
-const RAICES = chaikin([[1800, 1830], [2600, 1790], [2650, 2250], [1800, 2250]], 2);
-const SENDERO = chaikin([[1300, 270], [2380, 260], [2330, 600], [1850, 690], [1350, 620]], 2);
+const RAICES = chaikin([[1800, 1800], [2700, 1780], [2720, 2330], [1800, 2330]], 2);
 const SHORE = circle(C.x, C.y, 470, 56);
+const LAGUNA_AREA = chaikin(blob(1450, 2060, 390, 0.5, 0.05, 40), 1);
+const ZONES = [CAMPO, MUERTOS, RAICES, SHORE, LAGUNA_AREA];
 
-// el agua: la charca central, la laguna del suroeste y cuatro pozas
+// el agua: la charca central, la laguna del sur y una poza entre los árboles muertos
 const POND = chaikin(blob(C.x, C.y, 330, 1.3, 0.05, 40), 1);
 const LAGOON = chaikin(blob(1450, 2060, 240, 2.1, 0.08, 30), 1);
-const POOLS = [
-  chaikin(blob(3300, 1180, 90, 0.7, 0.14, 18), 1),
-  chaikin(blob(650, 1330, 90, 1.9, 0.14, 18), 1),
-  chaikin(blob(2230, 2050, 85, 2.8, 0.14, 18), 1),
-  chaikin(blob(2300, 500, 80, 0.2, 0.14, 18), 1),
-];
+const POOLS = [chaikin(blob(650, 1330, 90, 1.9, 0.14, 18), 1)];
 const WATERS = [POND, LAGOON, ...POOLS];
 
 /* ---------------- edificios ---------------- */
@@ -55,20 +45,68 @@ const WATERS = [POND, LAGOON, ...POOLS];
 const CABANA = [[380, 400], [1080, 400], [1080, 540], [1220, 540], [1220, 920], [380, 920]];
 const COBERTIZO = [[2580, 1060], [3000, 1060], [3000, 1400], [2580, 1400]];
 const CUEVA = chaikin(blob(3060, 1900, 320, 0.9, 0.12, 26), 1);
+const rectP = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const HERBOLARIO = rectP(1440, 330, 1860, 670);
+const ATALAYA = rectP(2060, 330, 2400, 660);
+const RUINAS = rectP(1120, 1500, 1440, 1780);
+const MAUSOLEO = rectP(280, 1500, 620, 1780);
+const CHOZA = rectP(3300, 1200, 3600, 1480);
+const MADRIGUERA = rectP(2000, 1930, 2380, 2230);
+
+/* ---------------- senderos ---------------- */
+/* Cada sendero es una polilínea con su ancho: se abre como suelo (un rectángulo por tramo y un
+   círculo en cada codo, así nunca se cruzan los bordes). El resto del mundo es vegetación. */
+
+const LANES = [];
+const LANE_FLOORS = [];
+function lane(name, pts, w = 220, label = null) {
+  LANES.push({ pts, w, name });
+  const add = (poly_, k) => LANE_FLOORS.push(floor(`sendero-${LANE_FLOORS.length}`, poly_, '#2f4a3b', name, 'bog', { noEdge: true, ...(label && k === 0 ? { label } : { noLabel: true }) }));
+  let k = 0;
+  for (let i = 0; i < pts.length; i++) {
+    if (i < pts.length - 1) add(band([pts[i], pts[i + 1]], [w, w]), k++);
+    add(circle(pts[i][0], pts[i][1], w / 2, 16), k++);
+  }
+}
+const SEND = 'Sendero de las luciérnagas', CEN = 'Camino del cenagal', CUE = 'Camino de la cueva', RAI = 'Senda de las raíces';
+lane(SEND, [[700, 340], [720, 260], [1000, 240], [1250, 320], [1340, 500], [1440, 500]], 220, [1000, 215]); // cabaña (norte) -> herbolario
+lane(SEND, [[1860, 500], [2060, 500]], 200);                       // herbolario -> atalaya
+lane(SEND, [[2400, 500], [2540, 500]], 200);                       // atalaya -> campo
+lane(SEND, [[1650, 670], [1690, 760], [1770, 810]], 200);          // herbolario (sur) -> charca
+lane(SEND, [[2230, 660], [2230, 770], [2150, 900]], 200);          // atalaya (sur) -> charca
+lane(CEN, [[1230, 740], [1400, 780], [1540, 880], [1620, 980]], 220, [1330, 700]); // cabaña (este) -> charca
+lane(CEN, [[900, 920], [900, 1060]], 200);                         // cabaña (sur) -> árboles muertos
+lane(CEN, [[1390, 1230], [1180, 1230]], 200);                      // muelle oeste -> árboles muertos
+lane(CEN, [[1100, 2060], [1020, 1990], [960, 1890]], 200);         // embarcadero -> árboles muertos
+lane(CEN, [[1440, 1640], [1560, 1600], [1640, 1560]], 200);        // ruinas -> charca
+lane(CUE, [[2640, 940], [2540, 1080], [2440, 1210]], 220, [2380, 1100]); // campo -> muelle este
+lane(CUE, [[2430, 1230], [2590, 1230]], 200);                      // muelle este -> cobertizo
+lane(CUE, [[2800, 1430], [2860, 1530], [3060, 1590]], 200);        // cobertizo (sur) -> cueva
+lane(CUE, [[3000, 1150], [3150, 1200], [3300, 1340]], 220);        // cobertizo (este) -> choza
+lane(CUE, [[3450, 1200], [3450, 1000]], 200);                      // choza -> campo
+lane(CUE, [[2750, 1900], [2600, 1900]], 220);                      // cueva (oeste) -> raíces
+lane(RAI, [[2020, 1830], [1990, 1690]], 220, [2120, 1760]);        // raíces -> charca
+lane(RAI, [[1830, 2000], [1900, 1850], [1900, 1690]], 220);        // laguna -> charca
 
 const FLOORS = [
-  floor('pantano', OUTDOORS, '#2d4a3a', null, 'swamp', { noEdge: true }),
   floor('campo', CAMPO, '#2a4a46', 'Campo de setas gigantes', 'glowfield', { noEdge: true, label: [3040, 1010] }),
   floor('muertos', MUERTOS, '#3a3a34', 'Zona de árboles muertos', 'deadland', { noEdge: true, label: [720, 1810] }),
-  floor('raices', RAICES, '#2e3f2c', 'Raíces gigantes', 'rootsoil', { noEdge: true, label: [2220, 2210] }),
-  floor('sendero', SENDERO, '#2f4a3b', 'Sendero de las luciérnagas', 'bog', { noEdge: true, label: [1840, 300] }),
+  floor('raices', RAICES, '#2e3f2c', 'Raíces gigantes', 'rootsoil', { noEdge: true, label: [2540, 2290] }),
+  floor('laguna-area', LAGUNA_AREA, '#2f4a3b', 'Laguna', 'bog', { noEdge: true, label: [1450, 2250] }),
   floor('orilla', SHORE, '#35503f', 'Charca central', 'bog', { noEdge: true, label: [1690, 1610] }),
-  floor('charca', POND, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water' }),
-  floor('laguna', LAGOON, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water' }),
-  ...POOLS.map((p, i) => floor('poza' + i, p, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water' })),
+  ...LANE_FLOORS,
+  floor('charca', POND, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water', seeThrough: true }),
+  floor('laguna', LAGOON, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water', seeThrough: true }),
+  ...POOLS.map((p, i) => floor('poza' + i, p, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water', seeThrough: true })),
   floor('cabana', CABANA, '#6b5a40', 'Cabaña abandonada', 'cabin', { room: true, wall: 'rot', label: [800, 880] }),
+  floor('herbolario', HERBOLARIO, '#5f5238', 'Herbolario', 'cabin', { room: true, wall: 'rot', label: [1650, 620] }),
+  floor('atalaya', ATALAYA, '#5d4b36', 'Atalaya del cenagal', 'boards', { room: true, wall: 'rot', label: [2230, 610] }),
   floor('cobertizo', COBERTIZO, '#5d4b36', 'Cobertizo de las barcas', 'boards', { room: true, wall: 'rot', label: [2790, 1370] }),
+  floor('choza', CHOZA, '#6b5a40', 'Choza del ermitaño', 'cabin', { room: true, wall: 'rot', label: [3450, 1440] }),
   floor('cueva', CUEVA, '#3d4443', 'Cueva subterránea', 'cavefloor', { room: true, wall: 'rock', label: [3060, 2105] }),
+  floor('madriguera', MADRIGUERA, '#3a2f22', 'Madriguera de raíces', 'rootsoil', { room: true, wall: 'forest', label: [2190, 2195] }),
+  floor('ruinas', RUINAS, '#4a4f4c', 'Ruinas hundidas', 'ruin', { room: true, wall: 'rock', label: [1280, 1745] }),
+  floor('mausoleo', MAUSOLEO, '#444a48', 'Mausoleo hundido', 'ruin', { room: true, wall: 'rock', label: [450, 1745] }),
 ];
 const FIDX = Object.fromEntries(FLOORS.map((f, i) => [f[7].key, i]));
 const roomPoly = (key) => FLOORS[FIDX[key]][7].poly;
@@ -86,10 +124,25 @@ function addDoor(key, poly_, side, pos, len = 120) {
 addDoor('cabana', CABANA, 'E', 740);
 addDoor('cabana', CABANA, 'S', 900);
 addDoor('cabana', CABANA, 'N', 700);
+addDoor('herbolario', HERBOLARIO, 'W', 500);
+addDoor('herbolario', HERBOLARIO, 'E', 500);
+addDoor('herbolario', HERBOLARIO, 'S', 1650);
+addDoor('atalaya', ATALAYA, 'W', 500);
+addDoor('atalaya', ATALAYA, 'E', 500);
+addDoor('atalaya', ATALAYA, 'S', 2230);
 addDoor('cobertizo', COBERTIZO, 'W', 1230);
 addDoor('cobertizo', COBERTIZO, 'S', 2800);
+addDoor('cobertizo', COBERTIZO, 'E', 1150);
+addDoor('choza', CHOZA, 'W', 1340);
+addDoor('choza', CHOZA, 'N', 3450);
 addDoor('cueva', CUEVA, 'W', 1900);
 addDoor('cueva', CUEVA, 'N', 3060);
+addDoor('madriguera', MADRIGUERA, 'N', 2190);
+addDoor('madriguera', MADRIGUERA, 'W', 2080);
+addDoor('ruinas', RUINAS, 'E', 1640);
+addDoor('ruinas', RUINAS, 'W', 1640);
+addDoor('mausoleo', MAUSOLEO, 'E', 1640);
+addDoor('mausoleo', MAUSOLEO, 'N', 450);
 
 // los huecos se abren después de todos los edificios (último en el orden = gana)
 for (const d of DOOR_DEFS) FLOORS.push(rect(`puerta-${d.key}-${d.side}`, ...d.floor, '#6b5a40', null, 'cabin', { door: true }));
@@ -115,24 +168,6 @@ for (let q = 0; q < 4; q++) dock('anillo' + q, arc((q * Math.PI) / 2 + (12 * Mat
 dockRect('embarcadero', 1090, 2005, 730, 110);
 
 const DOORS = DOOR_DEFS.map((d) => ({ x: d.box[0], y: d.box[1], w: d.box[2], h: d.box[3], rooms: [FIDX[d.key]] }));
-
-/* ---------------- senderos (dibujo y espacio libre de adornos) ---------------- */
-
-const PATHS = [
-  [[1290, 740], [1450, 800], [1560, 900], [1650, 1000]],                       // cabaña (este) -> orilla
-  [[900, 960], [960, 1060], [1060, 1140], [1260, 1230], [1390, 1230]],          // cabaña (sur) -> muelle oeste
-  [[700, 360], [760, 300], [1000, 280], [1300, 320], [1500, 360]],              // la puerta de atrás de la cabaña
-  [[2430, 1230], [2540, 1230]],                                                 // muelle este -> cobertizo
-  [[2800, 1440], [2850, 1530], [2960, 1530], [3060, 1520]],                     // cobertizo (sur) -> cueva (norte)
-  [[2740, 1900], [2550, 1900], [2330, 1920], [2100, 1800], [1900, 1700]],       // cueva (oeste) -> orilla sur
-  [[2620, 1000], [2520, 1100], [2430, 1200]],                                   // campo -> muelle este
-  [[2700, 1000], [2760, 1040], [2800, 1050]],                                   // campo -> cobertizo
-  [[1250, 1330], [1330, 1270], [1390, 1230]],                                   // árboles muertos -> muelle oeste
-  [[1100, 2060], [1010, 1990], [950, 1890]],                                    // embarcadero -> árboles muertos
-  [[1820, 2060], [1960, 1930], [1900, 1700]],                                   // embarcadero -> orilla sur
-  [[1450, 700], [1500, 540], [1700, 440], [2000, 410], [2300, 450], [2500, 600], [2600, 800]], // sendero del norte
-  [[1900, 760], [1900, 640], [1900, 560]],                                      // muelle norte -> sendero
-];
 
 const DOOR_OUT = DOOR_DEFS.map((d) => {
   const [x, y, w, h] = d.box;
@@ -161,10 +196,31 @@ put(2900, 1215, 60, 56, 'panel');
 
 /* ---- Cueva subterránea ---- */
 put(2820, 1770, 90, 90, 'crystal'); put(3260, 1780, 100, 90, 'crystal');
-put(2900, 2050, 80, 80, 'stalag'); put(3200, 2080, 90, 80, 'stalag');
+put(2900, 2050, 80, 80, 'stalag');
 put(3000, 1700, 120, 90, 'boulder'); put(3330, 1960, 110, 90, 'boulder');
 put(2780, 1960, 70, 70, 'stalag'); put(3090, 2200, 80, 70, 'crystal');
 put(3000, 1920, 120, 60, 'core');
+
+/* ---- Herbolario ---- */
+put(1500, 375, 140, 46, 'shelf'); put(1690, 375, 110, 46, 'shelf');
+put(1500, 570, 56, 56, 'barrel'); put(1764, 570, 56, 56, 'barrel');
+
+/* ---- Atalaya del cenagal ---- */
+put(2110, 380, 56, 56, 'barrel'); put(2290, 380, 60, 46, 'chest'); put(2110, 560, 56, 56, 'barrel');
+
+/* ---- Choza del ermitaño ---- */
+put(3345, 1380, 110, 56, 'bed'); put(3490, 1385, 70, 50, 'stove'); 
+
+/* ---- Madriguera de raíces ---- */
+put(2270, 1985, 80, 60, 'stump'); put(2060, 2130, 150, 50, 'log');
+
+/* ---- Ruinas hundidas ---- */
+put(1170, 1550, 80, 70, 'boulder'); put(1320, 1550, 70, 80, 'stalag');
+put(1190, 1690, 70, 60, 'stalag'); put(1320, 1690, 70, 60, 'boulder');
+
+/* ---- Mausoleo hundido ---- */
+put(330, 1550, 90, 56, 'chest'); put(520, 1550, 56, 56, 'barrel');
+put(330, 1690, 90, 56, 'chest'); put(520, 1690, 56, 56, 'barrel');
 
 /* ---- Orilla de la charca: faroles de pantano y juncos ---- */
 put(1520, 1020, 40, 40, 'lanternpost'); put(2260, 1020, 40, 40, 'lanternpost');
@@ -189,7 +245,7 @@ const TASKS = [
   { name: 'Sellar las goteras de la cueva', x: 2960, y: 1850, game: 'spots', kind: 'filter' },
   { name: 'Recoger cristales luminosos', x: 3200, y: 1860, game: 'sort', kind: 'tray' },
   { name: 'Pintar las runas del fondo', x: 2830, y: 2080, game: 'scramble', kind: 'keypad' },
-  { name: 'Despertar a las luciérnagas', x: 3290, y: 2110, game: 'order', kind: 'switchbox' },
+  { name: 'Despertar a las luciérnagas', x: 3220, y: 2050, game: 'order', kind: 'switchbox' },
   { name: 'Medir el eco de la cueva', x: 3050, y: 1660, game: 'sonar', kind: 'terminal' },
   { name: 'Alimentar el corazón de la cueva', x: 3030, y: 2040, game: 'hold', kind: 'valve' },
   { name: 'Despejar el derrumbe', x: 3220, y: 1930, game: 'seq', kind: 'crate' },
@@ -201,9 +257,9 @@ const TASKS = [
   { name: 'Encender las lámparas del muelle', x: 2052, y: 1068, game: 'order', kind: 'lamp' },
   // Orilla de la charca
   { name: 'Limpiar los nenúfares', x: 1560, y: 1010, game: 'spots', kind: 'filter' },
-  { name: 'Contar las ranas', x: 2290, y: 1490, game: 'count', kind: 'tray' },
+  { name: 'Contar las ranas', x: 2250, y: 1480, game: 'count', kind: 'tray' },
   { name: 'Analizar el agua verde', x: 1540, y: 1500, game: 'dose', kind: 'scale' },
-  { name: 'Cambiar las velas de los faroles', x: 2290, y: 960, game: 'seq', kind: 'lamp' },
+  { name: 'Cambiar las velas de los faroles', x: 2250, y: 975, game: 'seq', kind: 'lamp' },
   // Campo de setas gigantes
   { name: 'Recoger setas luminosas', x: 2750, y: 520, game: 'sort', kind: 'tray' },
   { name: 'Medir las setas gigantes', x: 3050, y: 420, game: 'slider', kind: 'scale' },
@@ -220,32 +276,58 @@ const TASKS = [
   { name: 'Recoger leña seca', x: 330, y: 1200, game: 'seq', kind: 'crate' },
   { name: 'Desenterrar las raíces muertas', x: 700, y: 1700, game: 'timing', kind: 'switchbox' },
   // Raíces gigantes
-  { name: 'Cortar las raíces', x: 2000, y: 2000, game: 'timing', kind: 'switchbox' },
-  { name: 'Plantar esquejes', x: 2300, y: 2150, game: 'sprout', kind: 'sprouts' },
+  { name: 'Cortar las raíces', x: 1930, y: 2080, game: 'timing', kind: 'switchbox' },
+  { name: 'Plantar esquejes', x: 2480, y: 2150, game: 'sprout', kind: 'sprouts' },
   { name: 'Medir las raíces gigantes', x: 2450, y: 1900, game: 'slider', kind: 'scale' },
-  { name: 'Reparar la bomba de achique', x: 2100, y: 1920, game: 'pipe', kind: 'valve' },
+  { name: 'Reparar la bomba de achique', x: 2100, y: 1860, game: 'pipe', kind: 'valve' },
   { name: 'Sondear el fango', x: 2600, y: 2150, game: 'sonar', kind: 'terminal' },
   // Embarcadero de la laguna
   { name: 'Cebar las cañas', x: 1300, y: 2060, game: 'hold', kind: 'valve' },
   { name: 'Vaciar la barca', x: 1600, y: 2060, game: 'type', kind: 'tray' },
-  // Sendero de las luciérnagas
-  { name: 'Encender los faroles del sendero', x: 1700, y: 420, game: 'order', kind: 'lamp' },
-  { name: 'Atrapar luciérnagas', x: 2050, y: 380, game: 'catch', kind: 'lamp' },
-  { name: 'Descifrar el mapa del pantano', x: 1500, y: 520, game: 'route', kind: 'panel' },
+  // Herbolario
+  { name: 'Secar las hierbas', x: 1585, y: 545, game: 'match', kind: 'clothesline' },
+  { name: 'Moler las raíces', x: 1770, y: 530, game: 'hold', kind: 'mortar' },
+  { name: 'Etiquetar los tarros', x: 1560, y: 470, game: 'sort', kind: 'jars' },
+  { name: 'Hervir el tónico', x: 1710, y: 465, game: 'brew', kind: 'cauldron' },
+  // Atalaya del cenagal
+  { name: 'Encender el faro de señales', x: 2160, y: 450, game: 'order', kind: 'lamp' },
+  { name: 'Orientar el catalejo', x: 2300, y: 470, game: 'slider', kind: 'scale' },
+  { name: 'Anotar el registro de niebla', x: 2310, y: 560, game: 'scramble', kind: 'terminal' },
+  // Choza del ermitaño
+  { name: 'Preparar el té de musgo', x: 3450, y: 1320, game: 'brew', kind: 'teaset' },
+  { name: 'Remendar la manta', x: 3400, y: 1270, game: 'match', kind: 'clothesline' },
+  { name: 'Contar las provisiones', x: 3530, y: 1330, game: 'count', kind: 'tray' },
+  // Madriguera de raíces
+  { name: 'Despejar las raíces', x: 2110, y: 2060, game: 'seq', kind: 'crate' },
+  { name: 'Medir la humedad', x: 2200, y: 2070, game: 'dose', kind: 'scale' },
+  { name: 'Cavar la salida', x: 2290, y: 2070, game: 'pipe', kind: 'valve' },
+  // Ruinas hundidas
+  { name: 'Descifrar las inscripciones', x: 1270, y: 1595, game: 'memory', kind: 'terminal' },
+  { name: 'Recolocar las piedras', x: 1370, y: 1640, game: 'seq', kind: 'crate' },
+  { name: 'Limpiar el altar', x: 1270, y: 1700, game: 'spots', kind: 'filter' },
+  { name: 'Encender el brasero antiguo', x: 1200, y: 1640, game: 'hold', kind: 'hearth' },
+  // Mausoleo hundido
+  { name: 'Encender las velas del mausoleo', x: 450, y: 1700, game: 'order', kind: 'lamp' },
+  { name: 'Abrir la losa', x: 400, y: 1620, game: 'code', kind: 'keypad' },
+  { name: 'Contar las urnas', x: 500, y: 1630, game: 'count', kind: 'tray' },
 ].map((t, id) => ({ id, ...t }));
 
 /* ---------------- rejillas de ventilación ---------------- */
 const VENTS = [
   { id: 0, net: 'A', name: 'Cabaña', x: 980, y: 600 },
   { id: 1, net: 'A', name: 'Cobertizo', x: 2740, y: 1340 },
-  { id: 2, net: 'A', name: 'Raíces', x: 2380, y: 2030 },
-  { id: 3, net: 'B', name: 'Cueva', x: 3300, y: 1990 },
-  { id: 4, net: 'B', name: 'Árboles muertos', x: 330, y: 1600 },
-  { id: 5, net: 'B', name: 'Orilla', x: 2250, y: 1560 },
-  { id: 6, net: 'C', name: 'Campo', x: 3480, y: 520 },
-  { id: 7, net: 'C', name: 'Sendero', x: 1450, y: 420 },
-  { id: 8, net: 'C', name: 'Laguna', x: 1010, y: 2150 },
-  { id: 9, net: 'C', name: 'Charca', x: 1640, y: 880 },
+  { id: 2, net: 'A', name: 'Madriguera', x: 2300, y: 2160 },
+  { id: 3, net: 'A', name: 'Atalaya', x: 2340, y: 595 },
+  { id: 4, net: 'B', name: 'Cueva', x: 3300, y: 1990 },
+  { id: 5, net: 'B', name: 'Mausoleo', x: 350, y: 1648 },
+  { id: 6, net: 'B', name: 'Orilla', x: 2200, y: 1545 },
+  { id: 7, net: 'B', name: 'Herbolario', x: 1620, y: 605 },
+  { id: 8, net: 'B', name: 'Ruinas', x: 1290, y: 1730 },
+  { id: 9, net: 'C', name: 'Campo', x: 3480, y: 520 },
+  { id: 10, net: 'C', name: 'Choza', x: 3520, y: 1262 },
+  { id: 11, net: 'C', name: 'Laguna', x: 1160, y: 2230 },
+  { id: 12, net: 'C', name: 'Charca', x: 1640, y: 880 },
+  { id: 13, net: 'C', name: 'Árboles muertos', x: 430, y: 1150 },
 ];
 
 /* ---------------- adornos del exterior (con semilla, sin pisar nada) ---------------- */
@@ -255,40 +337,52 @@ const PANEL = { x: PANEL_BOX[0] + PANEL_BOX[2] / 2, y: PANEL_BOX[1] + PANEL_BOX[
 const REACTOR = { x: 3060, y: 1930 };
 const RPTS = [
   { side: 'a', name: 'Consola A', x: 3250, y: 960 },
-  { side: 'b', name: 'Consola B', x: 560, y: 1560 },
+  { side: 'b', name: 'Consola B', x: 740, y: 1560 },
 ];
 const LABELS = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel).map((f) => f[7].label); // rótulos: que ningún objeto los tape
 const SPOTS = [ // sitios que no se pueden tapar: tareas, rejillas, panel, consolas y botón
   ...TASKS.map((t) => [t.x, t.y]), ...VENTS.map((v) => [v.x, v.y]), [PANEL.x, PANEL.y], [C.x, C.y], ...RPTS.map((p) => [p.x, p.y]),
 ];
-const BUILDINGS = [roomPoly('cabana'), roomPoly('cobertizo'), roomPoly('cueva')];
+const BUILDINGS = ['cabana', 'herbolario', 'atalaya', 'cobertizo', 'choza', 'cueva', 'madriguera', 'ruinas', 'mausoleo'].map(roomPoly);
 const DOCK_BOXES = DOCKS.map((d) => bbox(d));
-function freeAt(x, y, rad, margin = 0) {
-  if (!inPoly(OUTDOORS, x, y) || polyDist(OUTDOORS, x, y) < 60 + rad * 0.6) return false;
-  for (const b of BUILDINGS) if (inPoly(b, x, y) || polyDist(b, x, y) < 80 + rad * 0.7) return false;
+/* Pasillos garantizados: de cada tarea o rejilla del exterior sale una línea hasta el punto de
+   sendero o puerta más cercano, y ningún adorno puede caer en ella. Así el reparto con semilla
+   nunca encierra una tarea entre setas o troncos. */
+const HUBS = [...LANES.flatMap((L) => L.pts), ...DOOR_OUT, [C.x, C.y + 480], [C.x, C.y - 480]];
+const AISLES = [...TASKS, ...VENTS]
+  .filter((t) => !BUILDINGS.some((b) => inPoly(b, t.x, t.y)) && !WATERS.some((w) => inPoly(w, t.x, t.y)) && !DOCKS.some((d) => inPoly(d, t.x, t.y)))
+  .filter((t) => !LANES.some((L) => lineDist(L.pts, t.x, t.y) < L.w / 2) && Math.hypot(t.x - C.x, t.y - C.y) > 480)
+  .map((t) => {
+    let best = null;
+    for (const h of HUBS) { const d = Math.hypot(h[0] - t.x, h[1] - t.y); if (!best || d < best.d) best = { d, h }; }
+    return [[t.x, t.y], best.h];
+  });
+function freeAt(x, y, rad, margin = 0, tight = false) {
+  for (const b of BUILDINGS) if (inPoly(b, x, y) || polyDist(b, x, y) < (tight ? 40 + rad * 0.4 : 55 + rad * 0.6)) return false;
   for (const w of WATERS) if (inPoly(w, x, y) || polyDist(w, x, y) < 70 + rad * 0.7) return false;
   for (const d of DOCK_BOXES) if (x > d[0] - 90 - rad && x < d[0] + d[2] + 90 + rad && y > d[1] - 90 - rad && y < d[1] + d[3] + 90 + rad) {
     if (DOCKS.some((p) => inPoly(p, x, y) || polyDist(p, x, y) < 90 + rad)) return false;
   }
-  for (const p of PATHS) if (lineDist(p, x, y) < 75 + rad * 0.6 + margin) return false;
-  for (const d of DOOR_OUT) if (Math.hypot(x - d[0], y - d[1]) < 160 + rad) return false;
+  for (const L of LANES) if (lineDist(L.pts, x, y) < L.w / 2 + 25 + rad * 0.6 + margin) return false;
+  for (const A of AISLES) if (lineDist(A, x, y) < 75 + rad * 0.5) return false;
+  for (const d of DOOR_OUT) if (Math.hypot(x - d[0], y - d[1]) < (tight ? 120 + rad * 0.5 : 160 + rad)) return false;
   for (const l of LABELS) if (Math.abs(x - l[0]) < 200 + rad && y > l[1] - 55 - rad && y < l[1] + 35 + rad) return false;
-  for (const s of SPOTS) if (Math.hypot(x - s[0], y - s[1]) < 95 + rad * 0.8) return false;
-  for (const o of OBST) if (x > o[0] - 50 - rad * 0.8 && x < o[0] + o[2] + 50 + rad * 0.8 && y > o[1] - 50 - rad * 0.8 && y < o[1] + o[3] + 50 + rad * 0.8) return false;
+  for (const s of SPOTS) if (Math.hypot(x - s[0], y - s[1]) < (tight ? 72 + rad * 0.4 : 85 + rad * 0.6)) return false;
+  for (const o of OBST) { const m = tight ? 8 + rad * 0.5 : 40 + rad * 0.7; if (x > o[0] - m && x < o[0] + o[2] + m && y > o[1] - m && y < o[1] + o[3] + m) return false; }
   return true;
 }
 {
   const r = rng(20261102);
   // zona (o todo el pantano), tipo, ancho, alto, cuántos
-  const scatter = (zone, kinds) => {
+  const scatter = (zone, kinds, tight = false) => {
     const b = bbox(zone);
     for (const [t, w, h, n] of kinds) {
       let placed = 0;
-      for (let tries = 0; placed < n && tries < n * 240; tries++) {
+      for (let tries = 0; placed < n && tries < n * 600; tries++) {
         const x = b[0] + r() * b[2], y = b[1] + r() * b[3];
         if (!inPoly(zone, x, y)) continue;
         const rad = Math.max(w, h) / 2;
-        if (!freeAt(x, y, rad)) continue;
+        if (!freeAt(x, y, rad, 0, tight)) continue;
         OBST.push([Math.round((x - w / 2) / 20) * 20, Math.round((y - h / 2) / 20) * 20, w, h, t]);
         placed++;
       }
@@ -304,12 +398,15 @@ function freeAt(x, y, rad, margin = 0) {
   scatter(MUERTOS, [['deadtree', 120, 120, 30], ['log', 150, 50, 5], ['stump', 60, 60, 6], ['bigroot', 200, 110, 4], ['boulder', 90, 80, 3]]);
   // las raíces gigantes, arqueadas sobre el barro
   scatter(RAICES, [['bigroot', 220, 120, 9], ['swamptree', 150, 150, 5], ['log', 150, 50, 3], ['tallgrass', 100, 70, 6]]);
-  scatter(SENDERO, [['swamptree', 150, 150, 4], ['glowshroom', 80, 80, 6], ['tallgrass', 100, 70, 5]]);
-  // el resto del pantano
-  scatter(OUTDOORS, [
-    ['swamptree', 150, 150, 42], ['bigroot', 210, 110, 8], ['boulder', 90, 80, 6], ['log', 150, 50, 5],
-    ['fern', 100, 100, 10], ['glowshroom', 80, 80, 12], ['tallgrass', 100, 70, 12], ['deadtree', 120, 120, 8],
-  ]);
+  // segunda pasada, más apretada: la espesura que rellena cada claro (huecos entre los troncos)
+  scatter(CAMPO, [['glowshroom', 80, 80, 10], ['mushring', 100, 100, 2]], true);
+  scatter(MUERTOS, [['deadtree', 120, 120, 18], ['stump', 60, 60, 6], ['log', 150, 50, 4], ['bigroot', 200, 110, 3]], true);
+  scatter(RAICES, [['bigroot', 170, 95, 9], ['swamptree', 150, 150, 4], ['log', 130, 44, 3], ['tallgrass', 100, 70, 6], ['fern', 100, 100, 4]], true);
+  // la laguna y la charca: juncos, helechos y algún árbol en las orillas
+  scatter(LAGUNA_AREA, [['swamptree', 150, 150, 6], ['tallgrass', 100, 70, 8], ['fern', 100, 100, 4], ['glowshroom', 80, 80, 5], ['log', 150, 50, 2]]);
+  scatter(SHORE, [['tallgrass', 100, 70, 8], ['fern', 100, 100, 4], ['glowshroom', 80, 80, 6], ['swamptree', 150, 150, 3]]);
+  scatter(LAGUNA_AREA, [['swamptree', 150, 150, 5], ['tallgrass', 100, 70, 6], ['bigroot', 200, 110, 3]], true);
+  scatter(SHORE, [['swamptree', 150, 150, 4], ['fern', 100, 100, 4]], true);
 }
 
 export const PANTANO = {
@@ -330,4 +427,5 @@ export const PANTANO = {
 };
 
 // datos para dibujar (los usa el cliente): contornos, muelles, senderos y zonas
-export const PANTANO_ART = { OUTDOORS, POND, LAGOON, POOLS, WATERS, DOCKS, DOOR_DEFS, PATHS, CAMPO, MUERTOS, RAICES, SENDERO, SHORE, CENTER: C, WORLD, TAU, R };
+const WALK = [...ZONES, ...LANE_FLOORS.map((f) => f[7].poly)]; // todo lo que se pisa fuera de los edificios
+export const PANTANO_ART = { POND, LAGOON, POOLS, WATERS, DOCKS, DOOR_DEFS, LANES, WALK, ZONES, CAMPO, MUERTOS, RAICES, SHORE, LAGUNA_AREA, CENTER: C, WORLD, TAU, R };

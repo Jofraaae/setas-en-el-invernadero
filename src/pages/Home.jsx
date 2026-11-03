@@ -173,7 +173,7 @@ export default function Home() {
     g.grid = makeGrid(m.world, m.floors, g.sol);
     // La vista solo la cortan los muros de las salas: las cajas, barriles y máquinas no
     // dan sombra, así que no tapan a quien pasa por detrás.
-    g.sightGrid = makeGrid(m.world, m.floors, []);
+    g.sightGrid = makeGrid(m.world, m.floors, [], true);
     g.btn = m.button;
     g.pnl = m.panel;
     g.rmeta = m.rmeta || null;
@@ -261,7 +261,7 @@ export default function Home() {
       const boxes = drs.map(([id]) => (g.doors || []).find((d) => d.id === id)).filter(Boolean).map((d) => [d.x, d.y, d.w, d.h]);
       g.grid = makeGrid(g.world, g.floors, g.sol || g.obst || []);
       g.grid.boxes = boxes.map((b) => ({ x: b[0], y: b[1], w: b[2], h: b[3] })); // puertas cerradas: rectángulos exactos, como en la sala
-      g.sightGrid = makeGrid(g.world, g.floors, boxes);
+      g.sightGrid = makeGrid(g.world, g.floors, boxes, true);
     }
     const prevRx = g.st.rx;
     const prevDark = g.st.dark;

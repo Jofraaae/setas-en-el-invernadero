@@ -740,7 +740,6 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
 
   // lo que va por encima de objetos y tareas: orillas, barandillas, piedras del vado
   if (A.overlay) A.overlay(c, floors, obst, rng(4242));
-  if (A.labelsTop) drawLabels(); // los rótulos por encima de todo: ningún objeto los tapa
 
   // rejillas de ventilación
   for (const v of vents || []) drawVent(c, v.x, v.y, false);
@@ -751,6 +750,8 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
 
   // objetos de las tareas: integrados en el mapa, no solo un símbolo
   for (const t of (extra && extra.tasks) || []) drawProp(c, t, A.prop, A.soft);
+
+  if (A.labelsTop) drawLabels(); // los rótulos por encima de todo: ningún objeto los tapa
 
   const sc = 220 / world.w;
   const miniC = document.createElement('canvas');
