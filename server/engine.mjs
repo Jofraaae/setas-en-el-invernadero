@@ -7,6 +7,7 @@
    ================================================================ */
 
 import { MICELARIA } from './mapMicelaria.mjs';
+import { PANTANO } from './mapPantano.mjs';
 import { BotManager } from './bots.mjs';
 import { say } from './botChat.mjs';
 
@@ -418,6 +419,7 @@ const isMap = (k) => typeof k === 'string' && Object.prototype.hasOwnProperty.ca
 const MAPS = {
   greenhouse: withDoors(buildMap({ ...GREENHOUSE, id: 'greenhouse', name: 'El Invernadero' })),
   micelaria: withDoors(buildMap({ ...MICELARIA, id: 'micelaria', name: 'Micelaria' })),
+  pantano: withDoors(buildMap({ ...PANTANO, id: 'pantano', name: 'Pantano Esporado' })),
 };
 const DEFAULT_MAP = 'greenhouse';
 // La luz no tiene tope circular: llega hasta donde la dejen los muros, y las cajas, barriles
