@@ -10,6 +10,10 @@ import {
   MICELARIA_FOREST_WALL, MICELARIA_OBST_EXTRA, MICELARIA_PROPS_EXTRA, micelariaGround,
 } from './micelariaNature';
 import { VILLAGE_TEX, VILLAGE_OBST, VILLAGE_PROPS, villageDecor, villageOverlay } from './micelariaVillage';
+import {
+  PANTANO_BG, PANTANO_TEX, PANTANO_ROOM_TEX, PANTANO_DEFAULT_TEX, PANTANO_WALL, PANTANO_OBST,
+  pantanoGround, pantanoDecor, pantanoOverlay, pantanoAtmos,
+} from './pantanoArt';
 import { tr } from '@/lib/i18n';
 
 function rr(c, x, y, w, h, r) {
@@ -608,6 +612,32 @@ const ART_SETS = {
     door: micelariaDoor,
     button: micelariaButton,
   },
+  pantano: {
+    bg: PANTANO_BG,
+    ground: pantanoGround,   // el pantano entero: fuera de los senderos hay fango, agua y juncos
+    soft: true,
+    softEdge: true,
+    miniBg: 'rgba(5,12,10,.9)',
+    miniObst: 'rgba(24,44,38,.7)',
+    btnGlow: 'rgba(170,255,210,.07)',
+    labelBg: 'rgba(6,20,16,.55)',
+    labelFg: 'rgba(222,255,238,.66)',
+    paint: PANTANO_TEX,
+    decor: pantanoDecor,     // senderos, muelles, juncos y halos de micelio bajo los objetos
+    overlay: pantanoOverlay, // bruma baja sobre el agua y luciérnagas
+    atmos: pantanoAtmos,     // niebla que se desliza, cada fotograma
+    labelsTop: true,         // en un pantano tan cargado, el rótulo de cada zona va sobre los objetos
+    roomTex: PANTANO_ROOM_TEX,
+    defaultTex: PANTANO_DEFAULT_TEX,
+    wall: PANTANO_WALL,
+    obst: { ...OBST_ART, ...MICELARIA_OBST, ...MICELARIA_OBST_EXTRA, ...VILLAGE_OBST, ...PANTANO_OBST },
+    prop: { ...ART, ...MICELARIA_PROPS, ...MICELARIA_PROPS_EXTRA, ...VILLAGE_PROPS },
+    panel: micelariaPanel,
+    reactor: micelariaReactor,
+    reactorLive: micelariaReactorLive,
+    door: micelariaDoor,
+    button: micelariaButton,
+  },
 };
 
 /* Trazo de un suelo: rectángulo, o el contorno libre de las salas de Micelaria (8.º elemento). */
@@ -676,22 +706,25 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
   if (A.decor) A.decor(c, floors, rng(777));
 
   // etiquetas de sala (las de contorno libre traen su sitio en las opciones)
-  c.font = '700 28px system-ui';
-  c.textAlign = 'center';
-  for (const f of floors) {
-    if (!f[5]) continue;
-    const [x, y, w, h, , name] = f;
-    const o = f[7] || {};
-    const lx = o.label ? o.label[0] : x + w / 2;
-    const ly = o.label ? o.label[1] : y + h - 23;
-    const label = tr(name);
-    const tw = c.measureText(label).width;
-    c.fillStyle = A.labelBg;
-    rr(c, lx - tw / 2 - 18, ly - 25, tw + 36, 34, 8);
-    c.fill();
-    c.fillStyle = A.labelFg;
-    c.fillText(label, lx, ly);
-  }
+  const drawLabels = () => {
+    c.font = '700 28px system-ui';
+    c.textAlign = 'center';
+    for (const f of floors) {
+      if (!f[5] || (f[7] && f[7].noLabel)) continue; // noLabel: tramos de un mismo lugar que ya lleva su rótulo
+      const [x, y, w, h, , name] = f;
+      const o = f[7] || {};
+      const lx = o.label ? o.label[0] : x + w / 2;
+      const ly = o.label ? o.label[1] : y + h - 23;
+      const label = tr(name);
+      const tw = c.measureText(label).width;
+      c.fillStyle = A.labelBg;
+      rr(c, lx - tw / 2 - 18, ly - 25, tw + 36, 34, 8);
+      c.fill();
+      c.fillStyle = A.labelFg;
+      c.fillText(label, lx, ly);
+    }
+  };
+  if (!A.labelsTop) drawLabels();
 
   // botón de emergencia
   c.fillStyle = A.btnGlow;
@@ -707,6 +740,7 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
 
   // lo que va por encima de objetos y tareas: orillas, barandillas, piedras del vado
   if (A.overlay) A.overlay(c, floors, obst, rng(4242));
+  if (A.labelsTop) drawLabels(); // los rótulos por encima de todo: ningún objeto los tapa
 
   // rejillas de ventilación
   for (const v of vents || []) drawVent(c, v.x, v.y, false);
@@ -1244,6 +1278,7 @@ export function drawFrame(o) {
   const s = dpr * zoom;
   ctx.setTransform(s, 0, 0, s, -cx * s, -cy * s);
   if (mapC) ctx.drawImage(mapC, 0, 0);
+  if (A.atmos) A.atmos(ctx, { T, cx, cy, vw: W / zoom, vh: H / zoom }); // niebla, bajo los jugadores
   drawDoors(ctx, g, A.door); // compuertas cerradas: tapan el hueco del muro mientras dura el cierre
   if (g.role === 'impostor' || g.engineer) for (const v of g.vents || []) drawVent(ctx, v.x, v.y, true);
   // rejillas: se abren y se cierran en el instante en que alguien entra o sale

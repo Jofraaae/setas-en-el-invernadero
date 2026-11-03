@@ -1,7 +1,7 @@
 import { trMark } from '@/lib/i18n';
 
 /* Catálogo de escenarios. El motor de la sala manda el mapa de la partida por su id
-   ('greenhouse' o 'micelaria'); aquí solo vive lo que enseña la interfaz: nombre,
+   ('greenhouse', 'micelaria' o 'pantano'); aquí solo vive lo que enseña la interfaz: nombre,
    descripción y miniatura. El Invernadero es el de siempre y el que viene por defecto. */
 
 export const MAPS = [
@@ -16,6 +16,12 @@ export const MAPS = [
     name: trMark('Micelaria'),
     blurb: trMark('Una aldea de setas: casas con sombrero, plaza, arroyo, molino y cueva.'),
     thumb: '/maps/micelaria.jpg',
+  },
+  {
+    id: 'pantano',
+    name: trMark('Pantano Esporado'),
+    blurb: trMark('Un pantano misterioso: niebla, agua verdosa, muelles, árboles retorcidos, setas luminosas y una cueva.'),
+    thumb: '/maps/pantano.jpg',
   },
 ];
 
