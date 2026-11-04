@@ -774,5 +774,16 @@
  "Atalaya": "Watchtower",
  "Mausoleo": "Mausoleum",
  "Ruinas": "Ruins",
- "Choza": "Shack"
+ "Choza": "Shack",
+ "Ordenador de ajustes": "Settings computer",
+ "Armario": "Wardrobe",
+ "Cerrar": "Close",
+ "🔒 Privada": "🔒 Private",
+ "🌐 Pública": "🌐 Public",
+ "Chat": "Chat",
+ "Muévete con WASD o las flechas (en el móvil, arrastra). Acércate al ordenador o al armario y pulsa [E].": "Move with WASD or the arrow keys (on mobile, drag). Walk up to the computer or the wardrobe and press [E].",
+ "Ordenador de la partida": "Game computer",
+ "Eres el anfitrión: lo que cambies aquí vale para toda la partida.": "You are the host: whatever you change here applies to the whole game.",
+ "Todos pueden mirar los ajustes, pero solo el anfitrión puede cambiarlos.": "Everyone can look at the settings, but only the host can change them.",
+ "Los colores que ya lleva otro jugador salen apagados.": "Colors another player already has are greyed out."
 }

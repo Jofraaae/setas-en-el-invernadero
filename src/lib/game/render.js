@@ -14,6 +14,7 @@ import {
   PANTANO_BG, PANTANO_TEX, PANTANO_ROOM_TEX, PANTANO_DEFAULT_TEX, PANTANO_WALL, PANTANO_OBST,
   pantanoGround, pantanoDecor, pantanoOverlay, pantanoAtmos,
 } from './pantanoArt';
+import { LOBBY_BG, LOBBY_WALL, LOBBY_OBST, lobbyGround, lobbyDecor, drawStationMark, noop } from './lobbyArt';
 import { tr } from '@/lib/i18n';
 
 function rr(c, x, y, w, h, r) {
@@ -611,6 +612,28 @@ const ART_SETS = {
     reactorLive: micelariaReactorLive,
     door: micelariaDoor,
     button: micelariaButton,
+  },
+  // la sala de espera: una cabaña con el ordenador de ajustes y el armario del color
+  lobby: {
+    bg: LOBBY_BG,
+    ground: lobbyGround,
+    soft: true,
+    miniBg: 'rgba(20,12,6,.9)',
+    btnGlow: 'rgba(0,0,0,0)',
+    labelBg: 'rgba(0,0,0,0)',
+    labelFg: 'rgba(0,0,0,0)',
+    paint: { planks: MICELARIA_TEX.planks },
+    decor: lobbyDecor,
+    roomTex: {},
+    defaultTex: 'planks',
+    wall: LOBBY_WALL,
+    obst: { ...OBST_ART, ...MICELARIA_OBST, ...MICELARIA_OBST_EXTRA, ...VILLAGE_OBST, ...LOBBY_OBST },
+    prop: { ...ART },
+    panel: noop,
+    reactor: noop,
+    reactorLive: noop,
+    door: noop,
+    button: null,
   },
   pantano: {
     bg: PANTANO_BG,
@@ -1308,8 +1331,15 @@ export function drawFrame(o) {
   // reactor: núcleo y consolas avisan mientras el sabotaje está activo
   if (g.st.rx && g.rmeta) A.reactorLive(ctx, g.rmeta, g.st.rx, T);
   // botón de emergencia con su propio objeto, y marcador sobre cada tarea
-  drawButton(ctx, g.btn.x, g.btn.y, T, g.meetUsed, !!(g.st.dark || g.st.rx), A.button);
+  if (!g.lobby) drawButton(ctx, g.btn.x, g.btn.y, T, g.meetUsed, !!(g.st.dark || g.st.rx), A.button);
   for (const t of g.tasks) drawTaskMark(ctx, t, T, g.done.has(t.id));
+  // sala de espera: marcas sobre el ordenador y el armario (se encienden al acercarse)
+  if (g.lobby && g.stations) {
+    const R = (g.cfg && g.cfg.useRange) || 90;
+    for (const [id, st] of Object.entries(g.stations)) {
+      drawStationMark(ctx, st, Math.hypot(g.me.x - st.x, g.me.y - st.y) <= (st.range || R), T, id === 'computer' ? '⚙️' : '🎨');
+    }
+  }
   // los cuerpos de la Víbora se deshacen con veneno verde: el resto de cuerpos siguen igual
   const fxNow = performance.now();
   const gored = [];
