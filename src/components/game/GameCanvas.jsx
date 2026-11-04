@@ -54,7 +54,10 @@ export default function GameCanvas({ g, send }) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === ' ') e.preventDefault();
-      if (!e.repeat) {
+      if (!e.repeat && g.lobby) {
+        // sala de espera: solo se usa el aparato que tengas delante (ordenador o armario)
+        if (k === 'e' || k === ' ') g.act.use();
+      } else if (!e.repeat) {
         if (k === 'e' || k === ' ') g.act.use();
         else if (k === 'q') g.act.kill();
         else if (k === 'r') g.act.report();
@@ -216,7 +219,8 @@ export default function GameCanvas({ g, send }) {
         o.x = o.ax + (o.bx - o.ax) * k;
         o.y = o.ay + (o.by - o.ay) * k;
         const ddx = o.bx - o.ax, ddy = o.by - o.ay;
-        o.moving = Math.hypot(ddx, ddy) > 1.5;
+        // en la sala de espera los avisos de quien se para dejan de llegar: pasado su tramo, está quieto
+        o.moving = (!g.lobby || k < 1) && Math.hypot(ddx, ddy) > 1.5;
         if (Math.abs(ddx) > 0.6) o.face = Math.sign(ddx);
       }
 

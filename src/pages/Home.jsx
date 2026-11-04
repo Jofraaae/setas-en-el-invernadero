@@ -11,6 +11,7 @@ import { contextOf } from '@/lib/game/context';
 import { sendInput } from '@/lib/game/predict';
 import MenuScreen from '@/components/game/MenuScreen';
 import LobbyScreen from '@/components/game/LobbyScreen';
+import LobbyRoom from '@/components/game/LobbyRoom';
 import MeetingScreen from '@/components/game/MeetingScreen';
 import ResultScreen from '@/components/game/ResultScreen';
 import EndScreen from '@/components/game/EndScreen';
@@ -75,6 +76,11 @@ export default function Home() {
   const [reveal, setReveal] = useState(null);
   const [interro, setInterro] = useState(null); // informe del Detective, solo para él
   const [mapOpen, setMapOpen] = useState(false);
+  // sala de espera caminable: lwReady = ya ha llegado el mundo de la cabaña; lwLegacy = la sala no lo
+  // manda (servidor antiguo) y se enseña la pantalla de siempre
+  const [lwReady, setLwReady] = useState(false);
+  const [lwLegacy, setLwLegacy] = useState(false);
+  const lwTimer = useRef(null);
 
   const gRef = useRef(null);
   if (!gRef.current) {
@@ -145,6 +151,10 @@ export default function Home() {
       }
       return;
     }
+    g.lobby = false; // empieza la partida: se deja la cabaña
+    g.stations = null;
+    g.lobbyUse = null;
+    setLwReady(false);
     g.role = m.role;
     g.mates = m.mates || [];
     g.shifter = !!m.shifter;
@@ -411,6 +421,12 @@ export default function Home() {
     stopLoop('ambience');
     g.myId = null;
     g.hostId = null;
+    g.lobby = false;
+    g.stations = null;
+    g.lobbyUse = null;
+    if (lwTimer.current) { clearTimeout(lwTimer.current); lwTimer.current = null; }
+    setLwReady(false);
+    setLwLegacy(false);
     g.miniOpen = false;
     g.inputLock = false;
     g.mini = null;
@@ -487,8 +503,42 @@ export default function Home() {
         setCode(m.code || code);
         setLobby(m);
         setLChat(Array.isArray(m.chat) ? m.chat : []);
-        if (m.phase === 'lobby') { setBusy(false); setError(''); go('lobby'); }
+        if (m.phase === 'lobby') {
+          // los jugadores de la cabaña se dibujan con su nombre y color
+          g.roster = new Map((m.players || []).map((r) => [r.id, { id: r.id, name: r.name, color: r.color }]));
+          setBusy(false); setError(''); go('lobby');
+          // un servidor antiguo no manda la cabaña: pasado un momento se enseña la pantalla de siempre
+          if (!g.lobby && !lwTimer.current) lwTimer.current = window.setTimeout(() => { lwTimer.current = null; if (!g.lobby) setLwLegacy(true); }, 1500);
+        }
         break;
+      case 'lw': {
+        // el mundo de la sala de espera: una cabaña por la que se anda con el mismo motor que la partida
+        if (lwTimer.current) { clearTimeout(lwTimer.current); lwTimer.current = null; }
+        g.lobby = true;
+        g.role = 'crew'; g.mates = []; g.tasks = []; g.done = new Set(); g.gone = new Set();
+        g.shifter = false; g.engineer = false; g.alerter = false; g.judge = false; g.scientist = false; g.viper = false; g.spectre = false; g.detective = false; g.tracker = false; g.ghost = '';
+        g.world = m.world; g.floors = m.floors; g.obst = m.obst; g.sol = m.sol || m.obst; g.map = 'lobby';
+        g.grid = makeGrid(m.world, m.floors, g.sol);
+        g.sightGrid = null;
+        g.stations = m.stations || {};
+        g.btn = m.spawn; g.pnl = m.spawn; g.rmeta = null; g.rpts = [];
+        g.vents = []; g.vent = { in: false, id: null, net: null, vents: [] };
+        g.doors = []; g.doorKey = '';
+        g.cfg = { speed: m.speed, radius: m.radius, killRange: 80, useRange: m.useRange || 90, reportRange: 120, trackRange: 120, blindRange: 130 };
+        g.others.clear(); g.bodies = []; g.bodyFx = new Map(); g.fx.clear(); g.ventFx.clear(); g.saves = []; g.puffs = [];
+        g.dash = null; g.off = null; g.ackDir = null; g.alert = null; g.trail = null;
+        g.snap = true; g.me.alive = true; g.pend = []; g.srvB = null; g.inMoving = false; g.inSeq = m.seq || 0;
+        g.mini = null; g.miniOpen = false; g.inputLock = false;
+        g.st = { prog: 0, dark: false, vr: 0, sr: 0, kcd: 0, scd: 0, rcd: 0, sq: m.seq || 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, kycd: 0, blcd: 0, bl: 0, lamps: null, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 };
+        const built = buildWorld(m.world, m.floors, m.obst, m.spawn, [], { map: 'lobby', panel: m.spawn, rcore: m.spawn, rpts: [], tasks: [] });
+        g.mapC = built.mapC; g.miniC = built.miniC;
+        const yo = m.you || [m.spawn.x, m.spawn.y];
+        g.srv.x = yo[0]; g.srv.y = yo[1]; g.me.x = yo[0]; g.me.y = yo[1];
+        setMini(null); setMapOpen(false); setShiftPick(null); setSci(false); setDeath(null); setReveal(null);
+        setLwLegacy(false);
+        setLwReady(true);
+        break;
+      }
       case 'start':
         startGame(m);
         break;
@@ -789,6 +839,7 @@ export default function Home() {
   }, [closeMini, send, g]);
 
   const useAction = useCallback(() => {
+    if (g.lobby) { if (screenRef.current === 'lobby' && g.lobbyUse) g.lobbyUse(); return; } // sala de espera: ordenador o armario
     if (screenRef.current !== 'playing' || g.miniOpen || (g.st.bl > 0 && g.me.alive)) return; // cegado: no ve nada, ni misiones
     const c = contextOf(g);
     if (c.hold) { sfx('switch'); send({ t: 'hold', side: c.hold.side }); }
@@ -1073,7 +1124,28 @@ export default function Home() {
         />
       ) : null}
 
-      {screen === 'lobby' && lobby ? (
+      {screen === 'lobby' && lobby && lwReady ? (
+        <LobbyRoom
+          g={g}
+          send={send}
+          lobby={lobby}
+          myId={g.myId}
+          chat={lchat}
+          onColor={(color) => send({ t: 'color', color })}
+          onSetting={(k, v) => send({ t: 'settings', k, v })}
+          onMap={(id) => send({ t: 'map', map: id })}
+          onStart={() => send({ t: 'start' })}
+          onLeave={leave}
+          onCopy={copyInvite}
+          onChat={(text) => send({ t: 'lchat', text })}
+          onKick={(id, mode) => send({ t: 'kick', id, mode })}
+          onAddBots={(n) => send({ t: 'addBot', n })}
+          onVis={(vis) => send({ t: 'vis', vis })}
+          onWant={(v) => send({ t: 'want', v })}
+        />
+      ) : null}
+
+      {screen === 'lobby' && lobby && !lwReady && lwLegacy ? (
         <LobbyScreen
           lobby={lobby}
           myId={g.myId}
@@ -1121,7 +1193,7 @@ export default function Home() {
 
       {mini ? <MiniGame task={mini} onFinish={() => finishMini(mini)} onCancel={closeMini} /> : null}
       {death ? <DeathOverlay killer={death} /> : null}
-      <LanguageSwitcher compact={screen === 'playing'} />
+      <LanguageSwitcher compact={screen === 'playing' || (screen === 'lobby' && lwReady)} />
       <SoundToggle />
     </div>
   );

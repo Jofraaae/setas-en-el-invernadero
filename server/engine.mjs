@@ -8,6 +8,7 @@
 
 import { MICELARIA } from './mapMicelaria.mjs';
 import { PANTANO } from './mapPantano.mjs';
+import { LOBBY } from './mapLobby.mjs';
 import { BotManager } from './bots.mjs';
 import { say } from './botChat.mjs';
 
@@ -304,6 +305,7 @@ function buildMap(def) {
     grid: makeGrid(world, floors, solid),
     sight: makeGrid(world, floors, [], true),
     doors: [], byRoom: new Map(),
+    stations: def.stations || null, // aparatos con los que se interactúa (solo la sala de espera)
     explicitDoors: def.doors || null, // Micelaria dice dónde están sus puertas; el invernadero las deduce
   };
 }
@@ -424,6 +426,9 @@ const MAPS = {
   pantano: withDoors(buildMap({ ...PANTANO, id: 'pantano', name: 'Pantano Esporado' })),
 };
 const DEFAULT_MAP = 'greenhouse';
+/* La sala de espera: no es un escenario que se pueda elegir (no está en MAPS), sino el sitio donde
+   se espera mientras la sala está en fase 'lobby'. Se anda con el mismo motor de movimiento. */
+const LOBBY_MAP = withDoors(buildMap({ ...LOBBY, id: 'lobby', name: 'Sala de espera' }));
 // La luz no tiene tope circular: llega hasta donde la dejen los muros, y las cajas, barriles
 // y máquinas no dan sombra, así que para la vista la rejilla es solo de muros.
 const SIGHT_BASE = 1500; // alcance de vista al 100 %: de sobra para ver la sala entera y lo que asoma por la puerta
@@ -710,6 +715,8 @@ class GameRoom {
   /* El escenario de la partida: todo lo que se dibuja y todo lo que frena el paso sale de
      aquí, así que elegir mapa no toca ninguna regla del juego. */
   get m() { return (isMap(this.map) && MAPS[this.map]) || MAPS[DEFAULT_MAP]; }
+  // el mapa por el que se mueve la gente ahora mismo: la cabaña en la sala de espera, el escenario en la partida
+  get mv() { return this.phase === 'lobby' ? LOBBY_MAP : this.m; }
 
   /* ---------- ciclo de vida ---------- */
 
@@ -857,6 +864,9 @@ class GameRoom {
         this.dark = false; // un sabotaje de la partida anterior no pasa a la siguiente
         this.reactor = null;
         this.lastEnd = null;
+        this.placeInLobby();
+        for (const q of this.players.values()) this.sendTo(q, this.lobbyWorld(q)); // todos vuelven a la cabaña
+        this.lobbyDirty = true;
         this.armRoomSync();
         this.syncRoom();
         this.broadcast(this.lobbyInfo());
@@ -1345,9 +1355,12 @@ class GameRoom {
     this.players.set(p.id, p);
     if (!this.hostSeat) this.hostSeat = p.id;
     conn.send({ t: 'joined', id: p.id, code: this.code });
+    conn.send(this.lobbyWorld(p));
     this.broadcast(this.lobbyInfo());
     this.syncRoom();
     this.armRoomSync();
+    this.lobbyDirty = true;
+    this.ensureLoop();
     return p;
   }
 
@@ -1358,6 +1371,7 @@ class GameRoom {
     p.bot = true;
     this.players.set(p.id, p);
     this.bots.afterAdd(p);
+    this.lobbyDirty = true;
     this.broadcast(this.lobbyInfo());
     this.syncRoom();
     return p;
@@ -1365,7 +1379,8 @@ class GameRoom {
 
   makePlayer(connId, name) {
     const used = new Set([...this.players.values()].map((p) => p.color));
-    const spot = this.spawnSpot(Math.max(4, this.players.size + 1), [...this.players.values()].map((q) => ({ x: q.x, y: q.y })), this.closedDoors());
+    const taken = [...this.players.values()].map((q) => ({ x: q.x, y: q.y }));
+    const spot = this.phase === 'lobby' ? this.lobbySpot(taken) : this.spawnSpot(Math.max(4, this.players.size + 1), taken, this.closedDoors());
     const p = {
       id: 'p' + this.nextSeat++, connId, name: cleanName(name),
       color: COLORS.find((c) => !used.has(c)) || COLORS[0],
@@ -1545,6 +1560,42 @@ class GameRoom {
     return this.save();
   }
 
+  /* Sala de espera: un hueco libre cerca del centro de la cabaña, sin pisar a nadie. */
+  lobbySpot(taken) {
+    const c = LOBBY_MAP.spawn;
+    for (let ring = 0; ring < 7; ring++) {
+      const rad = ring === 0 ? 0 : 60 + ring * 44;
+      const steps = ring === 0 ? 1 : 6 + ring * 4;
+      for (let k = 0; k < steps; k++) {
+        const a = ((k + ring * 0.5) / steps) * Math.PI * 2;
+        const spot = freeSpot(LOBBY_MAP, c.x + Math.cos(a) * rad * 1.4, c.y + Math.sin(a) * rad * 0.9, []);
+        if (!hitsWall(LOBBY_MAP, spot.x, spot.y, []) && taken.every((t) => dist(t, spot) > 40)) return spot;
+      }
+    }
+    return freeSpot(LOBBY_MAP, c.x, c.y, []);
+  }
+
+  // Todos vuelven al centro de la cabaña (al terminar una partida o al cambiar de fase).
+  placeInLobby() {
+    const taken = [];
+    for (const p of this.players.values()) {
+      const spot = this.lobbySpot(taken);
+      taken.push(spot);
+      p.x = spot.x; p.y = spot.y; p.dx = p.dy = 0;
+      this.markSeg(p, Date.now());
+    }
+  }
+
+  // El mundo de la sala de espera para el cliente: mapa, aparatos y medidas del movimiento.
+  lobbyWorld(p) {
+    const M = LOBBY_MAP;
+    return {
+      t: 'lw', world: M.world, floors: M.floors, obst: M.obst, sol: M.solid, spawn: M.spawn, stations: M.stations,
+      speed: SPEED, radius: RADIUS, useRange: USE_RANGE,
+      seq: p.seq || 0, you: [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10],
+    };
+  }
+
   /* Punto de aparición: un corro alrededor del botón, abierto en anillos hasta encontrar
      hueco. Así nadie nace dentro de un adorno ni encima de otro jugador, que era lo que
      pasaba al apretarse todos en el mismo corro de siempre. */
@@ -1625,7 +1676,7 @@ class GameRoom {
   // un defecto quedan corregidos. Sin `ms` (clientes viejos) se cuenta hasta la llegada.
   applyInput(p, dx, dy, ms, now) {
     const moving = !!(p.dx || p.dy);
-    if (moving && this.phase === 'playing' && !p.inVent && !this.frozen(p, now)
+    if (moving && (this.phase === 'playing' || this.phase === 'lobby') && !p.inVent && !this.frozen(p, now)
       && p.segT0 !== undefined && Math.hypot(p.x - p.lastIntX, p.y - p.lastIntY) <= 1) {
       const byArrival = Math.max(0, Math.min(1000, now - p.segT0));
       let owed = byArrival;
@@ -1639,13 +1690,18 @@ class GameRoom {
       }
       p.x = p.segX; p.y = p.segY;
       const closed = this.closedDoors(now);
-      const spd = SPEED * this.settings.speed / 100;
+      const spd = this.moveSpeed();
       let rem = owed / 1000;
-      while (rem > 1e-6) { const h = Math.min(0.04, rem); stepPlayer(this.m, p, h, spd, closed); rem -= h; }
+      while (rem > 1e-6) { const h = Math.min(0.04, rem); stepPlayer(this.mv, p, h, spd, closed); rem -= h; }
     }
     p.dx = dx;
     p.dy = dy;
     this.markSeg(p, now);
+  }
+
+  // velocidad de andar: la de los ajustes en la partida; en la sala de espera, la de siempre
+  moveSpeed() {
+    return SPEED * (this.phase === 'lobby' ? 100 : this.settings.speed) / 100;
   }
 
   /* ---------- puertas de sala ---------- */
@@ -1653,6 +1709,7 @@ class GameRoom {
   // Las puertas cerradas frenan el paso y cortan la vista igual que un muro.
   closedDoors(now = Date.now()) {
     const out = [];
+    if (this.phase === 'lobby') return out; // la sala de espera no tiene puertas
     for (const [id, until] of this.doorAt) if (now < until) { const d = this.m.doors[id]; if (d) out.push(d); }
     return out;
   }
@@ -1872,7 +1929,8 @@ class GameRoom {
   /* ---------- bucle del juego ---------- */
 
   ensureLoop() {
-    const want = this.phase === 'playing' || this.phase === 'roles' || this.phase === 'meeting' || this.phase === 'result';
+    const want = this.phase === 'playing' || this.phase === 'roles' || this.phase === 'meeting' || this.phase === 'result'
+      || (this.phase === 'lobby' && this.players.size > 0); // la sala de espera también se anda
     if (want && !this.timer) {
       this.lastTick = Date.now();
       this.timer = setInterval(() => this.tick(), TICK_MS);
@@ -1891,6 +1949,7 @@ class GameRoom {
     this.lastTick = now;
     this.bots.tick(now); // los bots deciden y mandan sus órdenes antes de que se mueva nadie
     if (now - this.roomSyncedAt > ROOM_SYNC_MS) this.syncRoom(); // mantiene el anuncio al día
+    if (this.phase === 'lobby') return this.lobbyTick(now, now - dtTotal * 1000);
     if (this.phase === 'roles') {
       if (now >= this.rolesUntil) this.beginPlay();
       return;
@@ -2120,6 +2179,40 @@ class GameRoom {
     if (now - this.savedAt > SAVE_EVERY_MS) this.save();
   }
 
+  /* Un tick de la sala de espera: mueve a cada jugador por la cabaña y manda el estado a quien está
+     conectado. Sin nadie moviéndose no se manda nada (salvo un latido por segundo), así que una sala
+     de espera quieta no gasta red. */
+  lobbyTick(now, prevTick) {
+    let moving = false;
+    for (const p of this.players.values()) {
+      if ((p.dx || p.dy) && now - (p.lastInputAt || 0) > INPUT_SILENCE_MS) { p.dx = 0; p.dy = 0; }
+      if (!(p.dx || p.dy) || p.lastIntX === undefined || Math.hypot(p.x - p.lastIntX, p.y - p.lastIntY) > 1) this.markSeg(p, now);
+      if (p.dx || p.dy) moving = true;
+      let rem = Math.max(0, now - Math.max(p.intT || 0, prevTick)) / 1000;
+      while (rem > 1e-6) { const h = Math.min(0.04, rem); stepPlayer(LOBBY_MAP, p, h, SPEED, []); rem -= h; }
+      p.intT = now; p.lastIntX = p.x; p.lastIntY = p.y;
+    }
+    if (!moving && !this.lobbyWasMoving && !this.lobbyDirty && now - (this.lobbySentAt || 0) < 1000) return;
+    this.lobbyWasMoving = moving;
+    this.lobbyDirty = false;
+    this.lobbySentAt = now;
+    this.lobbySend(now);
+  }
+
+  lobbySend(now = Date.now()) {
+    const conns = new Map(this.getConnections().map((c) => [c.id, c]));
+    for (const p of this.players.values()) {
+      const conn = conns.get(p.connId);
+      if (!conn) continue;
+      const ps = [];
+      for (const q of this.players.values()) if (q !== p) ps.push([q.id, Math.round(q.x), Math.round(q.y), 1, 0, 0]);
+      conn.send({
+        t: 's', lobby: 1, x: p.x, y: p.y, bx: Math.round((p.segX ?? p.x) * 10) / 10, by: Math.round((p.segY ?? p.y) * 10) / 10,
+        a: 1, ps, b: [], prog: 0, dark: false, vr: 0, sr: 0, vi: 0, sq: p.seq || 0, tm: now,
+      });
+    }
+  }
+
   /* ---------- estado / persistencia ---------- */
 
   /* Cuántos impostores habrá con los jugadores de ahora: "auto" reparte 1 (2 a partir de 7) y
@@ -2154,6 +2247,7 @@ class GameRoom {
   sendState(p, conn) {
     conn.send({ t: 'joined', id: p.id, code: this.code });
     if (this.phase === 'lobby' || this.phase === 'ended') {
+      if (this.phase === 'lobby') { conn.send(this.lobbyWorld(p)); this.lobbyDirty = true; }
       conn.send(this.lobbyInfo());
       if (this.phase === 'ended' && this.lastEnd) conn.send(this.lastEnd);
       return;
