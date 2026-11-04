@@ -9,6 +9,7 @@
 import { MICELARIA } from './mapMicelaria.mjs';
 import { PANTANO } from './mapPantano.mjs';
 import { LOBBY } from './mapLobby.mjs';
+import { LOOK_SLOTS, cleanLook, hasLook } from './cosmetics.mjs';
 import { BotManager } from './bots.mjs';
 import { say } from './botChat.mjs';
 
@@ -803,6 +804,15 @@ class GameRoom {
         this.broadcast(this.lobbyInfo());
         return this.save();
       }
+      case 'look': {
+        // el armario: cada jugador lleva su propia combinación (traje, sombrero, cabeza, cara, espalda, otros)
+        if (this.phase !== 'lobby') return;
+        const look = cleanLook(msg.look);
+        if (JSON.stringify(look) === JSON.stringify(p.look || {})) return;
+        p.look = look;
+        this.broadcast(this.lobbyInfo());
+        return this.save();
+      }
       case 'start': {
         if (this.phase !== 'lobby' || this.hostSeat !== p.id) return;
         if (this.players.size < MIN_PLAYERS) return conn.send({ t: 'error', msg: `Hacen falta al menos ${MIN_PLAYERS} jugadores.` });
@@ -1369,6 +1379,8 @@ class GameRoom {
     if (this.phase !== 'lobby' || this.players.size >= this.capacity) return null;
     const p = this.makePlayer('bot:' + this.code + ':' + this.nextSeat, this.bots.newName());
     p.bot = true;
+    // los bots también se visten: cada categoría, con algo de suerte, lleva un accesorio al azar
+    for (const [slot, ids] of Object.entries(LOOK_SLOTS)) if (Math.random() < 0.35) p.look[slot] = ids[Math.floor(Math.random() * ids.length)];
     this.players.set(p.id, p);
     this.bots.afterAdd(p);
     this.lobbyDirty = true;
@@ -1383,7 +1395,7 @@ class GameRoom {
     const spot = this.phase === 'lobby' ? this.lobbySpot(taken) : this.spawnSpot(Math.max(4, this.players.size + 1), taken, this.closedDoors());
     const p = {
       id: 'p' + this.nextSeat++, connId, name: cleanName(name),
-      color: COLORS.find((c) => !used.has(c)) || COLORS[0],
+      color: COLORS.find((c) => !used.has(c)) || COLORS[0], look: {},
       x: spot.x, y: spot.y, dx: 0, dy: 0, face: 1,
       role: 'crew', alive: true, tasks: [], done: [],
       killReadyAt: 0, btnReadyAt: 0, lastInputAt: 0, lastChatAt: 0, seq: 0, offline: false, offlineSince: 0,
@@ -1518,7 +1530,7 @@ class GameRoom {
     this.spawn();
     this.phase = 'roles';
     this.rolesUntil = now + ROLES_MS;
-    const roster = list.map((p) => ({ id: p.id, name: p.name, color: p.color }));
+    const roster = list.map((p) => ({ id: p.id, name: p.name, color: p.color, ...(hasLook(p.look) ? { look: p.look } : {}) }));
     const imps = list.filter((p) => p.role === 'impostor').map((p) => p.id);
     for (const p of list) {
       this.sendTo(p, {
@@ -1810,7 +1822,7 @@ class GameRoom {
       voteMs: this.settings.voteSec * 1000,
       ms: Math.max(0, m.voteUntil - now),
       endsAt: m.voteUntil,
-      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, alive: p.alive })),
+      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, alive: p.alive, ...(hasLook(p.look) ? { look: p.look } : {}) })),
     };
   }
 
@@ -2238,7 +2250,7 @@ class GameRoom {
       t: 'lobby', phase: this.phase, code: this.code, hostId: this.hostSeat, map: this.map,
       min: MIN_PLAYERS, max: this.capacity, mode: this.mode, vis: this.visibility, want: this.want, country: this.country, colors: COLORS, settings: this.settings, ranges: RANGES,
       limits: { imps: this.roleLimit('imps'), crew: this.roleLimit('engineer'), imp: this.roleLimit('shifter'), nImp: this.impCount() },
-      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot })),
+      players: [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, offline: !!p.offline, bot: !!p.bot, ...(hasLook(p.look) ? { look: p.look } : {}) })),
       chat: this.lobbyChat,
     };
   }
@@ -2252,7 +2264,7 @@ class GameRoom {
       if (this.phase === 'ended' && this.lastEnd) conn.send(this.lastEnd);
       return;
     }
-    const roster = [...this.players.values()].map((q) => ({ id: q.id, name: q.name, color: q.color }));
+    const roster = [...this.players.values()].map((q) => ({ id: q.id, name: q.name, color: q.color, ...(hasLook(q.look) ? { look: q.look } : {}) }));
     const imps = [...this.players.values()].filter((q) => q.role === 'impostor').map((q) => q.id);
     conn.send({
       t: 'start', resync: true, seq: p.seq || 0, alive: p.alive, dark: this.dark,

@@ -6,6 +6,9 @@ import LobbyChat from './LobbyChat';
 import LobbySettings from './LobbySettings';
 import MapPicker from './MapPicker';
 import MiniShroom from './MiniShroom';
+import Wardrobe from './Wardrobe';
+import LookView, { FOCUS } from './LookView';
+import { sameLook, hasLook } from '@/lib/game/cosmetics';
 import { tr, trMark } from '@/lib/i18n';
 
 /* La sala de espera caminable: el lienzo del juego con la cabaña, y encima un panel a la derecha con
@@ -53,7 +56,7 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetting, onMap, onStart, onLeave, onCopy, onChat, onKick, onAddBots, onVis, onWant }) {
+export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetting, onMap, onStart, onLeave, onCopy, onChat, onKick, onAddBots, onVis, onWant, onLook }) {
   const [modal, setModal] = useState(null); // 'computer' | 'wardrobe' | null
   const [near, setNear] = useState(null);   // aparato al alcance
   const [open, setOpen] = useState(() => window.innerWidth >= 640);
@@ -85,6 +88,12 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
   const bots = lobby.players.filter((p) => p.bot);
   const mine = (lobby.players.find((p) => p.id === myId) || {}).color;
   const taken = new Set(lobby.players.map((p) => p.color));
+  // tu aspecto: al instante lo que acabas de elegir; cuando el servidor lo confirma, lo que él diga
+  const srvLook = (lobby.players.find((p) => p.id === myId) || {}).look;
+  const [localLook, setLocalLook] = useState(null);
+  useEffect(() => { if (localLook && sameLook(localLook, srvLook)) setLocalLook(null); }, [srvLook, localLook]);
+  const myLook = localLook || srvLook || {};
+  const changeLook = (next) => { setLocalLook(next); onLook(next); };
   const maxImp = Math.max(1, Math.floor((n - 1) / 2));
   const want = lobby.settings.imps === 0 ? (n >= 7 ? 2 : 1) : lobby.settings.imps;
   const eff = Math.min(want, maxImp);
@@ -190,7 +199,7 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
                 <ul className="mt-1 flex flex-col gap-1">
                   {lobby.players.map((p) => (
                     <li key={p.id} className="flex items-center gap-1.5 rounded-lg bg-[#1a3027] px-1.5 py-1 text-[13px]">
-                      <MiniShroom color={p.color} size={24} />
+                      {hasLook(p.look) ? <LookView look={p.look} color={p.color} size={30} focus={FOCUS.full} /> : <MiniShroom color={p.color} size={24} />}
                       <span className="min-w-0 flex-1 truncate font-bold">
                         {p.name}{p.id === myId ? ' ' + tr('(tú)') : ''}{p.id === lobby.hostId ? ' 👑' : ''}
                         {p.bot ? <span className="ml-1 text-[10px] text-[#9bb8a6]">🤖</span> : null}
@@ -307,23 +316,7 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
 
         {modal === 'wardrobe' ? (
           <Modal title={`🎨 ${tr('Armario')}`} onClose={closeModal}>
-            <div className="flex flex-col items-center gap-2">
-              <MiniShroom color={mine || '#fff'} size={96} />
-              <p className="text-sm text-[#9bb8a6]">{tr('Elige tu color')}</p>
-              <div className="flex flex-wrap justify-center gap-2.5">
-                {lobby.colors.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => { sfx('click'); onColor(c); }}
-                    disabled={taken.has(c) && c !== mine}
-                    aria-label={c}
-                    className="h-10 w-10 rounded-full border-[3px] transition hover:scale-110 disabled:opacity-[0.18] disabled:hover:scale-100"
-                    style={{ background: c, borderColor: c === mine ? '#fff' : 'transparent' }}
-                  />
-                ))}
-              </div>
-              <p className="text-[11px] text-[#7f9c8c]">{tr('Los colores que ya lleva otro jugador salen apagados.')}</p>
-            </div>
+            <Wardrobe colors={lobby.colors} taken={taken} mine={mine} look={myLook} onColor={onColor} onLook={changeLook} />
           </Modal>
         ) : null}
       </div>

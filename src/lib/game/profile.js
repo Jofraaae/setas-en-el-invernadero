@@ -3,9 +3,11 @@
    dispositivo: borrar los datos del navegador lo reinicia, y no hay forma de evitarlo sin cuentas. */
 
 import { tr } from '@/lib/i18n';
+import { cleanLook } from './cosmetics';
 
 const NAME_KEY = 'setas_name';
 const AT_KEY = 'setas_name_at';
+const LOOK_KEY = 'setas_look';
 
 export const NAME_LOCK_MS = 5 * 24 * 60 * 60 * 1000; // 5 días
 export const NAME_MIN = 2;
@@ -51,4 +53,15 @@ export function formatWait(ms) {
   if (d > 0) return tr('{d} d {h} h', { d, h });
   if (h > 0) return tr('{h} h {m} min', { h, m });
   return tr('{m} min', { m });
+}
+
+// El aspecto del armario (accesorios), guardado en este dispositivo igual que el nombre. Al entrar
+// en una sala se vuelve a mandar. Lo que ya no exista en el catálogo se descarta al leerlo.
+export function storedLook() {
+  try { return cleanLook(JSON.parse(read(LOOK_KEY) || '{}')); } catch (e) { return {}; }
+}
+export function saveLook(look) {
+  const l = cleanLook(look);
+  write(LOOK_KEY, JSON.stringify(l));
+  return l;
 }
