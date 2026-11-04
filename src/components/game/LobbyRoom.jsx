@@ -61,6 +61,22 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
   const [seen, setSeen] = useState(0);
   const [nBots, setNBots] = useState(1);
   const modalRef = useRef(null);
+  // avisos de "X se ha unido": se comparan los jugadores con los de la vez anterior
+  const [joined, setJoined] = useState([]);
+  const knownRef = useRef(null);
+  useEffect(() => {
+    const ids = new Set(lobby.players.map((p) => p.id));
+    const prev = knownRef.current;
+    knownRef.current = ids;
+    if (!prev) return; // al entrar, los que ya estaban no cuentan
+    const fresh = lobby.players.filter((p) => !prev.has(p.id) && p.id !== myId);
+    if (!fresh.length) return;
+    const stamp = Date.now();
+    const items = fresh.map((p) => ({ k: `${p.id}-${stamp}`, name: p.name }));
+    setJoined((cur) => [...cur, ...items].slice(-3));
+    // el aviso se quita solo; sin cleanup, porque un mensaje de chat rehace la lista y no debe cortarlo
+    setTimeout(() => setJoined((cur) => cur.filter((x) => !items.some((i) => i.k === x.k))), 3200);
+  }, [lobby.players, myId]);
   modalRef.current = modal;
 
   const isHost = myId === lobby.hostId;
@@ -232,6 +248,17 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
         {chatOpen ? (
           <div className="pointer-events-auto absolute bottom-14 left-2 w-[min(360px,calc(100vw-16px))]" onTouchStart={stop}>
             <LobbyChat chat={chat} myId={myId} onSend={onChat} />
+          </div>
+        ) : null}
+
+        {/* quién acaba de entrar */}
+        {joined.length ? (
+          <div className="pointer-events-none absolute bottom-[88px] left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5">
+            {joined.map((j) => (
+              <div key={j.k} className="rounded-full border border-[#9ef0b8] bg-[rgba(12,26,20,.92)] px-4 py-1.5 text-sm font-bold text-[#bff5d2] shadow-[0_4px_14px_rgba(0,0,0,.5)]">
+                🍄 {tr('{name} se ha unido a la sala', { name: j.name })}
+              </div>
+            ))}
           </div>
         ) : null}
 

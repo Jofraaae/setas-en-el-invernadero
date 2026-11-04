@@ -785,5 +785,6 @@
  "Ordenador de la partida": "Game computer",
  "Eres el anfitrión: lo que cambies aquí vale para toda la partida.": "You are the host: whatever you change here applies to the whole game.",
  "Todos pueden mirar los ajustes, pero solo el anfitrión puede cambiarlos.": "Everyone can look at the settings, but only the host can change them.",
- "Los colores que ya lleva otro jugador salen apagados.": "Colors another player already has are greyed out."
+ "Los colores que ya lleva otro jugador salen apagados.": "Colors another player already has are greyed out.",
+ "{name} se ha unido a la sala": "{name} has joined the room"
 }
