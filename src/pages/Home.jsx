@@ -349,6 +349,11 @@ export default function Home() {
       seen.add(id);
       let o = g.others.get(id);
       if (!o) {
+        // sala de espera: alguien nuevo aparece con su animación (los que ya estaban al entrar no)
+        if (g.lobby && g.lobbyInit) {
+          g.joins = [...(g.joins || []).filter((j) => nowMs - j.at < 2000), { x, y, at: nowMs }];
+          sfx('join');
+        }
         o = { x, y, ax: x, ay: y, bx: x, by: y, t0: nowMs, t1: nowMs, face: 1, moving: false, alive: true, inv: false };
         g.others.set(id, o);
       } else {
@@ -363,6 +368,7 @@ export default function Home() {
       o.bl = !!bl; // un Cegador le ha nublado la vista: se le ven los ojos nublados
     }
     for (const id of [...g.others.keys()]) if (!seen.has(id)) g.others.delete(id);
+    if (g.lobby) g.lobbyInit = true;
   }, [g]);
 
   const dial = useCallback((kind, roomCode, tries = 0, opts = null) => {
@@ -528,6 +534,7 @@ export default function Home() {
         g.others.clear(); g.bodies = []; g.bodyFx = new Map(); g.fx.clear(); g.ventFx.clear(); g.saves = []; g.puffs = [];
         g.dash = null; g.off = null; g.ackDir = null; g.alert = null; g.trail = null;
         g.snap = true; g.me.alive = true; g.pend = []; g.srvB = null; g.inMoving = false; g.inSeq = m.seq || 0;
+        g.lobbyInit = false; g.joins = [{ x: (m.you || [m.spawn.x])[0], y: (m.you || [0, m.spawn.y])[1], at: performance.now() }]; // tu propia entrada
         g.mini = null; g.miniOpen = false; g.inputLock = false;
         g.st = { prog: 0, dark: false, vr: 0, sr: 0, kcd: 0, scd: 0, rcd: 0, sq: m.seq || 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, kycd: 0, blcd: 0, bl: 0, lamps: null, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 };
         const built = buildWorld(m.world, m.floors, m.obst, m.spawn, [], { map: 'lobby', panel: m.spawn, rcore: m.spawn, rpts: [], tasks: [] });

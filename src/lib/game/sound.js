@@ -176,6 +176,7 @@ const SFX = {
   ventOut: () => { hiss({ d: 0.35, gain: 0.14, freq: 1800, to: 320, filter: 'bandpass' }); tone(620, { to: 200, d: 0.3, type: 'sine', gain: 0.08 }); },
   ventMove: () => hiss({ d: 0.28, gain: 0.12, freq: 700, to: 1500, filter: 'bandpass' }),
   leave: () => notes([520, 330], 0.09, { d: 0.14, type: 'sine', gain: 0.1 }),
+  join: () => { notes([660, 880, 1320], 0.07, { d: 0.16, type: 'sine', gain: 0.11 }); hiss({ d: 0.35, gain: 0.05, freq: 2400, to: 5200, filter: 'highpass' }); },
   // cambiar de forma: un barrido que sube (y baja al recuperar el cuerpo) con aire eléctrico
   shiftIn: () => {
     tone(420, { to: 1350, d: 0.34, type: 'triangle', gain: 0.16 });

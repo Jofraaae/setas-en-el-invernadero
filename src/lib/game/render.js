@@ -14,7 +14,7 @@ import {
   PANTANO_BG, PANTANO_TEX, PANTANO_ROOM_TEX, PANTANO_DEFAULT_TEX, PANTANO_WALL, PANTANO_OBST,
   pantanoGround, pantanoDecor, pantanoOverlay, pantanoAtmos,
 } from './pantanoArt';
-import { LOBBY_BG, LOBBY_WALL, LOBBY_OBST, lobbyGround, lobbyDecor, drawStationMark, noop } from './lobbyArt';
+import { LOBBY_BG, LOBBY_WALL, LOBBY_OBST, JOIN_MS, lobbyGround, lobbyDecor, drawStationMark, drawJoinFx, noop } from './lobbyArt';
 import { tr } from '@/lib/i18n';
 
 function rr(c, x, y, w, h, r) {
@@ -1436,6 +1436,14 @@ export function drawFrame(o) {
       const el = nowMs - pf.at;
       if (el < 0 || el > VENOM_MS) continue;
       drawVenomBurst(ctx, pf.x, pf.y, el / VENOM_MS);
+    }
+  }
+  // sala de espera: la entrada de un jugador nuevo
+  if (g.lobby && g.joins && g.joins.length) {
+    const nowMs = performance.now();
+    for (const j of g.joins) {
+      const el = nowMs - j.at;
+      if (el >= 0 && el <= JOIN_MS) drawJoinFx(ctx, j.x, j.y, el / JOIN_MS);
     }
   }
   if (g.st.vr > 0 && g.me.alive) {

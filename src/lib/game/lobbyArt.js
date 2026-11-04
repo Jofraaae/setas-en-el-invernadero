@@ -228,3 +228,45 @@ export function drawStationMark(c, st, near, T, icon) {
   c.fillText(icon, st.x, st.y - 26 + bob);
   c.restore();
 }
+
+/* Cuando alguien entra en la sala: cae una columna de luz, el suelo se ondula en un anillo y suben
+   esporas brillantes. p va de 0 a 1 durante JOIN_MS. */
+export const JOIN_MS = 1700;
+export function drawJoinFx(c, x, y, p) {
+  const fade = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+  const rise = Math.min(1, p / 0.25); // la columna llega al suelo en el primer cuarto
+  c.save();
+  // columna de luz
+  const top = y - 190 * rise;
+  const g = c.createLinearGradient(0, top, 0, y + 6);
+  g.addColorStop(0, 'rgba(255,240,170,0)');
+  g.addColorStop(1, 'rgba(255,240,170,.55)');
+  c.globalAlpha = fade * 0.9;
+  c.fillStyle = g;
+  const w = 26 * (1 - 0.35 * p);
+  c.fillRect(x - w, top, w * 2, y + 6 - top);
+  // anillos en el suelo
+  for (let i = 0; i < 2; i++) {
+    const q = Math.max(0, Math.min(1, (p - i * 0.18) / 0.7));
+    if (q <= 0) continue;
+    c.globalAlpha = (1 - q) * 0.9 * fade;
+    c.strokeStyle = i ? '#9ef0b8' : '#ffe98a';
+    c.lineWidth = 4 - 2 * q;
+    c.beginPath();
+    c.ellipse(x, y + 10, 16 + 70 * q, 7 + 28 * q, 0, 0, TAU);
+    c.stroke();
+  }
+  // esporas que suben
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU + i * 0.7;
+    const q = Math.max(0, Math.min(1, (p - (i % 5) * 0.05) / 0.85));
+    if (q <= 0) continue;
+    const d = 12 + 44 * q * (0.6 + (i % 3) * 0.25);
+    c.globalAlpha = (1 - q) * 0.95;
+    c.fillStyle = i % 3 === 0 ? '#fff6c2' : i % 3 === 1 ? '#9ef0b8' : '#ffd36b';
+    c.beginPath();
+    c.arc(x + Math.cos(a) * d, y + 8 - 12 - q * (46 + (i % 4) * 14) + Math.sin(a) * d * 0.25, 2.6 * (1 - 0.5 * q), 0, TAU);
+    c.fill();
+  }
+  c.restore();
+}
