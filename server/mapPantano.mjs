@@ -61,7 +61,7 @@ const LANES = [];
 const LANE_FLOORS = [];
 function lane(name, pts, w = 220, label = null) {
   LANES.push({ pts, w, name });
-  const add = (poly_, k) => LANE_FLOORS.push(floor(`sendero-${LANE_FLOORS.length}`, poly_, '#2f4a3b', name, 'bog', { noEdge: true, ...(label && k === 0 ? { label } : { noLabel: true }) }));
+  const add = (poly_, k) => LANE_FLOORS.push(floor(`sendero-${LANE_FLOORS.length}`, poly_, '#2f4a3b', name, 'bog', { noEdge: true, ...(label && k === 0 ? { label, noMap: true } : { noLabel: true }) }));
   let k = 0;
   for (let i = 0; i < pts.length; i++) {
     if (i < pts.length - 1) add(band([pts[i], pts[i + 1]], [w, w]), k++);
@@ -152,7 +152,7 @@ for (const d of DOOR_DEFS) FLOORS.push(rect(`puerta-${d.key}-${d.side}`, ...d.fl
 const DOCKS = [];
 // todos los tramos se llaman igual (para los bots), pero el rótulo se pinta solo en el embarcadero
 const dock = (key, pts) => { DOCKS.push(pts); FLOORS.push(floor(key, pts, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: true })); };
-const dockRect = (key, x, y, w, h) => { DOCKS.push([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]); FLOORS.push(rect(key, x, y, w, h, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: key !== 'embarcadero' })); };
+const dockRect = (key, x, y, w, h) => { DOCKS.push([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]); FLOORS.push(rect(key, x, y, w, h, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: key !== 'embarcadero', ...(key === 'embarcadero' ? { label: [1455, 2092], noMap: true } : {}) })); };
 dock('plataforma', circle(C.x, C.y, 120, 28));
 dockRect('muelleN', C.x - 60, C.y - 420, 120, 420);
 dockRect('muelleS', C.x - 60, C.y, 120, 420);
@@ -185,20 +185,20 @@ const put = (x, y, w, h, t) => OBST.push([x, y, w, h, t]);
 
 /* ---- Cabaña abandonada ---- */
 put(420, 450, 130, 80, 'bed'); put(880, 420, 150, 46, 'shelf');
-put(420, 830, 90, 80, 'stove'); put(650, 620, 160, 56, 'table');
+put(420, 800, 90, 80, 'stove'); put(650, 620, 160, 56, 'table');
 put(610, 690, 46, 46, 'stump'); put(800, 690, 46, 46, 'stump');
-put(1000, 850, 70, 56, 'chest'); put(1130, 580, 60, 60, 'barrel');
+put(1000, 818, 70, 56, 'chest'); put(1130, 580, 60, 60, 'barrel');
 
 /* ---- Cobertizo de las barcas ---- */
 put(2630, 1095, 170, 70, 'rowboat'); put(2830, 1095, 100, 46, 'fishrack');
-put(2930, 1320, 50, 50, 'barrel'); put(2870, 1330, 50, 50, 'barrel');
+put(2895, 1296, 50, 50, 'barrel'); put(2640, 1275, 50, 50, 'barrel');
 put(2900, 1215, 60, 56, 'panel');
 
 /* ---- Cueva subterránea ---- */
-put(2820, 1770, 90, 90, 'crystal'); put(3260, 1780, 100, 90, 'crystal');
+put(2820, 1770, 90, 90, 'crystal'); put(3120, 1740, 100, 90, 'crystal');
 put(2900, 2050, 80, 80, 'stalag');
-put(3000, 1700, 120, 90, 'boulder'); put(3330, 1960, 110, 90, 'boulder');
-put(2780, 1960, 70, 70, 'stalag'); put(3090, 2200, 80, 70, 'crystal');
+put(3000, 1700, 120, 90, 'boulder'); put(3000, 2080, 90, 60, 'boulder');
+put(2900, 1940, 60, 60, 'stalag'); put(3130, 2050, 70, 50, 'crystal');
 put(3000, 1920, 120, 60, 'core');
 
 /* ---- Herbolario ---- */
@@ -317,14 +317,14 @@ const VENTS = [
   { id: 0, net: 'A', name: 'Cabaña', x: 980, y: 600 },
   { id: 1, net: 'A', name: 'Cobertizo', x: 2740, y: 1340 },
   { id: 2, net: 'A', name: 'Madriguera', x: 2300, y: 2160 },
-  { id: 3, net: 'A', name: 'Atalaya', x: 2340, y: 595 },
-  { id: 4, net: 'B', name: 'Cueva', x: 3300, y: 1990 },
-  { id: 5, net: 'B', name: 'Mausoleo', x: 350, y: 1648 },
+  { id: 3, net: 'A', name: 'Atalaya', x: 2200, y: 520 },
+  { id: 4, net: 'B', name: 'Cueva', x: 2850, y: 1900 },
+  { id: 5, net: 'B', name: 'Mausoleo', x: 335, y: 1655 },
   { id: 6, net: 'B', name: 'Orilla', x: 2200, y: 1545 },
-  { id: 7, net: 'B', name: 'Herbolario', x: 1620, y: 605 },
-  { id: 8, net: 'B', name: 'Ruinas', x: 1290, y: 1730 },
+  { id: 7, net: 'B', name: 'Herbolario', x: 1700, y: 590 },
+  { id: 8, net: 'B', name: 'Ruinas', x: 1305, y: 1650 },
   { id: 9, net: 'C', name: 'Campo', x: 3480, y: 520 },
-  { id: 10, net: 'C', name: 'Choza', x: 3520, y: 1262 },
+  { id: 10, net: 'C', name: 'Choza', x: 3535, y: 1255 },
   { id: 11, net: 'C', name: 'Laguna', x: 1160, y: 2230 },
   { id: 12, net: 'C', name: 'Charca', x: 1640, y: 880 },
   { id: 13, net: 'C', name: 'Árboles muertos', x: 430, y: 1150 },
@@ -339,6 +339,55 @@ const RPTS = [
   { side: 'a', name: 'Consola A', x: 3250, y: 960 },
   { side: 'b', name: 'Consola B', x: 740, y: 1560 },
 ];
+/* Rótulos: cada zona pone su nombre donde no tape nada (tareas, rejillas, objetos, puertas ni otros
+   rótulos). Si el nombre cabe dentro del lugar se queda dentro; si no (las salas pequeñas), va
+   justo fuera, encima o debajo del edificio. Se calcula una vez, con los objetos hechos a mano. */
+const LBL_H = 34;
+const lblW = (name) => Math.round(name.length * 14.5 + 56); // la pastilla de 28 px en negrita, con holgura
+const lblBox = (x, y, w) => [x - w / 2, y - 25, w, LBL_H];
+const lblHit = (a, b) => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+{
+  const around = (x, y, r) => [x - r, y - r, r * 2, r * 2];
+  const blockers = [
+    ...OBST.filter((o) => o[4] !== 'panel').map((o) => [o[0] - 8, o[1] - 8, o[2] + 16, o[3] + 16]),
+    ...TASKS.map((t) => around(t.x, t.y, 40)), ...VENTS.map((v) => around(v.x, v.y, 34)),
+    around(PANEL.x, PANEL.y, 40), around(C.x, C.y, 60), ...RPTS.map((p) => around(p.x, p.y, 40)),
+    ...DOOR_DEFS.map((d) => [d.box[0] - 20, d.box[1] - 20, d.box[2] + 40, d.box[3] + 40]),
+    ...DOOR_OUT.map((d) => around(d[0], d[1], 70)),
+  ];
+  const named = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel);
+  const placed = [];
+  const free = (box) => box[0] > 20 && box[1] > 20 && box[0] + box[2] < WORLD.w - 20 && box[1] + box[3] < WORLD.h - 20
+    && !blockers.some((b) => lblHit(box, b)) && !placed.some((b) => lblHit(box, b));
+  const insideBox = (poly_, box, inset) => [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5], [0.5, 0], [0.5, 1]].every(([u, v]) => {
+    const x = box[0] + box[2] * u, y = box[1] + box[3] * v;
+    return inPoly(poly_, x, y) && polyDist(poly_, x, y) >= inset;
+  });
+  // primero los claros, senderos y muelles (conservan su sitio si está libre); luego las salas
+  const order = [...named.filter((f) => !f[7].room), ...named.filter((f) => f[7].room)];
+  for (const f of order) {
+    const o = f[7], w = lblW(f[5]), poly_ = o.poly || null;
+    const [px, py] = o.label;
+    const [bx, by, bw, bh] = f.slice(0, 4);
+    let best = null;
+    const cand = (x, y, pen) => {
+      const box = lblBox(x, y, w);
+      if (!free(box)) return;
+      const d = Math.hypot(x - px, y - py) + pen;
+      if (!best || d < best.d) best = { d, x, y, box };
+    };
+    const inner = (x, y) => (poly_ ? insideBox(poly_, lblBox(x, y, w), o.room ? 46 : 0) : true);
+    for (let y = by; y < by + bh + 60; y += 20) for (let x = bx; x < bx + bw + 20; x += 20) if (inner(x, y)) cand(x, y, 0);
+    if (!best) { // no cabe dentro: fuera, pegado al borde de arriba o de abajo
+      for (let x = bx - w / 2; x < bx + bw + w / 2; x += 20) { cand(x, by - 12, 400); cand(x, by + bh + 38, 400); }
+    }
+    // en el mapa de la M (a escala pequeña) cada sala se rotula en su centro, aunque en el juego el rótulo vaya fuera
+    if (o.room) o.mapLabel = [Math.round(bx + bw / 2), Math.round(by + bh / 2)];
+    if (best) { o.label = [Math.round(best.x), Math.round(best.y)]; placed.push(best.box); }
+    else placed.push(lblBox(px, py, w)); // sin hueco: se queda donde estaba
+  }
+}
+
 const LABELS = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel).map((f) => f[7].label); // rótulos: que ningún objeto los tape
 const SPOTS = [ // sitios que no se pueden tapar: tareas, rejillas, panel, consolas y botón
   ...TASKS.map((t) => [t.x, t.y]), ...VENTS.map((v) => [v.x, v.y]), [PANEL.x, PANEL.y], [C.x, C.y], ...RPTS.map((p) => [p.x, p.y]),

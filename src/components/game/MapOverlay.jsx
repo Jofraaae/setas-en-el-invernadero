@@ -76,8 +76,9 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
             const clip = o.poly
               ? `polygon(${o.poly.map((q) => `${((q[0] - x) / w) * 100}% ${((q[1] - y) / h) * 100}%`).join(',')})`
               : undefined;
-            const lx = o.label ? o.label[0] : x + w / 2;
-            const ly = o.label ? o.label[1] - 40 : y + 4;
+            // mapLabel: sala cuyo rótulo del juego va fuera del edificio; aquí se pone en su centro
+            const lx = o.mapLabel ? o.mapLabel[0] : o.label ? o.label[0] : x + w / 2;
+            const ly = o.mapLabel ? o.mapLabel[1] - 8 / sc : o.label ? o.label[1] - 40 : y + 4;
             return (
               <div key={i}>
                 <div
@@ -92,7 +93,7 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
                     boxShadow: !o.poly ? (shut ? 'inset 0 0 0 5px rgba(230,57,70,.85)' : name ? 'inset 0 0 0 1px rgba(255,255,255,.18)' : 'none') : 'none',
                   }}
                 />
-                {name ? (
+                {name && !o.noLabel && !o.noMap ? ( // los tramos sin rótulo (senderos, muelles) no repiten el nombre
                   <span
                     className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[13px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
                     style={{ left: lx * sc, top: ly * sc }}
