@@ -216,7 +216,7 @@ export default function Home() {
     g.pend = [];
     g.srvB = null;
     g.inMoving = false;
-    g.inSeq = m.seq || 0; // al recargar se continúa la secuencia de la sala
+    g.inSeq = Math.max(g.inSeq, m.seq || 0); // la secuencia de órdenes nunca retrocede (ver engine: 'start')
     g.mini = null;
     g.miniOpen = false;
     g.inputLock = false;
@@ -540,7 +540,7 @@ export default function Home() {
         g.cfg = { speed: m.speed, radius: m.radius, killRange: 80, useRange: m.useRange || 90, reportRange: 120, trackRange: 120, blindRange: 130 };
         g.others.clear(); g.bodies = []; g.bodyFx = new Map(); g.fx.clear(); g.ventFx.clear(); g.saves = []; g.puffs = [];
         g.dash = null; g.off = null; g.ackDir = null; g.alert = null; g.trail = null;
-        g.snap = true; g.me.alive = true; g.pend = []; g.srvB = null; g.inMoving = false; g.inSeq = m.seq || 0;
+        g.snap = true; g.me.alive = true; g.pend = []; g.srvB = null; g.inMoving = false; g.inSeq = Math.max(g.inSeq, m.seq || 0);
         g.lobbyInit = false; g.joins = [{ x: (m.you || [m.spawn.x])[0], y: (m.you || [0, m.spawn.y])[1], at: performance.now() }]; // tu propia entrada
         g.mini = null; g.miniOpen = false; g.inputLock = false;
         g.st = { prog: 0, dark: false, vr: 0, sr: 0, kcd: 0, scd: 0, rcd: 0, sq: m.seq || 0, rx: null, sh: null, mo: null, form: null, fz: 0, vcd: 0, shcd: 0, inv: 0, icd: 0, gcd: 0, kycd: 0, blcd: 0, bl: 0, lamps: null, vleft: 0, sciOn: 0, sciL: 0, sciCd: 0, vt: null, drs: null, trk: null, trkcd: 0 };

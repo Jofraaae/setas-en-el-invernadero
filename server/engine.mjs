@@ -1467,7 +1467,9 @@ class GameRoom {
       p.done = [];
       p.tasks = pickTasks(this.m, S.tasks);
       p.meetUsed = false; // cada jugador arranca con su propia reunión disponible
-      p.seq = 0;          // y su contador de órdenes, igual que el de su cliente
+      // El contador de órdenes NO se reinicia: el cliente lo continúa. Si se reiniciara aquí, las órdenes que el
+      // cliente ya mandó desde la sala de espera y que llegan tras el arranque lo dejarían por encima del nuevo
+      // contador del cliente y el servidor ignoraría todo lo que andes hasta alcanzarlo (el seta, congelado).
       // roles especiales: un impostor cambia de forma y un tripulante usa las rejillas
       p.shifter = false;
       p.viper = false;
@@ -1534,7 +1536,7 @@ class GameRoom {
     const imps = list.filter((p) => p.role === 'impostor').map((p) => p.id);
     for (const p of list) {
       this.sendTo(p, {
-        t: 'start', role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
+        t: 'start', seq: p.seq || 0, role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
         shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, ghost: '', angel: false /* el rol de fantasma queda oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
         tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
         rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
