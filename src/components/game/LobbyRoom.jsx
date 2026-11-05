@@ -7,6 +7,7 @@ import LobbySettings from './LobbySettings';
 import MapPicker from './MapPicker';
 import MiniShroom from './MiniShroom';
 import Wardrobe from './Wardrobe';
+import ViewPicker from './ViewPicker';
 import LookView, { FOCUS } from './LookView';
 import { sameLook, hasLook } from '@/lib/game/cosmetics';
 import { tr, trMark } from '@/lib/i18n';
@@ -193,6 +194,8 @@ export default function LobbyRoom({ g, send, lobby, myId, chat, onColor, onSetti
                     : isHost ? tr('Todo listo. ¡Empieza cuando quieras!') : tr('Esperando a que el anfitrión empiece la partida…')}
                 </p>
               </div>
+
+              <ViewPicker />
 
               <div>
                 <h3 className="text-[11px] font-black uppercase tracking-[2px] text-[#e9c46a]">{tr('Jugadores')} · {n}/{lobby.max}</h3>

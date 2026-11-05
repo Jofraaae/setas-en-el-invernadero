@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { drawFrame } from '@/lib/game/render';
 import { clamp, stepMove } from '@/lib/game/grid';
 import { dirKey, ventToward } from '@/lib/game/vents';
 import { sfx } from '@/lib/game/sound';
 import { pushInput, reconcile, resetInput, sendInput } from '@/lib/game/predict';
+import { storedView, saveView, VIEW_EVENT } from '@/lib/game/profile';
+import { tr } from '@/lib/i18n';
 
 // Los demás jugadores se dibujan con este pequeño retraso: da margen para interpolar entre
 // los dos últimos avisos de la sala sin quedarse corto cuando alguno llega con retraso. Es
@@ -16,6 +18,59 @@ export default function GameCanvas({ g, send }) {
   const stickRef = useRef(null);
   const knobRef = useRef(null);
   const view = useRef({ W: 0, H: 0, dpr: 1, zoom: 1 });
+  const fpRef = useRef(null);   // caja donde va el lienzo WebGL de la primera persona
+  const hintRef = useRef(null);
+  const [fpOn, setFpOn] = useState(() => storedView() === 'fp');
+  const [fpMsg, setFpMsg] = useState('');
+  const fpInst = useRef(null);  // el motor 3D, cargado solo cuando hace falta
+
+  // La vista se elige en la sala de espera (o con P): se guarda y llega por un evento
+  useEffect(() => {
+    const on = (e) => setFpOn(e.detail === 'fp');
+    window.addEventListener(VIEW_EVENT, on);
+    return () => window.removeEventListener(VIEW_EVENT, on);
+  }, []);
+
+  if (!g.fp) g.fp = { on: false, yaw: 0, pitch: 0 };
+
+  // El motor 3D se descarga y arranca solo si eliges la primera persona (Three.js pesa bastante)
+  useEffect(() => {
+    if (!fpOn) { g.fp.on = false; return undefined; }
+    let dead = false;
+    let inst = null;
+    let cvs = null;
+    setFpMsg(tr('Cargando la primera persona…'));
+    import('@/lib/game/fp3d').then((m) => {
+      if (dead) return;
+      if (!m.webglOk()) throw new Error('webgl');
+      cvs = document.createElement('canvas');
+      cvs.className = 'block h-full w-full';
+      cvs.style.touchAction = 'none';
+      fpRef.current.appendChild(cvs);
+      inst = m.createFp(cvs);
+      fpInst.current = inst;
+      g.fp.yaw = g.me && g.me.face < 0 ? Math.PI : 0;
+      g.fp.pitch = 0;
+      g.fp.on = true;
+      setFpMsg('');
+    }).catch(() => {
+      if (dead) return;
+      // sin WebGL o sin poder cargar el motor: se vuelve a la vista de siempre
+      g.fp.on = false;
+      saveView('normal');
+      setFpOn(false);
+      setFpMsg(tr('Este dispositivo no puede mostrar la primera persona. Se ha vuelto a la vista normal.'));
+      setTimeout(() => setFpMsg(''), 5000);
+    });
+    return () => {
+      dead = true;
+      g.fp.on = false;
+      fpInst.current = null;
+      if (document.pointerLockElement) document.exitPointerLock();
+      if (inst) inst.dispose();
+      if (cvs && cvs.parentNode) cvs.parentNode.removeChild(cvs);
+    };
+  }, [fpOn, g]);
 
   useEffect(() => {
     const cv = cvRef.current;
@@ -39,6 +94,7 @@ export default function GameCanvas({ g, send }) {
     const keys = new Set();
     let joy = null;
     let joyV = null;
+    let look = null; // dedo que mira a su alrededor (mitad derecha de la pantalla, solo en primera persona)
     resetInput(g); // lastIn / lastSend / duración de la orden en vigor: viven en g (también los usa Home)
     let lastPing = 0;
     let T = 0;
@@ -54,6 +110,7 @@ export default function GameCanvas({ g, send }) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === ' ') e.preventDefault();
+      if (k === 'p' && !e.repeat && !g.inputLock) { saveView(g.fp && g.fp.on ? 'normal' : 'fp'); return; }
       if (!e.repeat && g.lobby) {
         // sala de espera: solo se usa el aparato que tengas delante (ordenador o armario)
         if (k === 'e' || k === ' ') g.act.use();
@@ -103,15 +160,25 @@ export default function GameCanvas({ g, send }) {
     const onTouchStart = (e) => {
       if (g.inputLock || (g.vent && g.vent.in)) return;
       for (const t of e.changedTouches) {
-        const onButton = t.target && t.target.closest && t.target.closest('button');
+        const onButton = t.target && t.target.closest && t.target.closest('button, aside, [role=dialog]');
         if (!joy && !onButton && t.clientX < window.innerWidth * 0.55) {
           joy = { id: t.identifier, x: t.clientX, y: t.clientY, dx: 0, dy: 0 };
           placeStick();
           showStick(true);
+        } else if (!look && !onButton && g.fp.on && t.clientX >= window.innerWidth * 0.45) {
+          look = { id: t.identifier, x: t.clientX, y: t.clientY };
         }
       }
     };
     const onTouchMove = (e) => {
+      if (look) {
+        for (const t of e.changedTouches) {
+          if (t.identifier !== look.id) continue;
+          g.fp.yaw += (t.clientX - look.x) * 0.006;
+          g.fp.pitch = clamp(g.fp.pitch - (t.clientY - look.y) * 0.0045, -1.1, 1.1);
+          look.x = t.clientX; look.y = t.clientY;
+        }
+      }
       if (!joy) return;
       for (const t of e.changedTouches) {
         if (t.identifier !== joy.id) continue;
@@ -124,6 +191,7 @@ export default function GameCanvas({ g, send }) {
       }
     };
     const onTouchEnd = (e) => {
+      if (look) for (const t of e.changedTouches) if (t.identifier === look.id) look = null;
       if (!joy) return;
       for (const t of e.changedTouches) {
         if (t.identifier === joy.id) { joy = null; joyV = null; showStick(false); }
@@ -132,8 +200,9 @@ export default function GameCanvas({ g, send }) {
 
     const keyVec = () => {
       let dx = 0, dy = 0;
-      if (keys.has('a') || keys.has('arrowleft')) dx--;
-      if (keys.has('d') || keys.has('arrowright')) dx++;
+      const fp = g.fp.on; // en primera persona las flechas izquierda/derecha giran la cámara
+      if (keys.has('a') || (!fp && keys.has('arrowleft'))) dx--;
+      if (keys.has('d') || (!fp && keys.has('arrowright'))) dx++;
       if (keys.has('w') || keys.has('arrowup')) dy--;
       if (keys.has('s') || keys.has('arrowdown')) dy++;
       return { dx, dy };
@@ -167,7 +236,17 @@ export default function GameCanvas({ g, send }) {
       } else if (g.navDir) g.navDir = null;
       // congelado o transformándose: no se anda
       const locked = g.inputLock || (g.vent && g.vent.in) || g.st.fz > 0 || !!(g.st.form && g.st.form.morph);
-      const iv = locked ? { dx: 0, dy: 0 } : raw;
+      let wv = raw;
+      if (g.fp.on) {
+        // primera persona: arriba = hacia donde miras, izquierda/derecha = de lado. La sala sigue
+        // recibiendo una dirección del mapa, igual que siempre.
+        const turn = (keys.has('arrowright') ? 1 : 0) - (keys.has('arrowleft') ? 1 : 0);
+        if (turn && !g.inputLock) g.fp.yaw += turn * 2.3 * dt;
+        const vv = -raw.dy, ss = raw.dx, c = Math.cos(g.fp.yaw), sn = Math.sin(g.fp.yaw);
+        wv = { dx: vv * c - ss * sn, dy: vv * sn + ss * c };
+        if (g.inputLock && document.pointerLockElement) document.exitPointerLock();
+      }
+      const iv = locked ? { dx: 0, dy: 0 } : wv;
       // Se reenvía cada 150 ms aunque no cambie (la sala no te frena por silencio) y una
       // parada sale al instante. Cada orden lleva su duración: ver predict.js.
       pushInput(g, send, iv, now, prevT);
@@ -224,10 +303,39 @@ export default function GameCanvas({ g, send }) {
         if (Math.abs(ddx) > 0.6) o.face = Math.sign(ddx);
       }
 
+      if (g.fp.on && fpInst.current) {
+        if (cv.style.visibility !== 'hidden') cv.style.visibility = 'hidden';
+        fpInst.current.render(g, T, dt, v.W, v.H);
+        return;
+      }
+      if (cv.style.visibility === 'hidden') cv.style.visibility = '';
       drawFrame({ ctx, fctx, fogC, g, mapC: g.mapC, W: v.W, H: v.H, dpr: v.dpr, zoom: v.zoom, T });
     };
     raf = requestAnimationFrame(frame);
 
+    // ratón: con el puntero capturado (clic en la pantalla) o arrastrando
+    let drag = false;
+    const hint = () => {
+      if (!hintRef.current) return;
+      hintRef.current.style.display = g.fp.on && !document.pointerLockElement ? 'block' : 'none';
+    };
+    const onDown = (e) => {
+      if (!g.fp.on || e.pointerType === 'touch' || e.button !== 0) return;
+      if (e.target !== cv && !(e.target.parentNode && e.target.parentNode === fpRef.current)) return;
+      drag = true;
+      try { if (!g.inputLock) fpRef.current.firstChild.requestPointerLock(); } catch (er) { /* sin captura: vale arrastrar */ }
+    };
+    const onUp = () => { drag = false; };
+    const onMove = (e) => {
+      if (!g.fp.on || e.pointerType === 'touch') return;
+      if (!document.pointerLockElement && !drag) return;
+      g.fp.yaw += e.movementX * 0.0026;
+      g.fp.pitch = clamp(g.fp.pitch - e.movementY * 0.0022, -1.1, 1.1);
+    };
+    const hintIv = setInterval(hint, 250);
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointermove', onMove);
     window.addEventListener('resize', resize);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -240,6 +348,10 @@ export default function GameCanvas({ g, send }) {
 
     return () => {
       cancelAnimationFrame(raf);
+      clearInterval(hintIv);
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointermove', onMove);
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -258,6 +370,16 @@ export default function GameCanvas({ g, send }) {
   return (
     <>
       <canvas ref={cvRef} className="fixed inset-0 block h-full w-full" />
+      <div ref={fpRef} className="fixed inset-0" style={{ display: fpOn ? 'block' : 'none' }} />
+      {fpOn ? (
+        <div className="pointer-events-none fixed inset-0 z-[5]" aria-hidden>
+          <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,.5)]" />
+          <div ref={hintRef} style={{ display: 'none' }} className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-xl bg-black/55 px-3 py-1.5 text-center text-xs font-bold text-white/90">
+            {tr('Haz clic para mirar con el ratón (Esc lo suelta) · flechas ◀ ▶ también giran · P cambia de vista')}
+          </div>
+        </div>
+      ) : null}
+      {fpMsg ? <div className="pointer-events-none fixed left-1/2 top-14 z-[40] -translate-x-1/2 rounded-xl bg-black/70 px-3 py-2 text-center text-sm font-bold text-white">{fpMsg}</div> : null}
       <div
         ref={stickRef}
         style={{ display: 'none' }}

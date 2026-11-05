@@ -843,5 +843,12 @@
  "Cabeza": "Head",
  "Cara": "Face",
  "Espalda": "Back",
- "Otros": "Other"
+ "Otros": "Other",
+ "Vista": "View",
+ "Normal": "Normal",
+ "Primera persona": "First person",
+ "Primera persona (demo): ratón o dedo para mirar, WASD o joystick para moverte.": "First person (demo): mouse or finger to look around, WASD or joystick to move.",
+ "Cargando la primera persona…": "Loading first person…",
+ "Este dispositivo no puede mostrar la primera persona. Se ha vuelto a la vista normal.": "This device can't show first person. Switched back to the normal view.",
+ "Haz clic para mirar con el ratón (Esc lo suelta) · flechas ◀ ▶ también giran · P cambia de vista": "Click to look with the mouse (Esc releases it) · ◀ ▶ arrows also turn · P switches view"
 }

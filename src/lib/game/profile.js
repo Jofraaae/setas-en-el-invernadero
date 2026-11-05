@@ -65,3 +65,15 @@ export function saveLook(look) {
   write(LOOK_KEY, JSON.stringify(l));
   return l;
 }
+
+// Vista elegida: 'normal' (desde arriba) o 'fp' (primera persona, en 3D). Solo cambia cómo se dibuja la
+// partida en este dispositivo: la sala y los demás jugadores no se enteran.
+const VIEW_KEY = 'setas_view';
+export const VIEW_EVENT = 'setas-view';
+export function storedView() { return read(VIEW_KEY) === 'fp' ? 'fp' : 'normal'; }
+export function saveView(v) {
+  const view = v === 'fp' ? 'fp' : 'normal';
+  write(VIEW_KEY, view);
+  try { window.dispatchEvent(new CustomEvent(VIEW_EVENT, { detail: view })); } catch (e) { /* sin eventos: se aplica al recargar */ }
+  return view;
+}
