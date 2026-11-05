@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { connectRoom } from '@/lib/game/net';
-import { saveName, storedName } from '@/lib/game/profile';
+import { saveName, storedName, storedLook, saveLook } from '@/lib/game/profile';
 import { guessCountry } from '@/lib/game/country';
 import { useToast } from '@/components/ui/use-toast';
 import { makeGrid } from '@/lib/game/grid';
@@ -115,6 +115,13 @@ export default function Home() {
 
   const go = useCallback((s) => { screenRef.current = s; setScreen(s); }, []);
   const send = useCallback((o) => { if (connRef.current) connRef.current.send(o); }, []);
+  // armario: se guarda en este dispositivo, se manda a la sala y tu seta lo luce al instante
+  const changeLook = useCallback((look) => {
+    const l = saveLook(look);
+    const me = g.roster.get(g.myId);
+    if (me) me.look = l;
+    send({ t: 'look', look: l });
+  }, [send]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const closeConn = useCallback(() => {
     if (connectTimer.current) { clearTimeout(connectTimer.current); connectTimer.current = null; }
@@ -511,7 +518,7 @@ export default function Home() {
         setLChat(Array.isArray(m.chat) ? m.chat : []);
         if (m.phase === 'lobby') {
           // los jugadores de la cabaña se dibujan con su nombre y color
-          g.roster = new Map((m.players || []).map((r) => [r.id, { id: r.id, name: r.name, color: r.color }]));
+          g.roster = new Map((m.players || []).map((r) => [r.id, { id: r.id, name: r.name, color: r.color, look: r.look }]));
           setBusy(false); setError(''); go('lobby');
           // un servidor antiguo no manda la cabaña: pasado un momento se enseña la pantalla de siempre
           if (!g.lobby && !lwTimer.current) lwTimer.current = window.setTimeout(() => { lwTimer.current = null; if (!g.lobby) setLwLegacy(true); }, 1500);
@@ -544,6 +551,7 @@ export default function Home() {
         setMini(null); setMapOpen(false); setShiftPick(null); setSci(false); setDeath(null); setReveal(null);
         setLwLegacy(false);
         setLwReady(true);
+        { const mineLook = storedLook(); if (Object.keys(mineLook).length) send({ t: 'look', look: mineLook }); } // tu aspecto guardado
         break;
       }
       case 'start':
@@ -1139,6 +1147,7 @@ export default function Home() {
           myId={g.myId}
           chat={lchat}
           onColor={(color) => send({ t: 'color', color })}
+          onLook={changeLook}
           onSetting={(k, v) => send({ t: 'settings', k, v })}
           onMap={(id) => send({ t: 'map', map: id })}
           onStart={() => send({ t: 'start' })}

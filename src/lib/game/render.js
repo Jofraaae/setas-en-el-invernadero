@@ -16,6 +16,7 @@ import {
 } from './pantanoArt';
 import { LOBBY_BG, LOBBY_WALL, LOBBY_OBST, JOIN_MS, lobbyGround, lobbyDecor, drawStationMark, drawJoinFx, noop } from './lobbyArt';
 import { tr } from '@/lib/i18n';
+import { drawLookLayer } from './cosmetics';
 
 function rr(c, x, y, w, h, r) {
   c.beginPath();
@@ -1021,6 +1022,8 @@ export function drawShroom(c, x, y, color, o) {
   else { c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.ellipse(0, 14, 14, 5, 0, 0, 7); c.fill(); }
   c.translate(0, -(o.moving && o.alive ? Math.abs(Math.sin(o.t * 12)) * 3 : 0));
   c.scale(s * (o.face || 1), s);
+  const look = o.look; // accesorios del armario (solo adornos: no cambian el choque ni nada del juego)
+  if (look) drawLookLayer(c, look, 'back', o.t);
   c.fillStyle = '#f3e9d2';
   rr(c, -11, -4, 22, 24, 9);
   c.fill();
@@ -1029,6 +1032,7 @@ export function drawShroom(c, x, y, color, o) {
   c.ellipse(-6, 19, 6, 3.5, 0, 0, 7);
   c.ellipse(6, 19, 6, 3.5, 0, 0, 7);
   c.fill();
+  if (look) { drawLookLayer(c, look, 'suit', o.t); drawLookLayer(c, look, 'pre', o.t); }
   c.fillStyle = color;
   c.beginPath();
   c.moveTo(-25, -2);
@@ -1056,6 +1060,7 @@ export function drawShroom(c, x, y, color, o) {
   c.arc(1, 8, 2.3, 0, 7);
   c.arc(9, 8, 2.3, 0, 7);
   c.fill();
+  if (look) { drawLookLayer(c, look, 'face', o.t); drawLookLayer(c, look, 'top', o.t); }
   // cegado por un Cegador: los ojos se ven cubiertos por una nube lechosa que da vueltas
   if (o.blind && o.alive) {
     const gr = c.createRadialGradient(5, 8, 1, 5, 8, 17);
@@ -1075,6 +1080,7 @@ export function drawShroom(c, x, y, color, o) {
       c.fill();
     }
   }
+  if (look) drawLookLayer(c, look, 'post', o.t);
   c.restore();
   // Espectro invisible: aura fantasmal morada con volutas de humo que ascienden
   if (o.invis && o.alive) {
@@ -1401,7 +1407,7 @@ export function drawFrame(o) {
     const r = ident(id, fx);
     list.push({
       x, y, c: r.color || '#fff',
-      o: { ...o, name: r.name, morph: !!(g.st.mo && g.st.mo[id]), fx },
+      o: { ...o, name: r.name, look: r.look, morph: !!(g.st.mo && g.st.mo[id]), fx },
     });
   };
   if (!(g.vent && g.vent.in)) add(g.myId, g.me.x, g.me.y, {
