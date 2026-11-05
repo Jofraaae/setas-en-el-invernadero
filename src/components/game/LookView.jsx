@@ -10,7 +10,7 @@ import { drawShroom } from '@/lib/game/render';
 const VIEW = 76; // unidades del juego que caben en el lienzo con zoom 1
 export const FOCUS = {
   full: { cx: 0, cy: -4, z: 1 },
-  suit: { cx: 0, cy: 3, z: 1.9 },
+  suit: { cx: 0, cy: 8, z: 1.9 },
   top: { cx: 0, cy: -19, z: 1.5 },
   face: { cx: 3, cy: 5, z: 2.4 },
   back: { cx: -7, cy: 2, z: 1.5 },

@@ -306,65 +306,77 @@ const BACKS = [
   } },
 ];
 
-/* ---------- Trajes (se dibujan sobre el pie, recortados a su forma) ---------- */
+/* ---------- Trajes ----------
+   Cubren solo la parte de abajo del pie (de y = 12 a 21, por debajo de los ojos) y, algunos, un detalle
+   en el cuello: la cara y el pecho se siguen viendo. Se recortan a la forma del pie. */
+const SUIT_TOP = 12;
+const band = (c, fill, top = SUIT_TOP) => { c.fillStyle = fill; c.fillRect(-12, top, 24, 22 - top); };
 const SUITS = [
   { id: 'overalls', name: trMark('Mono de jardinero'), draw(c) {
     c.save(); clipStem(c);
-    c.fillStyle = '#3b6fb6'; c.fillRect(-12, 9, 24, 12); rr(c, -6, 3, 12, 9, 2); c.fill();
-    c.fillRect(-9, -5, 3, 10); c.fillRect(6, -5, 3, 10);
-    dot(c, -7.5, 4, 1.3, '#f4c542'); dot(c, 7.5, 4, 1.3, '#f4c542');
-    c.fillStyle = '#2d5890'; c.fillRect(-2, 16, 4, 5);
+    band(c, '#3b6fb6');
+    c.fillStyle = '#2d5890'; c.fillRect(-12, SUIT_TOP, 24, 1.6); // cinturilla
+    rr(c, -7, 14.5, 7, 5, 1.4); c.fillStyle = '#2d5890'; c.fill(); // bolsillo
+    c.fillStyle = '#f4c542'; c.fillRect(-1, 12.2, 2.4, 1.2); // hebilla
+    line(c, -9.5, -2, -9.5, SUIT_TOP, '#3b6fb6', 2.6); // un tirante por el lado de atrás
+    dot(c, -9.5, SUIT_TOP, 1.3, '#f4c542');
     c.restore();
   } },
   { id: 'knight', name: trMark('Armadura de caballero'), draw(c) {
     c.save(); clipStem(c);
     const g = c.createLinearGradient(-11, 0, 11, 0); g.addColorStop(0, '#8e99a3'); g.addColorStop(0.5, '#d3dae0'); g.addColorStop(1, '#8e99a3');
-    c.fillStyle = g; c.fillRect(-12, -5, 24, 26);
-    c.fillStyle = '#6b4220'; c.fillRect(-12, 11, 24, 3);
-    c.strokeStyle = 'rgba(60,70,80,.6)'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -4); c.lineTo(0, 11); c.moveTo(-11, 5); c.lineTo(11, 5); c.stroke();
-    dot(c, 0, 12.5, 1.6, '#f4c542');
-    for (const x of [-8, 8]) dot(c, x, -1, 1, '#6a747d');
+    c.fillStyle = g; c.fillRect(-12, SUIT_TOP, 24, 10);
+    c.strokeStyle = 'rgba(60,70,80,.6)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-12, 16.5); c.lineTo(12, 16.5); c.moveTo(0, SUIT_TOP); c.lineTo(0, 21); c.stroke();
+    c.fillStyle = '#6b4220'; c.fillRect(-12, SUIT_TOP, 24, 2.4); dot(c, 0, SUIT_TOP + 1.2, 1.5, '#f4c542');
+    rr(c, -12, -1, 24, 4, 2); c.fillStyle = g; c.fill(); // gorjal
     c.restore();
   } },
   { id: 'robe', name: trMark('Túnica de mago'), draw(c) {
     c.save(); clipStem(c);
-    c.fillStyle = '#6a3fb0'; c.fillRect(-12, -5, 24, 26);
-    c.fillStyle = '#f4c542'; c.fillRect(-12, 17, 24, 3);
-    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-1, -5, 2, 22);
-    star(c, -6, 13, 2.4, '#ffd75e'); star(c, 6, 11, 2, '#ffd75e'); star(c, 5, 3, 1.8, '#ffd75e');
+    band(c, '#6a3fb0');
+    c.fillStyle = '#f4c542'; c.fillRect(-12, SUIT_TOP, 24, 1.6); c.fillRect(-12, 19, 24, 2.4);
+    c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-1, SUIT_TOP, 2, 9);
+    star(c, -6, 16, 2.2, '#ffd75e'); star(c, 6.5, 15.4, 1.8, '#ffd75e');
+    c.fillStyle = '#6a3fb0'; c.fillRect(-12, -1, 24, 3.4); c.fillStyle = '#f4c542'; c.fillRect(-12, 2, 24, 1.2); // cuello
     c.restore();
   } },
   { id: 'leaves', name: trMark('Traje de hojas'), draw(c) {
     c.save(); clipStem(c);
     const gs = ['#3f9b4a', '#58b957', '#2f7d3d', '#6fd46a'];
-    for (let row = 0; row < 5; row++) for (let i = -2; i <= 2; i++) ell(c, i * 6 + (row % 2 ? 3 : 0), 1 + row * 5.2, 4.6, 2.9, gs[(row + i + 8) % 4], 0.3 * (i % 2 ? 1 : -1));
+    for (let row = 0; row < 2; row++) for (let i = -2; i <= 2; i++) ell(c, i * 6 + (row % 2 ? 3 : 0), 14 + row * 4.4, 4.6, 2.9, gs[(row + i + 8) % 4], 0.3 * (i % 2 ? 1 : -1));
+    for (let i = -2; i <= 2; i++) ell(c, i * 5.4, 1, 3.6, 2.3, gs[(i + 6) % 4], 0.4 * (i % 2 ? 1 : -1)); // collar de hojas
     c.restore();
   } },
   { id: 'stripes', name: trMark('Jersey de rayas'), draw(c) {
     c.save(); clipStem(c);
-    for (let y = -5, i = 0; y < 21; y += 4, i++) { c.fillStyle = i % 2 ? '#f6f1e4' : '#d64545'; c.fillRect(-12, y, 24, 4); }
+    for (let y = SUIT_TOP, i = 0; y < 22; y += 3.4, i++) { c.fillStyle = i % 2 ? '#f6f1e4' : '#d64545'; c.fillRect(-12, y, 24, 3.4); }
+    c.fillStyle = '#d64545'; c.fillRect(-12, -1, 24, 3.4); // cuello de punto
     c.restore();
   } },
   { id: 'tuxedo', name: trMark('Esmoquin'), draw(c) {
     c.save(); clipStem(c);
-    c.fillStyle = '#1d1d24'; c.fillRect(-12, -5, 24, 26);
-    c.fillStyle = '#fafafa'; c.beginPath(); c.moveTo(-5, -5); c.lineTo(5, -5); c.lineTo(0, 13); c.closePath(); c.fill();
-    c.fillStyle = '#c0392b'; c.beginPath(); c.moveTo(0, 0.5); c.lineTo(-5, -2.5); c.lineTo(-5, 3.5); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, 0.5); c.lineTo(5, -2.5); c.lineTo(5, 3.5); c.closePath(); c.fill();
-    dot(c, 0, 0.5, 1.4, '#9b2c20'); dot(c, 0, 7, 0.9, '#9aa'); dot(c, 0, 11, 0.9, '#9aa');
+    band(c, '#1d1d24');
+    c.fillStyle = '#fafafa'; c.beginPath(); c.moveTo(-4, SUIT_TOP); c.lineTo(4, SUIT_TOP); c.lineTo(0, 17); c.closePath(); c.fill();
+    dot(c, 0, 17.5, 0.9, '#9aa'); dot(c, 0, 20, 0.9, '#9aa');
+    c.fillStyle = '#c0392b'; // pajarita
+    c.beginPath(); c.moveTo(0, 1.4); c.lineTo(-5, -1.4); c.lineTo(-5, 4.2); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(0, 1.4); c.lineTo(5, -1.4); c.lineTo(5, 4.2); c.closePath(); c.fill();
+    dot(c, 0, 1.4, 1.3, '#9b2c20');
     c.restore();
   } },
   { id: 'chef', name: trMark('Chaqueta de cocinero'), draw(c) {
     c.save(); clipStem(c);
-    c.fillStyle = '#fbfbfb'; c.fillRect(-12, -5, 24, 26);
-    c.strokeStyle = '#cfd2d6'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -4); c.lineTo(0, 20); c.stroke();
-    for (const y of [5, 10, 15]) { dot(c, -3, y, 1.1, '#9aa2aa'); dot(c, 3, y, 1.1, '#9aa2aa'); }
-    c.fillStyle = '#d64545'; c.beginPath(); c.moveTo(-6, -4); c.lineTo(6, -4); c.lineTo(0, 3); c.closePath(); c.fill();
+    band(c, '#fbfbfb', 11);
+    c.strokeStyle = '#cfd2d6'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, 11); c.lineTo(0, 21); c.stroke();
+    for (const y of [14, 18]) { dot(c, -3, y, 1.1, '#9aa2aa'); dot(c, 3, y, 1.1, '#9aa2aa'); }
+    c.fillStyle = '#d64545'; c.beginPath(); c.moveTo(-6, -1); c.lineTo(6, -1); c.lineTo(0, 5); c.closePath(); c.fill(); // pañuelo
     c.restore();
   } },
   { id: 'bee', name: trMark('Traje de abeja'), draw(c) {
     c.save(); clipStem(c);
-    c.fillStyle = '#f6c445'; c.fillRect(-12, -5, 24, 26);
-    c.fillStyle = '#23201a'; for (const y of [2, 9, 16]) c.fillRect(-12, y, 24, 3.4);
+    band(c, '#f6c445');
+    c.fillStyle = '#23201a'; for (const y of [SUIT_TOP + 1.2, 16.2]) c.fillRect(-12, y, 24, 2.6);
+    c.fillStyle = '#23201a'; c.fillRect(-12, -1, 24, 2.4); // cuello rayado
     c.restore();
   } },
 ];
