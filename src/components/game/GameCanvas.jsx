@@ -4,7 +4,6 @@ import { clamp, stepMove } from '@/lib/game/grid';
 import { dirKey, ventToward } from '@/lib/game/vents';
 import { sfx } from '@/lib/game/sound';
 import { pushInput, reconcile, resetInput, sendInput } from '@/lib/game/predict';
-import { storedView, saveView, VIEW_EVENT } from '@/lib/game/profile';
 import { tr } from '@/lib/i18n';
 
 // Los demás jugadores se dibujan con este pequeño retraso: da margen para interpolar entre
@@ -20,16 +19,16 @@ export default function GameCanvas({ g, send }) {
   const view = useRef({ W: 0, H: 0, dpr: 1, zoom: 1 });
   const fpRef = useRef(null);   // caja donde va el lienzo WebGL de la primera persona
   const hintRef = useRef(null);
-  const [fpOn, setFpOn] = useState(() => storedView() === 'fp');
+  const [fpOn, setFpOn] = useState(() => !!g.fpMode);
   const [fpMsg, setFpMsg] = useState('');
   const fpInst = useRef(null);  // el motor 3D, cargado solo cuando hace falta
 
-  // La vista se elige en la sala de espera (o con P): se guarda y llega por un evento
+  // La vista no es una opción personal: la fija el anfitrión en los ajustes de la sala y llega
+  // con ella (g.fpMode). Aquí solo se sigue ese ajuste.
   useEffect(() => {
-    const on = (e) => setFpOn(e.detail === 'fp');
-    window.addEventListener(VIEW_EVENT, on);
-    return () => window.removeEventListener(VIEW_EVENT, on);
-  }, []);
+    const iv = setInterval(() => setFpOn(!!g.fpMode && !g.fpBroken), 200);
+    return () => clearInterval(iv);
+  }, [g]);
 
   if (!g.fp) g.fp = { on: false, yaw: 0, pitch: 0 };
 
@@ -57,7 +56,7 @@ export default function GameCanvas({ g, send }) {
       if (dead) return;
       // sin WebGL o sin poder cargar el motor: se vuelve a la vista de siempre
       g.fp.on = false;
-      saveView('normal');
+      g.fpBroken = true; // este dispositivo no puede: se queda en la vista normal aunque la sala diga otra cosa
       setFpOn(false);
       setFpMsg(tr('Este dispositivo no puede mostrar la primera persona. Se ha vuelto a la vista normal.'));
       setTimeout(() => setFpMsg(''), 5000);
@@ -110,7 +109,6 @@ export default function GameCanvas({ g, send }) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === ' ') e.preventDefault();
-      if (k === 'p' && !e.repeat && !g.inputLock) { saveView(g.fp && g.fp.on ? 'normal' : 'fp'); return; }
       if (!e.repeat && g.lobby) {
         // sala de espera: solo se usa el aparato que tengas delante (ordenador o armario)
         if (k === 'e' || k === ' ') g.act.use();
@@ -375,7 +373,7 @@ export default function GameCanvas({ g, send }) {
         <div className="pointer-events-none fixed inset-0 z-[5]" aria-hidden>
           <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70 shadow-[0_0_0_1px_rgba(0,0,0,.5)]" />
           <div ref={hintRef} style={{ display: 'none' }} className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-xl bg-black/55 px-3 py-1.5 text-center text-xs font-bold text-white/90">
-            {tr('Haz clic para mirar con el ratón (Esc lo suelta) · flechas ◀ ▶ también giran · P cambia de vista')}
+            {tr('Haz clic para mirar con el ratón (Esc lo suelta) · flechas ◀ ▶ también giran')}
           </div>
         </div>
       ) : null}
