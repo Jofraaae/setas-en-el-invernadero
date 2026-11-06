@@ -514,6 +514,7 @@ export default function Home() {
         g.hostId = m.hostId;
         setHostId(m.hostId);
         setCode(m.code || code);
+        if (m.settings) g.fpMode = !!m.settings.fp; // vista de la sala: la fija el anfitrión
         setLobby(m);
         setLChat(Array.isArray(m.chat) ? m.chat : []);
         if (m.phase === 'lobby') {
@@ -555,6 +556,7 @@ export default function Home() {
         break;
       }
       case 'start':
+        g.fpMode = !!m.fp; // el anfitrión decide la vista de toda la sala
         startGame(m);
         break;
       case 'go':

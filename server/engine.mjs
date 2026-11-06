@@ -53,10 +53,10 @@ const ROOM_SYNC_MS = 15000;   // cada cuánto se refresca el anuncio de esta sal
 const LOBBY_CHAT_MAX = 40;
 
 // [mínimo, máximo, paso]. imps 0 = automático.
-const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30, lantern: 1, lanternR: 250, keymaster: 1, keyCd: 40, blinder: 1, blindCd: 30, blindSec: 5 };
+const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30, lantern: 1, lanternR: 250, fp: 0, keymaster: 1, keyCd: 40, blinder: 1, blindCd: 30, blindSec: 5 };
 // Los roles llevan una cantidad (0 = fuera de la partida). El tope real lo pone cada sala según sus
 // jugadores (ver roleLimit): aquí solo va el máximo posible con la sala llena.
-const RANGES = { imps: [0, 7, 1], killCd: [5, 60, 5], sabCd: [10, 90, 5], reactorCd: [10, 180, 10], btnCd: [0, 60, 5], meetSec: [10, 180, 5], voteSec: [20, 90, 5], tasks: [1, 8, 1], speed: [60, 140, 10], vision: [50, 200, 10], shifter: [0, 7, 1], shiftCd: [10, 90, 5], viper: [0, 7, 1], rotSec: [5, 45, 5], engineer: [0, 14, 1], engCd: [5, 60, 5], alerter: [0, 14, 1], judge: [0, 14, 1], angel: [0, 14, 1], angelCd: [10, 180, 10], scientist: [0, 14, 1], scientistCd: [5, 60, 5], spectre: [0, 7, 1], spectreCd: [10, 90, 5], detective: [0, 14, 1], tracker: [0, 14, 1], trackerMs: [10, 90, 5], trackerCd: [10, 90, 5], lantern: [0, 14, 1], lanternR: [150, 400, 50], keymaster: [0, 14, 1], keyCd: [10, 120, 5], blinder: [0, 7, 1], blindCd: [10, 120, 5], blindSec: [2, 15, 1] };
+const RANGES = { imps: [0, 7, 1], killCd: [5, 60, 5], sabCd: [10, 90, 5], reactorCd: [10, 180, 10], btnCd: [0, 60, 5], meetSec: [10, 180, 5], voteSec: [20, 90, 5], tasks: [1, 8, 1], speed: [60, 140, 10], vision: [50, 200, 10], shifter: [0, 7, 1], shiftCd: [10, 90, 5], viper: [0, 7, 1], rotSec: [5, 45, 5], engineer: [0, 14, 1], engCd: [5, 60, 5], alerter: [0, 14, 1], judge: [0, 14, 1], angel: [0, 14, 1], angelCd: [10, 180, 10], scientist: [0, 14, 1], scientistCd: [5, 60, 5], spectre: [0, 7, 1], spectreCd: [10, 90, 5], detective: [0, 14, 1], tracker: [0, 14, 1], trackerMs: [10, 90, 5], trackerCd: [10, 90, 5], lantern: [0, 14, 1], lanternR: [150, 400, 50], fp: [0, 1, 1], keymaster: [0, 14, 1], keyCd: [10, 120, 5], blinder: [0, 7, 1], blindCd: [10, 120, 5], blindSec: [2, 15, 1] };
 // Qué ajustes son una cantidad de jugadores con ese rol, y de qué bando salen.
 const CREW_ROLE_KEYS = ['engineer', 'alerter', 'judge', 'scientist', 'detective', 'tracker', 'angel', 'lantern', 'keymaster'];
 const IMP_ROLE_KEYS = ['shifter', 'viper', 'spectre', 'blinder'];
@@ -1536,7 +1536,7 @@ class GameRoom {
     const imps = list.filter((p) => p.role === 'impostor').map((p) => p.id);
     for (const p of list) {
       this.sendTo(p, {
-        t: 'start', seq: p.seq || 0, role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
+        t: 'start', fp: this.settings.fp ? 1 : 0, seq: p.seq || 0, role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
         shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, ghost: '', angel: false /* el rol de fantasma queda oculto hasta morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker,
         tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,
         rmeta: { core: this.m.reactor, pts: this.m.rpts, hold: REACTOR_HOLD_MS, ms: REACTOR_MS, range: HOLD_RANGE },
@@ -2269,7 +2269,7 @@ class GameRoom {
     const roster = [...this.players.values()].map((q) => ({ id: q.id, name: q.name, color: q.color, ...(hasLook(q.look) ? { look: q.look } : {}) }));
     const imps = [...this.players.values()].filter((q) => q.role === 'impostor').map((q) => q.id);
     conn.send({
-      t: 'start', resync: true, seq: p.seq || 0, alive: p.alive, dark: this.dark,
+      t: 'start', resync: true, fp: this.settings.fp ? 1 : 0, seq: p.seq || 0, alive: p.alive, dark: this.dark,
       you: [p.x, p.y], role: p.role, phase: this.phase, mates: p.role === 'impostor' ? imps : [], roster, done: p.done,
       shifter: !!p.shifter, viper: !!p.viper, engineer: !!p.engineer, alerter: !!p.alerter, judge: !!p.judge, judgeUsed: !!p.judgeUsed, ghost: p.alive ? '' : (p.ghost || ''), angel: !!(p.ghost === 'angel' && !p.alive) /* el rol de fantasma solo se sabe al morir */, scientist: !!p.scientist, spectre: !!p.spectre, detective: !!p.detective, tracker: !!p.tracker, du: p.detectiveUsed ? 1 : 0,
       tasks: p.tasks.map((id) => ({ ...this.m.tasks[id], box: this.m.props[id] })),         vents: this.m.vents, world: this.m.world, floors: this.m.floors, obst: this.m.obst, sol: this.m.solid, doors: this.m.doors, button: this.m.button, panel: this.m.panel, map: this.map,

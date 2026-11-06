@@ -2,48 +2,28 @@
    No cambia nada del juego: la sala sigue siendo la misma (mismas posiciones, mismas colisiones, mismas
    órdenes). Esto solo lee el estado `g` que ya mantiene el cliente y lo pinta desde los ojos del seta.
    Ejes: x del mundo = x de Three, y del mundo (hacia abajo en el mapa) = z de Three, y de Three = altura.
-   El ángulo `yaw` es el del mundo: mirar hacia (cos yaw, sin yaw). */
+   El ángulo `yaw` es el del mundo: mirar hacia (cos yaw, sin yaw).
+   El suelo es el dibujo del mapa SIN objetos (buildWorld con `flat`); todo lo demás (muros, objetos,
+   tareas, rejillas, reactor, botón, puertas) son modelos 3D de fp3dModels.js y fp3dWalls.js. */
 
 import * as THREE from 'three';
 import { makeGrid, polyHas } from './grid';
+import { buildWorld as bakeFlat, wallStyleFor, VENT_ANIM_MS } from './render';
+import { buildObstacle, buildProp, buildConsole, buildVent, buildButton, FRONTAL } from './fp3dModels';
+import { disposeKit, glowMat, mat, rnd, tex } from './fp3dKit';
+import { wallMaterial, roofMaterial, skyTexture, disposeWalls, styleH } from './fp3dWalls';
 
 const CELL = 20;
-const WALL_H = 130;
 export const EYE = 46;
 const FOV = 76;
 
-// Aire de cada escenario: color del cielo/niebla, de las paredes, si hay techo y la luz de ambiente.
+// Aire de cada escenario: cielo, niebla, techo (si es un recinto cerrado) y luz de ambiente.
 const ENV = {
-  greenhouse: { sky: '#08140e', wall: '#35584a', roof: '#0c1a13', amb: 0.95, sun: 0.55 },
-  lobby: { sky: '#120d08', wall: '#6b4a30', roof: '#2a1c12', amb: 1.0, sun: 0.5 },
-  micelaria: { sky: '#17301f', wall: '#2b4a2a', roof: null, amb: 0.9, sun: 0.7 },
-  pantano: { sky: '#1b2a24', wall: '#3a4a35', roof: null, amb: 0.85, sun: 0.55 },
+  greenhouse: { sky: '#0a1812', top: '#0a1812', roof: 'glass', amb: 1.05, sun: 0.5 },
+  lobby: { sky: '#1a120a', top: '#1a120a', roof: 'wood', amb: 1.1, sun: 0.45 },
+  micelaria: { sky: '#1d3a2a', top: '#0a1424', roof: null, amb: 1.0, sun: 0.75 },
+  pantano: { sky: '#26382f', top: '#0e1a22', roof: null, amb: 0.95, sun: 0.6 },
 };
-
-// Objetos del mapa: [forma, altura, color, adorno]. Todo se monta con formas básicas.
-const OBJ = {
-  shelf: ['box', 74, '#7a5a3a'], planter: ['planter', 30, '#6b4a2f'], bench: ['box', 26, '#8a6a45'],
-  lantern: ['post', 52, '#e9c46a', 'glow'], stall: ['box', 70, '#a0522d'], bonfire: ['cone', 34, '#ff8a1f', 'glow'],
-  table: ['table', 32, '#8a6a45'], stump: ['cyl', 22, '#7a5a3a'], bed: ['box', 24, '#c9b79c'],
-  baskets: ['cyl', 24, '#b8894f'], millwheel: ['cyl', 90, '#6b4a2f'], sacks: ['dome', 28, '#c9b79c'],
-  panel: ['box', 84, '#4a5a66', 'screen'], haystack: ['dome', 46, '#d9b84a'], barrel: ['cyl', 34, '#7a4a2a'],
-  telescope: ['post', 70, '#8a8f95'], core: ['cyl', 100, '#4ade80', 'glow'], totem: ['box', 110, '#8a6a45'],
-  glowshroom: ['shroom', 44, '#8ab4ff', 'glow'], boulder: ['dome', 42, '#6b7078'], cropbed: ['box', 14, '#5a3a22'],
-  cart: ['box', 38, '#8a6a45'], mushring: ['ring', 8, '#e9c46a'], signpost: ['post', 64, '#8a6a45'],
-  fern: ['dome', 24, '#3f8f4a'], tallgrass: ['dome', 32, '#5aa05a'], well: ['cyl', 36, '#8a8f95'],
-  tree: ['tree', 150, '#2f6b3a'], stove: ['box', 52, '#555a60'], chest: ['box', 26, '#8a5a2a'],
-  rowboat: ['box', 20, '#8a5a2a'], fishrack: ['box', 62, '#8a6a45'], crystal: ['cone', 72, '#8ae0ff', 'glow'],
-  stalag: ['cone', 100, '#8a8f95'], log: ['box', 20, '#6b4a2f'], lanternpost: ['post', 96, '#444', 'glow'],
-  shroomA: ['shroom', 70, '#c04a4a'], shroomB: ['shroom', 80, '#d9a441'], shroomC: ['shroom', 74, '#9a6ad0'],
-  shroomE: ['shroom', 86, '#4aa0c0'], deadtree: ['tree', 140, '#4a3a2a', 'dead'], swamptree: ['tree', 150, '#3a4a2a', 'dead'],
-  computer: ['box', 64, '#35506a', 'screen'], wardrobe: ['box', 104, '#7a5a3a'],
-};
-
-const rnd = (a) => { // número pseudoaleatorio estable (para variar colores sin parpadeos)
-  const x = Math.sin(a * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
-const shade = (hex, k) => new THREE.Color(hex).multiplyScalar(k);
 
 function angDiff(a, b) {
   let d = (b - a) % (Math.PI * 2);
@@ -67,271 +47,217 @@ export function createFp(canvas) {
   const camera = new THREE.PerspectiveCamera(FOV, 1, 2, 4200);
   camera.rotation.order = 'YXZ';
   const amb = new THREE.AmbientLight(0xffffff, 1);
+  const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x3a3026, 0.55);
   const sun = new THREE.DirectionalLight(0xfff1d6, 0.6);
   sun.position.set(-300, 900, 400);
   const lamp = new THREE.PointLight(0xffe2b0, 0, 520, 1.4);
-  scene.add(amb, sun, lamp);
+  scene.add(amb, hemi, sun, lamp);
 
   const world = new THREE.Group(); // lo que cambia con el mapa
-  const dyn = new THREE.Group();   // lo que cambia cada partida: tareas, puertas, rejillas
+  const dyn = new THREE.Group();   // tareas
   scene.add(world, dyn);
 
-  // ---- materiales y formas compartidas ----
-  const geo = {
-    capDome: new THREE.SphereGeometry(26, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    stem: new THREE.CylinderGeometry(11, 13, 30, 16),
-    disc: new THREE.CircleGeometry(26, 22),
-    spot: new THREE.SphereGeometry(4.2, 8, 6),
-    eye: new THREE.SphereGeometry(3.2, 10, 8),
-    foot: new THREE.SphereGeometry(7, 10, 8),
-    shadow: new THREE.CircleGeometry(20, 20),
-    box: new THREE.BoxGeometry(1, 1, 1),
-    cyl: new THREE.CylinderGeometry(1, 1, 1, 18),
-    cone: new THREE.ConeGeometry(1, 1, 16),
-    dome: new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-    sph: new THREE.SphereGeometry(1, 14, 10),
-    ring: new THREE.TorusGeometry(1, 0.08, 6, 28),
-    pillar: new THREE.CylinderGeometry(9, 9, 80, 14, 1, true),
-    gem: new THREE.OctahedronGeometry(10),
-  };
-  const mats = new Map();
-  const mat = (hex, o = {}) => {
-    const key = hex + JSON.stringify(o);
-    let m = mats.get(key);
-    if (!m) {
-      m = new THREE.MeshLambertMaterial({ color: hex, ...o });
-      mats.set(key, m);
-    }
-    return m;
-  };
-  const gmats = new Map();
-  const glowMat = (hex, op = 1) => {
-    const key = `${hex}|${op}`;
-    let m = gmats.get(key);
-    if (!m) { m = new THREE.MeshBasicMaterial({ color: hex, transparent: op < 1, opacity: op, depthWrite: op >= 1 }); gmats.set(key, m); }
-    return m;
-  };
+  const geoBox = new THREE.BoxGeometry(1, 1, 1);
+  const geoIco = new THREE.IcosahedronGeometry(1, 1);
+  const geoPillar = new THREE.CylinderGeometry(9, 9, 80, 14, 1, true);
+  const geoGem = new THREE.OctahedronGeometry(10);
+  const geoDisc = new THREE.CircleGeometry(26, 22);
+  const geoCap = new THREE.SphereGeometry(26, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const geoStem = new THREE.CylinderGeometry(11, 13, 30, 16);
+  const geoSpot = new THREE.SphereGeometry(4.2, 8, 6);
+  const geoEye = new THREE.SphereGeometry(3.2, 10, 8);
+  const geoFoot = new THREE.SphereGeometry(7, 10, 8);
+  const geoShadow = new THREE.CircleGeometry(20, 20);
+  const geo = { capDome: geoCap, stem: geoStem, disc: geoDisc, spot: geoSpot, eye: geoEye, foot: geoFoot, shadow: geoShadow };
   const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false });
 
-  // ---- construcción del mapa ----
-  let built = null; // { key, w, h }
+  let built = null;
   let doorKey = null;
   let taskKey = null;
-  let tex = null;
+  let tex2 = null;
+  let ticks = [];
+  const ctl = { core: null, consoles: [], vents: [], gems: [] };
 
   const disposeGroup = (grp) => {
     while (grp.children.length) {
       const ch = grp.children[0];
       grp.remove(ch);
       ch.traverse((o) => {
-        if (o.isInstancedMesh) { o.material.dispose(); o.dispose(); }
-        else if (o.userData && o.userData.own && o.material) o.material.dispose();
+        if (o.isInstancedMesh) o.dispose();
+        else if (o.userData && o.userData.ownGeo && o.geometry) o.geometry.dispose();
+        else if (o.userData && o.userData.own) { if (o.material) o.material.dispose(); if (o.geometry) o.geometry.dispose(); }
       });
     }
   };
-
-  function buildObstacle(o, i) {
-    const [x, y, w, h, type] = o;
-    const def = OBJ[type] || ['box', 40, '#6b6b6b'];
-    const [shape, hh, col, extra] = def;
-    const grp = new THREE.Group();
-    const cx = x + w / 2, cz = y + h / 2;
-    grp.position.set(cx, 0, cz);
-    const add = (mesh, px, py, pz) => { mesh.position.set(px, py, pz); grp.add(mesh); return mesh; };
-    const r = Math.max(8, Math.min(w, h) / 2);
-    const tone = 0.85 + rnd(i) * 0.3;
-    const base = shade(col, tone);
-    const m = mat(base.getStyle());
-    const bm = (g2, mm, sx, sy, sz) => { const me = new THREE.Mesh(g2, mm); me.scale.set(sx, sy, sz); return me; };
-    if (shape === 'box') {
-      add(bm(geo.box, m, w, hh, h), 0, hh / 2, 0);
-      if (extra === 'screen') {
-        const sm = glowMat(type === 'panel' ? '#ffd60a' : '#7ee0ff');
-        const s = bm(geo.box, sm, w * 0.7, hh * 0.35, 2);
-        add(s, 0, hh * 0.62, h / 2 + 1.2);
-      }
-    } else if (shape === 'table') {
-      add(bm(geo.box, m, w, 6, h), 0, hh, 0);
-      for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) add(bm(geo.box, m, 6, hh, 6), lx * (w / 2 - 6), hh / 2, lz * (h / 2 - 6));
-    } else if (shape === 'planter') {
-      add(bm(geo.box, m, w, hh * 0.6, h), 0, hh * 0.3, 0);
-      add(bm(geo.dome, mat('#3f8f4a'), w * 0.5, hh * 1.4, h * 0.5), 0, hh * 0.6, 0);
-    } else if (shape === 'cyl') {
-      add(bm(geo.cyl, m, Math.max(w, h) / 2, hh, Math.max(w, h) / 2), 0, hh / 2, 0);
-      if (extra === 'glow') add(bm(geo.sph, glowMat(col, 0.55), r * 1.2, r * 1.2, r * 1.2), 0, hh + 6, 0);
-    } else if (shape === 'dome') {
-      add(bm(geo.dome, m, Math.max(w, h) / 2, hh, Math.max(w, h) / 2), 0, 0, 0);
-    } else if (shape === 'cone') {
-      add(bm(geo.cone, m, Math.max(w, h) / 2, hh, Math.max(w, h) / 2), 0, hh / 2, 0);
-      if (extra === 'glow') add(bm(geo.sph, glowMat(col, 0.35), r * 1.6, r * 1.6, r * 1.6), 0, hh * 0.5, 0);
-    } else if (shape === 'ring') {
-      const me = bm(geo.ring, glowMat(col, 0.8), Math.max(w, h) / 2, 1, Math.max(w, h) / 2);
-      me.rotation.x = Math.PI / 2; me.scale.z = 90; me.scale.x = Math.max(w, h) / 2; me.scale.y = Math.max(w, h) / 2;
-      add(me, 0, 4, 0);
-    } else if (shape === 'post') {
-      add(bm(geo.cyl, m, 4, hh, 4), 0, hh / 2, 0);
-      if (extra === 'glow') {
-        add(bm(geo.sph, glowMat('#ffd98a'), 9, 9, 9), 0, hh + 4, 0);
-        const l = new THREE.PointLight(0xffd98a, 0.9, 260, 1.5);
-        add(l, 0, hh + 6, 0);
-      } else add(bm(geo.box, m, Math.max(w, 14), 16, 4), 0, hh - 8, 0);
-    } else if (shape === 'tree') {
-      const dead = extra === 'dead';
-      const tr = Math.max(7, Math.min(w, h) / 2);
-      add(bm(geo.cyl, mat(dead ? '#3a2d22' : '#6b4a2f'), tr, hh * 0.55, tr), 0, hh * 0.275, 0);
-      if (dead) {
-        for (let k = 0; k < 4; k++) {
-          const b = bm(geo.cyl, mat('#3a2d22'), 3, hh * 0.45, 3);
-          b.rotation.z = (k % 2 ? 1 : -1) * 0.8; b.rotation.y = k * 1.6;
-          add(b, Math.cos(k * 1.6) * 8, hh * 0.65, Math.sin(k * 1.6) * 8);
-        }
-      } else {
-        const cr = Math.max(34, Math.max(w, h) * 0.95);
-        add(bm(geo.sph, m, cr, hh * 0.32, cr), 0, hh * 0.72, 0);
-        add(bm(geo.sph, mat(shade(col, tone * 0.8).getStyle()), cr * 0.7, hh * 0.22, cr * 0.7), cr * 0.2, hh * 0.92, cr * 0.1);
-      }
-    } else if (shape === 'shroom') {
-      const sr = Math.max(7, r * 0.45);
-      add(bm(geo.cyl, mat('#efe3c4'), sr, hh * 0.6, sr), 0, hh * 0.3, 0);
-      add(bm(geo.dome, extra === 'glow' ? glowMat(col) : m, r * 1.5, hh * 0.5, r * 1.5), 0, hh * 0.55, 0);
-      if (extra === 'glow') add(new THREE.PointLight(new THREE.Color(col).getHex(), 0.5, 180, 1.6), 0, hh * 0.8, 0);
-    }
-    if (extra === 'glow' && shape === 'cyl') add(new THREE.PointLight(new THREE.Color(col).getHex(), 0.7, 240, 1.5), 0, hh + 8, 0);
-    return grp;
-  }
+  const collectTicks = (grp) => grp.traverse((o) => { if (o.userData && typeof o.userData.tick === 'function') ticks.push(o.userData.tick); });
 
   function buildWorld(g) {
     disposeGroup(world);
+    ticks = []; ctl.core = null; ctl.consoles = []; ctl.vents = [];
     const W = g.world.w, H = g.world.h;
     const env = ENV[g.map] || ENV.greenhouse;
-    scene.background = new THREE.Color(env.sky);
+    scene.background = env.roof ? new THREE.Color(env.sky) : skyTexture(env.top, env.sky);
     scene.fog = new THREE.Fog(env.sky, 500, 1800);
     amb.intensity = env.amb;
     sun.intensity = env.sun;
 
-    // suelo: el mismo dibujo del mapa en 2D, tendido en el suelo
-    if (tex) tex.dispose();
-    let src = g.mapC;
+    // suelo: el dibujo del mapa pero vacío (sin objetos ni aparatos pintados), tendido en el suelo
+    if (tex2) tex2.dispose();
+    const flat = bakeFlat(g.world, g.floors, [], g.btn || { x: -9999, y: -9999 }, [], { map: g.map, flat: true }).mapC;
+    let src = flat;
     const maxT = Math.min(4096, renderer.capabilities.maxTextureSize || 4096);
-    if (src && Math.max(src.width, src.height) > maxT) {
+    if (Math.max(src.width, src.height) > maxT) {
       const k = maxT / Math.max(src.width, src.height);
       const c2 = document.createElement('canvas');
       c2.width = Math.round(src.width * k); c2.height = Math.round(src.height * k);
       c2.getContext('2d').drawImage(src, 0, 0, c2.width, c2.height);
       src = c2;
     }
-    tex = src ? new THREE.CanvasTexture(src) : null;
-    if (tex) {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      tex.generateMipmaps = true;
-      tex.minFilter = THREE.LinearMipmapLinearFilter;
-    }
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(W, H),
-      new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x223322 }),
-    );
+    tex2 = new THREE.CanvasTexture(src);
+    tex2.colorSpace = THREE.SRGBColorSpace;
+    tex2.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    tex2.minFilter = THREE.LinearMipmapLinearFilter;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex2 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(W / 2, 0, H / 2);
     ground.userData.own = true;
     world.add(ground);
-    // fuera del mapa: suelo oscuro para que no se vea el vacío
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(W * 4, H * 4), new THREE.MeshBasicMaterial({ color: env.sky }));
     outer.rotation.x = -Math.PI / 2;
     outer.position.set(W / 2, -1, H / 2);
+    outer.userData.own = true;
     world.add(outer);
     if (env.roof) {
-      const roof = new THREE.Mesh(new THREE.PlaneGeometry(W + 400, H + 400), new THREE.MeshBasicMaterial({ color: env.roof, side: THREE.DoubleSide }));
+      const rt = roofMaterial(env.roof).clone();
+      rt.repeat.set((W + 400) / 160, (H + 400) / 160);
+      rt.needsUpdate = true;
+      const roof = new THREE.Mesh(new THREE.PlaneGeometry(W + 400, H + 400), new THREE.MeshBasicMaterial({ map: rt, side: THREE.DoubleSide }));
       roof.rotation.x = Math.PI / 2;
-      roof.position.set(W / 2, WALL_H + 2, H / 2);
+      roof.position.set(W / 2, 134, H / 2);
+      roof.userData.own = true;
       world.add(roof);
     }
 
-    // muros: las celdas que cierran el paso y están junto a suelo transitable
+    // muros: celdas que cierran el paso junto a suelo transitable; cada una con el estilo de su edificio
     const full = makeGrid(g.world, g.floors, []);
     const { gw, gh, cells } = full;
-    const water = new Uint8Array(gw * gh);
-    for (const f of g.floors) {
-      const o = f[7];
-      if (!(o && o.carve && o.water)) continue;
-      const x0 = Math.max(0, Math.floor(f[0] / CELL)), x1 = Math.min(gw, Math.ceil((f[0] + f[2]) / CELL));
-      const y0 = Math.max(0, Math.floor(f[1] / CELL)), y1 = Math.min(gh, Math.ceil((f[1] + f[3]) / CELL));
-      for (let ty = y0; ty < y1; ty++) for (let tx = x0; tx < x1; tx++) {
-        if (!o.poly || polyHas(o.poly, tx * CELL + 10, ty * CELL + 10)) water[ty * gw + tx] = 1;
-      }
-    }
-    const wc = [];
+    const byStyle = new Map();
     for (let ty = 0; ty < gh; ty++) for (let tx = 0; tx < gw; tx++) {
-      const i = ty * gw + tx;
-      if (cells[i] || water[i]) continue;
+      if (cells[ty * gw + tx]) continue;
       let near = false;
       for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) {
         const nx = tx + dx, ny = ty + dy;
         if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
         if (cells[ny * gw + nx]) { near = true; break; }
       }
-      if (near) wc.push(tx, ty);
+      if (!near) continue;
+      const style = wallStyleFor(g.map, g.floors, tx * CELL + CELL / 2, ty * CELL + CELL / 2);
+      if (style === 'water') continue; // el agua no tiene muro
+      if (!byStyle.has(style)) byStyle.set(style, []);
+      byStyle.get(style).push(tx, ty);
     }
-    const n = wc.length / 2;
-    const wm = new THREE.InstancedMesh(geo.box, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, n));
     const d = new THREE.Object3D();
     const col = new THREE.Color();
-    for (let k = 0; k < n; k++) {
-      const tx = wc[k * 2], ty = wc[k * 2 + 1];
-      const hgt = WALL_H * (0.92 + rnd(tx * 7 + ty * 13) * 0.16);
-      d.position.set(tx * CELL + CELL / 2, hgt / 2, ty * CELL + CELL / 2);
-      d.scale.set(CELL, hgt, CELL);
-      d.updateMatrix();
-      wm.setMatrixAt(k, d.matrix);
-      col.set(env.wall).multiplyScalar(0.82 + rnd(tx * 3 + ty * 5) * 0.36);
-      wm.setColorAt(k, col);
+    const blobs = [];
+    for (const [style, wc] of byStyle) {
+      const n = wc.length / 2, hs = styleH(style);
+      const wm = new THREE.InstancedMesh(geoBox, wallMaterial(style), n);
+      for (let k = 0; k < n; k++) {
+        const tx = wc[k * 2], ty = wc[k * 2 + 1];
+        const hgt = hs * (style === 'forest' ? 0.94 + rnd(tx * 7 + ty * 13) * 0.12 : 1);
+        d.position.set(tx * CELL + CELL / 2, hgt / 2, ty * CELL + CELL / 2);
+        d.scale.set(CELL, hgt, CELL);
+        d.updateMatrix();
+        wm.setMatrixAt(k, d.matrix);
+        wm.setColorAt(k, col.setScalar(0.9 + rnd(tx * 3 + ty * 5) * 0.2));
+        if (style === 'forest' && rnd(tx * 11 + ty * 17) > 0.42) blobs.push(tx * CELL + CELL / 2 + (rnd(tx + 9 * ty) - 0.5) * 18, hgt, ty * CELL + CELL / 2 + (rnd(ty + 3 * tx) - 0.5) * 18, 20 + rnd(tx * 5 + ty) * 16, rnd(tx * 2 + ty * 7));
+      }
+      wm.instanceMatrix.needsUpdate = true;
+      if (wm.instanceColor) wm.instanceColor.needsUpdate = true;
+      world.add(wm);
     }
-    wm.count = n;
-    wm.instanceMatrix.needsUpdate = true;
-    if (wm.instanceColor) wm.instanceColor.needsUpdate = true;
-    world.add(wm);
+    // copas de árbol sobre la arboleda: rompen la silueta recta del muro
+    if (blobs.length) {
+      const nb = blobs.length / 5;
+      const bm = new THREE.InstancedMesh(geoIco, new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }), nb);
+      for (let k = 0; k < nb; k++) {
+        const r = blobs[k * 5 + 3];
+        d.position.set(blobs[k * 5], blobs[k * 5 + 1] + r * 0.2, blobs[k * 5 + 2]);
+        d.scale.set(r, r * 0.8, r);
+        d.updateMatrix();
+        bm.setMatrixAt(k, d.matrix);
+        bm.setColorAt(k, col.setHSL(0.27 + blobs[k * 5 + 4] * 0.1, 0.45, 0.14 + blobs[k * 5 + 4] * 0.12));
+      }
+      bm.instanceMatrix.needsUpdate = true;
+      if (bm.instanceColor) bm.instanceColor.needsUpdate = true;
+      world.add(bm);
+    }
 
-    (g.obst || []).forEach((o, i) => world.add(buildObstacle(o, i)));
+    // objetos del mapa
+    // el frente de cada objeto mira hacia donde hay suelo por el que llegar
+    const open = (px, py) => { const tx = Math.floor(px / CELL), ty = Math.floor(py / CELL); return tx >= 0 && ty >= 0 && tx < gw && ty < gh && cells[ty * gw + tx] ? 1 : 0; };
+    const facing = (o) => {
+      const cx = o[0] + o[2] / 2, cy2 = o[1] + o[3] / 2, hx = o[2] / 2 + 14, hy = o[3] / 2 + 14;
+      const side = [
+        [[-0.6, 1], [0, 1], [0.6, 1]], [[1, -0.6], [1, 0], [1, 0.6]], [[-0.6, -1], [0, -1], [0.6, -1]], [[-1, -0.6], [-1, 0], [-1, 0.6]],
+      ].map((pts) => pts.reduce((n, [ux, uy]) => n + open(cx + ux * hx * (ux === 1 || ux === -1 ? 1 : 1), cy2 + uy * hy * (uy === 1 || uy === -1 ? 1 : 1)), 0));
+      let best = 0;
+      for (let i = 1; i < 4; i++) if (side[i] > side[best]) best = i;
+      return best;
+    };
+    (g.obst || []).forEach((o, i) => {
+      const m = buildObstacle(o[4], o[0], o[1], o[2], o[3], i + 1, FRONTAL.has(o[4]) ? facing(o) : 0);
+      m.userData.type = o[4];
+      world.add(m);
+      if (o[4] === 'core' && !ctl.core) ctl.core = m;
+    });
+    // consolas del reactor
+    for (const pt of (g.rmeta && g.rmeta.pts) || []) { const c = buildConsole(pt.x, pt.y, pt.side); world.add(c); ctl.consoles.push(c); }
+    // rejillas de ventilación
+    for (const v of g.vents || []) { const m = buildVent(v.x, v.y); m.userData.id = v.id; world.add(m); ctl.vents.push(m); }
+    // botón de emergencia
+    if (!g.lobby && g.btn) {
+      const bb = buildButton(g.btn.x, g.btn.y);
+      // si el botón está sobre un objeto (una máquina, una mesa), se apoya encima
+      const under = (g.obst || []).find((o) => g.btn.x >= o[0] && g.btn.x <= o[0] + o[2] && g.btn.y >= o[1] && g.btn.y <= o[1] + o[3]);
+      if (under) { bb.position.y = under[4] === 'machine' ? 66 : under[4] === 'table' ? 36 : 48; bb.scale.setScalar(0.6); }
+      world.add(bb);
+    }
+    collectTicks(world);
     built = { map: g.map, w: W, h: H, mapC: g.mapC, n: (g.obst || []).length };
     doorKey = null; taskKey = null;
   }
 
-  // ---- tareas, puertas, botón, rejillas y aparatos de la sala de espera ----
-  const marks = { tasks: [], gems: [] };
+  // ---- tareas: su objeto y, encima, la columna de luz que dice dónde están ----
   function buildDyn(g) {
     disposeGroup(dyn);
-    marks.tasks = []; marks.gems = [];
-    for (const t of g.tasks || []) {
+    ctl.gems = [];
+    (g.tasks || []).forEach((t, i) => {
       const done = g.done && g.done.has(t.id);
+      const b = t.box || [t.x - 28, t.y - 22, 56, 44];
+      const prop = buildProp(t.kind, t.x, t.y, b[2], b[3], i + 1);
+      dyn.add(prop);
       const grp = new THREE.Group();
       grp.position.set(t.x, 0, t.y);
-      const pm = new THREE.Mesh(geo.pillar, glowMat(done ? '#4ade80' : '#ffd60a', done ? 0.14 : 0.2));
-      pm.position.y = 40;
-      const gem = new THREE.Mesh(geo.gem, glowMat(done ? '#4ade80' : '#ffd60a'));
-      gem.position.y = 98;
+      const pm = new THREE.Mesh(geoPillar, glowMat(done ? '#4ade80' : '#ffd60a', done ? 0.1 : 0.16));
+      pm.position.y = 124;
+      pm.scale.y = 1.6;
+      const gem = new THREE.Mesh(geoGem, glowMat(done ? '#4ade80' : '#ffd60a'));
+      gem.position.y = 150;
       grp.add(pm, gem);
       dyn.add(grp);
-      marks.gems.push(gem);
-    }
-    if (!g.lobby && g.btn) {
-      const b = new THREE.Group();
-      b.position.set(g.btn.x, 0, g.btn.y);
-      const base = new THREE.Mesh(geo.cyl, mat('#3a3f46')); base.scale.set(34, 14, 34); base.position.y = 7;
-      const top = new THREE.Mesh(geo.dome, glowMat('#e63946')); top.scale.set(22, 16, 22); top.position.y = 14;
-      b.add(base, top);
-      dyn.add(b);
-    }
-    if (g.role === 'impostor' || g.engineer) {
-      for (const v of g.vents || []) {
-        const vm = new THREE.Mesh(geo.box, mat('#1b1f24')); vm.scale.set(46, 4, 34); vm.position.set(v.x, 2, v.y);
-        const bars = new THREE.Mesh(geo.box, glowMat('#59606a')); bars.scale.set(38, 1, 3); bars.position.set(v.x, 4.4, v.y);
-        dyn.add(vm, bars);
-      }
-    }
+      ctl.gems.push(gem);
+    });
+    collectTicks(dyn);
     taskKey = keyOfTasks(g);
   }
-  const keyOfTasks = (g) => `${g.tasks ? g.tasks.length : 0}|${g.done ? g.done.size : 0}|${g.lobby ? 1 : 0}|${g.role}|${g.engineer ? 1 : 0}|${g.vents ? g.vents.length : 0}`;
+  const keyOfTasks = (g) => `${g.tasks ? g.tasks.length : 0}|${g.done ? g.done.size : 0}|${g.lobby ? 1 : 0}`;
 
+  const hazard = () => tex('hazard', 64, 64, (c, w, h) => {
+    c.fillStyle = '#3b434c'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#e9b82a';
+    for (let i = -2; i < 6; i++) { c.beginPath(); c.moveTo(i * 20, h); c.lineTo(i * 20 + 12, h); c.lineTo(i * 20 + 12 + h, 0); c.lineTo(i * 20 + h, 0); c.fill(); }
+  }, { repeat: true, repeatY: true });
   const doorGrp = new THREE.Group();
   scene.add(doorGrp);
   function buildDoors(g) {
@@ -340,13 +266,14 @@ export function createFp(canvas) {
     const closed = new Set(drs.map((d) => d[0]));
     for (const d of g.doors || []) {
       if (!closed.has(d.id)) continue;
-      const m = new THREE.Mesh(geo.box, mat('#414b55'));
-      m.scale.set(d.w, WALL_H * 0.85, d.h);
-      m.position.set(d.x + d.w / 2, (WALL_H * 0.85) / 2, d.y + d.h / 2);
-      const stripe = new THREE.Mesh(geo.box, glowMat('#e63946', 0.8));
-      stripe.scale.set(d.w + 1, 6, d.h + 1);
-      stripe.position.set(d.x + d.w / 2, WALL_H * 0.5, d.y + d.h / 2);
-      doorGrp.add(m, stripe);
+      const hh = 120;
+      const m = new THREE.Mesh(geoBox, mat('#59616d', { map: hazard() }));
+      m.scale.set(d.w, hh, d.h);
+      m.position.set(d.x + d.w / 2, hh / 2, d.y + d.h / 2);
+      const bar = new THREE.Mesh(geoBox, glowMat('#e63946', 0.9));
+      bar.scale.set(d.w + 1.5, 7, d.h + 1.5);
+      bar.position.set(d.x + d.w / 2, hh * 0.55, d.y + d.h / 2);
+      doorGrp.add(m, bar);
     }
     doorKey = g.doorKey;
   }
@@ -498,7 +425,39 @@ export function createFp(canvas) {
     lamp.position.set(g.me.x, eye + 30, g.me.y);
 
     // tareas: las gemas giran
-    marks.gems.forEach((gm, i) => { gm.rotation.y = T * 2 + i; gm.position.y = 98 + Math.sin(T * 3 + i) * 4; });
+    ctl.gems.forEach((gm, i) => { gm.rotation.y = T * 2 + i; gm.position.y = 150 + Math.sin(T * 3 + i) * 4; });
+    for (const t of ticks) t(T);
+
+    // reactor en alarma: el núcleo se pone rojo y las consolas parpadean; con una mano puesta, en verde
+    const rx = st.rx;
+    if (ctl.core) {
+      const u = ctl.core.userData;
+      const cm = u.core, hl = u.halo;
+      u.alarm = !!rx;
+      if (rx && cm && hl) {
+        const k = 0.5 + 0.5 * Math.sin(T * 7);
+        cm.material = glowMat(k > 0.5 ? '#ff4d5e' : '#a8202e');
+        hl.material.color.set('#ff4d5e'); hl.material.opacity = 0.45 + 0.4 * k;
+      }
+    }
+    for (const c of ctl.consoles) {
+      const u = c.userData;
+      const held = !!(rx && rx[u.side]);
+      const k = rx ? (0.5 + 0.5 * Math.sin(T * 8)) : 0;
+      const fm = glowMat(held ? '#4ade80' : rx ? (k > 0.5 ? '#ff4d5e' : '#7a1d28') : '#2a6a8a');
+      u.face.material = fm; u.face2.material = fm;
+      u.lamp.material = glowMat(held ? '#4ade80' : rx && k > 0.5 ? '#ff4d5e' : '#3a1418');
+      u.halo.visible = !!rx;
+    }
+    // rejillas: las ven todos; el impostor y el ingeniero las ven marcadas y se abren al entrar o salir
+    const vmark = g.role === 'impostor' || g.engineer;
+    const nowMs = performance.now();
+    for (const v of ctl.vents) {
+      v.userData.ring.visible = !!vmark;
+      const t0 = g.ventFx && g.ventFx.get(v.userData.id);
+      const k = t0 ? Math.min(1, (nowMs - t0) / VENT_ANIM_MS) : 1;
+      v.userData.lid.rotation.x = k < 1 ? -Math.sin(Math.PI * k) * 1.2 : 0;
+    }
 
     // los demás setas
     const seen = new Set();
@@ -557,14 +516,15 @@ export function createFp(canvas) {
 
   function dispose() {
     disposeGroup(world); disposeGroup(dyn); disposeGroup(doorGrp);
+    disposeWalls(); disposeKit();
     for (const a of actors.values()) a.all.forEach((m) => m.dispose());
     for (const a of bodies.values()) a.all.forEach((m) => m.dispose());
     actors.clear(); bodies.clear();
-    for (const m of mats.values()) m.dispose();
-    for (const m of gmats.values()) m.dispose();
     for (const t of tagTex.values()) t.dispose();
     for (const k of Object.keys(geo)) geo[k].dispose();
-    if (tex) tex.dispose();
+    [geoBox, geoIco, geoPillar, geoGem].forEach((x) => x.dispose());
+    shadowMat.dispose();
+    if (tex2) tex2.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }

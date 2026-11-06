@@ -74,6 +74,7 @@ const SECTIONS = [
       ['tasks', trMark('Tareas por jugador')],
       ['speed', trMark('Velocidad')],
       ['vision', trMark('Visión')],
+      ['fp', trMark('Vista de la partida'), trMark('La elige el anfitrión y es la misma para todos: normal (desde arriba) o primera persona en 3D (demo)')],
     ],
   },
 ];
@@ -86,6 +87,7 @@ const TONE = {
 function fmt(k, v) {
   if (k === 'imps') return v === 0 ? tr('Auto') : String(v);
   if (k === 'tasks') return String(v);
+  if (k === 'fp') return v ? tr('Primera persona') : tr('Normal');
   if (k === 'speed' || k === 'vision') return `${v}%`;
   return `${v} s`;
 }
@@ -99,6 +101,7 @@ export default function LobbySettings({ lobby, isHost, onSetting }) {
   const limitOf = (kind) => Math.max(1, L[kind] ?? 1);
 
   const renderRow = ([k, label, hint]) => {
+    if (!R[k]) return null; // un servidor antiguo no tiene este ajuste
     const max = k === 'imps' ? Math.min(R[k][1], L.imps) : R[k][1];
     const v = k === 'imps' ? Math.min(S[k], max) : S[k];
     return (

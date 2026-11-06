@@ -674,7 +674,15 @@ function floorPath(c, f) {
   } else c.rect(f[0], f[1], f[2], f[3]);
 }
 
+/* Estilo del muro de un punto del mapa (lo usa la primera persona para texturizar cada pared). */
+export function wallStyleFor(map, floors, x, y) {
+  const W = (ART_SETS[map] || ART_SETS.greenhouse).wall;
+  if (W.kind === 'nature') return W.styleAt ? W.styleAt(floors, x, y) : 'forest';
+  return map === 'lobby' ? 'cabin' : 'glass';
+}
+
 export function buildWorld(world, floors, obst, btn, vents, extra) {
+  const flat = !!(extra && extra.flat); // solo el suelo y los muros (para la vista en 3D)
   const A = (extra && ART_SETS[extra.map]) || ART_SETS.greenhouse;
   const mapC = document.createElement('canvas');
   mapC.width = world.w;
@@ -748,34 +756,40 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
       c.fillText(label, lx, ly);
     }
   };
-  if (!A.labelsTop) drawLabels();
+  if (!A.labelsTop && !flat) drawLabels();
 
   // botón de emergencia
-  c.fillStyle = A.btnGlow;
-  c.beginPath();
-  c.arc(btn.x, btn.y, 110, 0, 7);
-  c.fill();
+  if (!flat) {
+    c.fillStyle = A.btnGlow;
+    c.beginPath();
+    c.arc(btn.x, btn.y, 110, 0, 7);
+    c.fill();
+  }
 
   // muros del escenario: rodean cada suelo y le proyectan su sombra encima
   paintWalls(c, world, floors, A.wall);
 
-  // cajas, setas gigantes y demás objetos: cada uno con su propio dibujo
-  obst.forEach((o) => drawObstacle(c, o, A.obst, A.soft));
+  // En la primera persona el suelo va vacío: los objetos, las rejillas, el reactor y las tareas son
+  // modelos 3D propios y no un dibujo pegado al suelo.
+  if (!flat) {
+    // cajas, setas gigantes y demás objetos: cada uno con su propio dibujo
+    obst.forEach((o) => drawObstacle(c, o, A.obst, A.soft));
 
-  // lo que va por encima de objetos y tareas: orillas, barandillas, piedras del vado
-  if (A.overlay) A.overlay(c, floors, obst, rng(4242));
+    // lo que va por encima de objetos y tareas: orillas, barandillas, piedras del vado
+    if (A.overlay) A.overlay(c, floors, obst, rng(4242));
 
-  // rejillas de ventilación
-  for (const v of vents || []) drawVent(c, v.x, v.y, false);
+    // rejillas de ventilación
+    for (const v of vents || []) drawVent(c, v.x, v.y, false);
 
-  // cuadro eléctrico y reactor, encima de sus cajas de colisión
-  A.panel(c, extra && extra.panel);
-  A.reactor(c, extra && extra.rcore, (extra && extra.rpts) || []);
+    // cuadro eléctrico y reactor, encima de sus cajas de colisión
+    A.panel(c, extra && extra.panel);
+    A.reactor(c, extra && extra.rcore, (extra && extra.rpts) || []);
 
-  // objetos de las tareas: integrados en el mapa, no solo un símbolo
-  for (const t of (extra && extra.tasks) || []) drawProp(c, t, A.prop, A.soft);
+    // objetos de las tareas: integrados en el mapa, no solo un símbolo
+    for (const t of (extra && extra.tasks) || []) drawProp(c, t, A.prop, A.soft);
 
-  if (A.labelsTop) drawLabels(); // los rótulos por encima de todo: ningún objeto los tapa
+    if (A.labelsTop) drawLabels(); // los rótulos por encima de todo: ningún objeto los tapa
+  }
 
   const sc = 220 / world.w;
   const miniC = document.createElement('canvas');
