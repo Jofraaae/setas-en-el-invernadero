@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { makeGrid, polyHas } from './grid';
 import { buildWorld as bakeFlat, wallStyleFor, VENT_ANIM_MS } from './render';
+import { createLook, hasLook } from './fp3dLook';
 import { buildObstacle, buildProp, buildConsole, buildVent, buildButton, FRONTAL } from './fp3dModels';
 import { disposeKit, glowMat, mat, rnd, tex } from './fp3dKit';
 import { wallMaterial, roofMaterial, skyTexture, disposeWalls, styleH } from './fp3dWalls';
@@ -357,6 +358,7 @@ export function createFp(canvas) {
       a.op = op;
       for (const m of a.all) { m.transparent = op < 1; m.opacity = op; m.depthWrite = op >= 1; m.needsUpdate = true; }
       a.shadow.visible = alive;
+      if (a.lk) a.lk.setOpacity(op);
     }
     const nm = name || '';
     if (a.name !== nm) {
@@ -365,6 +367,15 @@ export function createFp(canvas) {
       if (nm) { a.tag = nameSprite(nm, color); a.grp.add(a.tag); }
     }
     a.grp.position.y = alive ? 0 : 14 + Math.sin(T * 3) * 4;
+  }
+
+  const geoPlane = new THREE.PlaneGeometry(1, 1);
+  function dropLook(a) {
+    if (!a.lk) return;
+    actorGrp.remove(a.lk.pivot);
+    a.body.remove(a.lk.faceM);
+    a.lk.dispose();
+    a.lk = null;
   }
 
   function placeActor(a, x, y, moving, T, dt) {
@@ -478,8 +489,20 @@ export function createFp(canvas) {
       paint(a, r.color || '#ffffff', r.name, op.alive !== false, !!op.inv, T);
       placeActor(a, op.x, op.y, !!op.moving, T, dt);
       a.grp.visible = true;
+      // accesorios del armario
+      if (hasLook(r.look)) {
+        if (!a.lk) {
+          a.lk = createLook(geoPlane);
+          a.lk.setOpacity(a.op);
+          a.body.add(a.lk.faceM);
+          actorGrp.add(a.lk.pivot);
+        }
+        a.lk.paint(r.look, T);
+        a.lk.pivot.visible = true;
+        a.lk.place(a.grp.position.x, a.grp.position.y + a.body.position.y, a.grp.position.z, a.ang, camera.position.x, camera.position.y, camera.position.z);
+      } else if (a.lk) dropLook(a);
     }
-    for (const [id, a] of actors) if (!seen.has(id)) { actorGrp.remove(a.grp); a.all.forEach((m) => m.dispose()); if (a.tag) a.tag.material.dispose(); actors.delete(id); }
+    for (const [id, a] of actors) if (!seen.has(id)) { dropLook(a); actorGrp.remove(a.grp); a.all.forEach((m) => m.dispose()); if (a.tag) a.tag.material.dispose(); actors.delete(id); }
 
     // cuerpos
     const bs = new Set();
@@ -517,7 +540,8 @@ export function createFp(canvas) {
   function dispose() {
     disposeGroup(world); disposeGroup(dyn); disposeGroup(doorGrp);
     disposeWalls(); disposeKit();
-    for (const a of actors.values()) a.all.forEach((m) => m.dispose());
+    for (const a of actors.values()) { dropLook(a); a.all.forEach((m) => m.dispose()); }
+    geoPlane.dispose();
     for (const a of bodies.values()) a.all.forEach((m) => m.dispose());
     actors.clear(); bodies.clear();
     for (const t of tagTex.values()) t.dispose();
