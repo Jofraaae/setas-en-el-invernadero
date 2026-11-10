@@ -32,42 +32,68 @@ export default function GameCanvas({ g, send }) {
 
   if (!g.fp) g.fp = { on: false, yaw: 0, pitch: 0 };
 
-  // El motor 3D se descarga y arranca solo si eliges la primera persona (Three.js pesa bastante)
+  // El motor 3D se descarga y arranca solo si la sala usa la primera persona (Three.js pesa bastante).
+  // Al ir a una reunión este componente se desmonta: el motor y su lienzo se quedan guardados en
+  // g.fpKeep para volver al instante, sin recargar ni reconstruir nada.
+  const unm = useRef(false);
+  useEffect(() => {
+    unm.current = false;
+    return () => {
+      unm.current = true;
+      const k = g.fpKeep;
+      // si no se vuelve a la partida en unos minutos (se acabó, se salió de la sala), se libera
+      if (k && !k.timer) k.timer = setTimeout(() => { if (g.fpKeep === k) { g.fpKeep = null; k.inst.dispose(); } }, 300000);
+    };
+  }, [g]);
+
   useEffect(() => {
     if (!fpOn) { g.fp.on = false; return undefined; }
     let dead = false;
-    let inst = null;
-    let cvs = null;
-    setFpMsg(tr('Cargando la primera persona…'));
-    import('@/lib/game/fp3d').then((m) => {
-      if (dead) return;
-      if (!m.webglOk()) throw new Error('webgl');
-      cvs = document.createElement('canvas');
-      cvs.className = 'block h-full w-full';
-      cvs.style.touchAction = 'none';
-      fpRef.current.appendChild(cvs);
-      inst = m.createFp(cvs);
-      fpInst.current = inst;
-      g.fp.yaw = g.me && g.me.face < 0 ? Math.PI : 0;
-      g.fp.pitch = 0;
+    const k0 = g.fpKeep;
+    if (k0) {
+      // se vuelve de una reunión: se reengancha el mismo motor
+      if (k0.timer) { clearTimeout(k0.timer); k0.timer = null; }
+      fpRef.current.appendChild(k0.cvs);
+      fpInst.current = k0.inst;
       g.fp.on = true;
       setFpMsg('');
-    }).catch(() => {
-      if (dead) return;
-      // sin WebGL o sin poder cargar el motor: se vuelve a la vista de siempre
-      g.fp.on = false;
-      g.fpBroken = true; // este dispositivo no puede: se queda en la vista normal aunque la sala diga otra cosa
-      setFpOn(false);
-      setFpMsg(tr('Este dispositivo no puede mostrar la primera persona. Se ha vuelto a la vista normal.'));
-      setTimeout(() => setFpMsg(''), 5000);
-    });
+    } else {
+      setFpMsg(tr('Cargando la primera persona…'));
+      import('@/lib/game/fp3d').then((m) => {
+        if (dead) return;
+        if (!m.webglOk()) throw new Error('webgl');
+        const cvs = document.createElement('canvas');
+        cvs.className = 'block h-full w-full';
+        cvs.style.touchAction = 'none';
+        fpRef.current.appendChild(cvs);
+        const inst = m.createFp(cvs);
+        g.fpKeep = { inst, cvs, timer: null };
+        fpInst.current = inst;
+        g.fp.yaw = g.me && g.me.face < 0 ? Math.PI : 0;
+        g.fp.pitch = 0;
+        g.fp.on = true;
+        setFpMsg('');
+      }).catch(() => {
+        if (dead) return;
+        // sin WebGL o sin poder cargar el motor: se vuelve a la vista de siempre
+        g.fp.on = false;
+        g.fpBroken = true; // este dispositivo no puede: se queda en la vista normal aunque la sala diga otra cosa
+        setFpOn(false);
+        setFpMsg(tr('Este dispositivo no puede mostrar la primera persona. Se ha vuelto a la vista normal.'));
+        setTimeout(() => setFpMsg(''), 5000);
+      });
+    }
     return () => {
       dead = true;
       g.fp.on = false;
       fpInst.current = null;
       if (document.pointerLockElement) document.exitPointerLock();
-      if (inst) inst.dispose();
-      if (cvs && cvs.parentNode) cvs.parentNode.removeChild(cvs);
+      const k = g.fpKeep;
+      if (k) {
+        if (k.cvs.parentNode) k.cvs.parentNode.removeChild(k.cvs);
+        // el anfitrión apagó la primera persona con la partida en marcha: se libera ya
+        if (!unm.current) { g.fpKeep = null; k.inst.dispose(); }
+      }
     };
   }, [fpOn, g]);
 
