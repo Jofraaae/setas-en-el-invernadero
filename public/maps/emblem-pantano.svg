@@ -1,12 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100">
   <rect width="160" height="100" fill="#0d1e22"/>
-  <circle cx="80" cy="50" r="43" fill="#1c4a45"/>
+  <circle cx="80" cy="50" r="43" fill="#2a6b5e"/>
   <circle cx="80" cy="50" r="43" fill="none" stroke="#b9ff9a" stroke-width="3.5"/>
-  <circle cx="80" cy="50" r="36" fill="none" stroke="#d6ffc4" stroke-width="1" opacity=".4"/>
-  <!-- espadañas y ondas -->
-  <g fill="none" stroke="#e8ffd9" stroke-width="4" stroke-linecap="round">
-    <path d="M70 76 Q68 54 72 34"/><path d="M90 76 Q92 56 88 40"/>
-  </g>
-  <g fill="#e8ffd9"><rect x="67.6" y="21" width="8.8" height="20" rx="4.4" transform="rotate(4 72 31)"/><rect x="83.6" y="27" width="8.8" height="18" rx="4.4" transform="rotate(-5 88 36)"/></g>
-  <g fill="none" stroke="#e8ffd9" stroke-width="2" stroke-linecap="round"><ellipse cx="80" cy="78" rx="22" ry="4.5"/><ellipse cx="80" cy="78" rx="12" ry="2.4" opacity=".7"/></g>
+  <circle cx="80" cy="50" r="36" fill="none" stroke="#d6ffc4" stroke-width="1" opacity=".35"/>
+  <!-- luna -->
+  <circle cx="104" cy="30" r="7" fill="#f4f7c9"/><circle cx="107" cy="28" r="6" fill="#2a6b5e"/>
+  <!-- agua -->
+  <path d="M42 64 Q80 58 118 64 L112 80 Q80 88 48 80 Z" fill="#1a4a4d"/>
+  <g fill="none" stroke="#7fe3c8" stroke-width="1.8" stroke-linecap="round"><ellipse cx="80" cy="74" rx="22" ry="4.5"/><ellipse cx="80" cy="74" rx="11" ry="2.3" opacity=".7"/></g>
+  <!-- espadañas -->
+  <g fill="none" stroke="#6fcf5f" stroke-width="3.6" stroke-linecap="round"><path d="M68 74 Q66 54 70 36"/><path d="M90 74 Q92 56 88 42"/></g>
+  <g fill="#8a5a2b"><rect x="65.6" y="23" width="8.8" height="20" rx="4.4" transform="rotate(4 70 33)"/><rect x="83.6" y="29" width="8.8" height="18" rx="4.4" transform="rotate(-5 88 38)"/></g>
+  <g stroke="#4a2f14" stroke-width="1" stroke-linecap="round"><path d="M70 22 V19"/><path d="M88 28 V25"/></g>
+  <!-- nenúfar -->
+  <ellipse cx="58" cy="78" rx="7" ry="2.4" fill="#4aa65f"/><circle cx="58" cy="76.6" r="1.6" fill="#ffb3d1"/>
+  <!-- luciérnagas -->
+  <g fill="#f4ffb0"><circle cx="52" cy="40" r="1.4"/><circle cx="108" cy="52" r="1.3"/></g>
 </svg>
