@@ -742,7 +742,7 @@ export function buildWorld(world, floors, obst, btn, vents, extra) {
     c.font = '700 28px system-ui';
     c.textAlign = 'center';
     for (const f of floors) {
-      if (!f[5] || (f[7] && f[7].noLabel)) continue; // noLabel: tramos de un mismo lugar que ya lleva su rótulo
+      if (!f[5] || (f[7] && (f[7].noLabel || f[7].mapOnly))) continue; // noLabel: tramos de un mismo lugar que ya lleva su rótulo · mapOnly: zona abierta, su nombre solo va en el mapa de la M
       const [x, y, w, h, , name] = f;
       const o = f[7] || {};
       const lx = o.label ? o.label[0] : x + w / 2;

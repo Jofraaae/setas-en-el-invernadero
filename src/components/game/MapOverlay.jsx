@@ -32,7 +32,7 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
 
   const sc = Math.min(
     Math.min(window.innerWidth * 0.9, 1180) / world.w,
-    Math.max(220, window.innerHeight * 0.6) / world.h,
+    Math.max(220, window.innerHeight * 0.7) / world.h,
   );
   const W = Math.round(world.w * sc);
   const H = Math.round(world.h * sc);
@@ -56,10 +56,9 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/20 p-3">
       <div className="pointer-events-auto flex max-h-full w-full flex-col items-center gap-2 overflow-auto">
-        <div className="flex w-full max-w-[1180px] items-center justify-between gap-3">
-          <div className="text-[15px] font-extrabold text-[#eaf5ec]">{tr('Mapa de {name}', { name: tr(mapName(g.map)) })}</div>
+        <div className="flex justify-end" style={{ width: W }}>
           <button
-            className="rounded-xl bg-[#2f5a48] px-4 py-2 text-sm font-bold text-[#eaf5ec] transition hover:brightness-110"
+            className="rounded-xl bg-[#2f5a48] px-4 py-1.5 text-sm font-bold text-[#eaf5ec] transition hover:brightness-110"
             onClick={onClose}
           >
             {tr('Cerrar [M]')}
@@ -95,7 +94,7 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
                 />
                 {name && !o.noLabel && !o.noMap ? ( // los tramos sin rótulo (senderos, muelles) no repiten el nombre
                   <span
-                    className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[13px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
+                    className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[12px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
                     style={{ left: lx * sc, top: ly * sc }}
                   >
                     {tr(name)}
@@ -189,7 +188,7 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
               ? (g.st.kycd > 0
                 ? tr('La llave se está recargando: {s} s.', { s: Math.ceil(g.st.kycd / 1000) })
                 : tr('Toca el candado abierto 🔓 de una sala con las puertas cerradas para abrirlas. Después la llave tarda en recargarse.'))
-              : tr('Ves el mapa entero, con el nombre de cada zona.')}
+              : tr('Mapa de {name}', { name: tr(mapName(g.map)) })}
           <div className="text-[11px]">{tr('Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia')}</div>
           {trk ? (
             <div className="text-[11px] font-bold text-[#cdf3ff]">
