@@ -69,31 +69,31 @@ function lane(name, pts, w = 220, label = null) {
   }
 }
 const SEND = 'Sendero de las luciérnagas', CEN = 'Camino del cenagal', CUE = 'Camino de la cueva', RAI = 'Senda de las raíces';
-lane(SEND, [[700, 340], [720, 260], [1000, 240], [1250, 320], [1340, 500], [1440, 500]], 220, [1000, 215]); // cabaña (norte) -> herbolario
+lane(SEND, [[700, 340], [720, 260], [1000, 240], [1250, 320], [1340, 500], [1440, 500]], 220); // cabaña (norte) -> herbolario
 lane(SEND, [[1860, 500], [2060, 500]], 200);                       // herbolario -> atalaya
 lane(SEND, [[2400, 500], [2540, 500]], 200);                       // atalaya -> campo
 lane(SEND, [[1650, 670], [1690, 760], [1770, 810]], 200);          // herbolario (sur) -> charca
 lane(SEND, [[2230, 660], [2230, 770], [2150, 900]], 200);          // atalaya (sur) -> charca
-lane(CEN, [[1230, 740], [1400, 780], [1540, 880], [1620, 980]], 220, [1330, 700]); // cabaña (este) -> charca
+lane(CEN, [[1230, 740], [1400, 780], [1540, 880], [1620, 980]], 220); // cabaña (este) -> charca
 lane(CEN, [[900, 920], [900, 1060]], 200);                         // cabaña (sur) -> árboles muertos
 lane(CEN, [[1390, 1230], [1180, 1230]], 200);                      // muelle oeste -> árboles muertos
 lane(CEN, [[1100, 2060], [1020, 1990], [960, 1890]], 200);         // embarcadero -> árboles muertos
 lane(CEN, [[1440, 1640], [1560, 1600], [1640, 1560]], 200);        // ruinas -> charca
-lane(CUE, [[2640, 940], [2540, 1080], [2440, 1210]], 220, [2380, 1100]); // campo -> muelle este
+lane(CUE, [[2640, 940], [2540, 1080], [2440, 1210]], 220); // campo -> muelle este
 lane(CUE, [[2430, 1230], [2590, 1230]], 200);                      // muelle este -> cobertizo
 lane(CUE, [[2800, 1430], [2860, 1530], [3060, 1590]], 200);        // cobertizo (sur) -> cueva
 lane(CUE, [[3000, 1150], [3150, 1200], [3300, 1340]], 220);        // cobertizo (este) -> choza
 lane(CUE, [[3450, 1200], [3450, 1000]], 200);                      // choza -> campo
 lane(CUE, [[2750, 1900], [2600, 1900]], 220);                      // cueva (oeste) -> raíces
-lane(RAI, [[2020, 1830], [1990, 1690]], 220, [2120, 1760]);        // raíces -> charca
+lane(RAI, [[2020, 1830], [1990, 1690]], 220);        // raíces -> charca
 lane(RAI, [[1830, 2000], [1900, 1850], [1900, 1690]], 220);        // laguna -> charca
 
 const FLOORS = [
-  floor('campo', CAMPO, '#2a4a46', 'Campo de setas gigantes', 'glowfield', { noEdge: true, label: [3040, 1010] }),
-  floor('muertos', MUERTOS, '#3a3a34', 'Zona de árboles muertos', 'deadland', { noEdge: true, label: [720, 1810] }),
-  floor('raices', RAICES, '#2e3f2c', 'Raíces gigantes', 'rootsoil', { noEdge: true, label: [2540, 2290] }),
-  floor('laguna-area', LAGUNA_AREA, '#2f4a3b', 'Laguna', 'bog', { noEdge: true, label: [1450, 2250] }),
-  floor('orilla', SHORE, '#35503f', 'Charca central', 'bog', { noEdge: true, label: [1690, 1610] }),
+  floor('campo', CAMPO, '#2a4a46', 'Campo de setas gigantes', 'glowfield', { noEdge: true, mapOnly: true, label: [3040, 1010] }),
+  floor('muertos', MUERTOS, '#3a3a34', 'Zona de árboles muertos', 'deadland', { noEdge: true, mapOnly: true, label: [700, 1240] }),
+  floor('raices', RAICES, '#2e3f2c', 'Raíces gigantes', 'rootsoil', { noEdge: true, mapOnly: true, label: [2540, 2290] }),
+  floor('laguna-area', LAGUNA_AREA, '#2f4a3b', 'Laguna', 'bog', { noEdge: true, mapOnly: true, label: [1450, 2250] }),
+  floor('orilla', SHORE, '#35503f', 'Charca central', 'bog', { noEdge: true, mapOnly: true, label: [1700, 1790] }),
   ...LANE_FLOORS,
   floor('charca', POND, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water', seeThrough: true }),
   floor('laguna', LAGOON, '#2c6b57', null, 'murk', { carve: true, water: true, wall: 'water', seeThrough: true }),
@@ -150,21 +150,22 @@ for (const d of DOOR_DEFS) FLOORS.push(rect(`puerta-${d.key}-${d.side}`, ...d.fl
 /* Muelles de madera: la plataforma del botón, cuatro pasarelas hasta las orillas, un anillo de
    tablas alrededor de la plataforma y el embarcadero de la laguna. Se abren sobre el agua. */
 const DOCKS = [];
-// todos los tramos se llaman igual (para los bots), pero el rótulo se pinta solo en el embarcadero
+// todos los tramos se llaman igual (para los bots); no llevan rótulo en el mapa
 const dock = (key, pts) => { DOCKS.push(pts); FLOORS.push(floor(key, pts, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: true })); };
-const dockRect = (key, x, y, w, h) => { DOCKS.push([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]); FLOORS.push(rect(key, x, y, w, h, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: key !== 'embarcadero', ...(key === 'embarcadero' ? { label: [1455, 2092], noMap: true } : {}) })); };
-dock('plataforma', circle(C.x, C.y, 120, 28));
+const dockRect = (key, x, y, w, h) => { DOCKS.push([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]); FLOORS.push(rect(key, x, y, w, h, '#7a5f3a', 'Muelles de madera', 'boards', { bridge: true, noLabel: true })); };
+// orden de dibujo: arcos del anillo (debajo), las cuatro pasarelas encima y la plataforma al final
+const arc = (a0, a1, r0 = 215) => {
+  const line = [];
+  for (let a = a0; a <= a1 + 1e-6; a += (6 * Math.PI) / 180) line.push([C.x + Math.cos(a) * r0, C.y + Math.sin(a) * r0]);
+  return band(line, line.map(() => 100));
+};
+// los arcos entran 6° bajo cada pasarela, así no queda ninguna rendija entre ellos
+for (let q = 0; q < 4; q++) dock('anillo' + q, arc((q * Math.PI) / 2 + (6 * Math.PI) / 180, ((q + 1) * Math.PI) / 2 - (6 * Math.PI) / 180));
 dockRect('muelleN', C.x - 60, C.y - 420, 120, 420);
 dockRect('muelleS', C.x - 60, C.y, 120, 420);
 dockRect('muelleO', C.x - 520, C.y - 60, 520, 120);
 dockRect('muelleE', C.x, C.y - 60, 520, 120);
-// el anillo: cuatro arcos entre las pasarelas (unas rutas alternativas por encima del agua)
-const arc = (a0, a1, r0 = 215) => {
-  const line = [];
-  for (let a = a0; a <= a1 + 1e-6; a += (7 * Math.PI) / 180) line.push([C.x + Math.cos(a) * r0, C.y + Math.sin(a) * r0]);
-  return band(line, line.map(() => 100));
-};
-for (let q = 0; q < 4; q++) dock('anillo' + q, arc((q * Math.PI) / 2 + (12 * Math.PI) / 180, ((q + 1) * Math.PI) / 2 - (12 * Math.PI) / 180));
+dock('plataforma', circle(C.x, C.y, 120, 28));
 dockRect('embarcadero', 1090, 2005, 730, 110);
 
 const DOORS = DOOR_DEFS.map((d) => ({ x: d.box[0], y: d.box[1], w: d.box[2], h: d.box[3], rooms: [FIDX[d.key]] }));
@@ -191,14 +192,14 @@ put(1000, 818, 70, 56, 'chest'); put(1130, 580, 60, 60, 'barrel');
 
 /* ---- Cobertizo de las barcas ---- */
 put(2630, 1095, 170, 70, 'rowboat'); put(2830, 1095, 100, 46, 'fishrack');
-put(2895, 1296, 50, 50, 'barrel'); put(2640, 1275, 50, 50, 'barrel');
+put(2895, 1296, 50, 50, 'barrel');
 put(2900, 1215, 60, 56, 'panel');
 
 /* ---- Cueva subterránea ---- */
-put(2820, 1770, 90, 90, 'crystal'); put(3120, 1740, 100, 90, 'crystal');
+put(2840, 1720, 90, 90, 'crystal'); put(3120, 1740, 100, 90, 'crystal');
 put(2900, 2050, 80, 80, 'stalag');
 put(3000, 1700, 120, 90, 'boulder'); put(3000, 2080, 90, 60, 'boulder');
-put(2900, 1940, 60, 60, 'stalag'); put(3130, 2050, 70, 50, 'crystal');
+put(2900, 1940, 60, 60, 'stalag'); put(3090, 2050, 70, 50, 'crystal');
 put(3000, 1920, 120, 60, 'core');
 
 /* ---- Herbolario ---- */
@@ -215,16 +216,14 @@ put(3345, 1380, 110, 56, 'bed'); put(3490, 1385, 70, 50, 'stove');
 put(2270, 1985, 80, 60, 'stump'); put(2060, 2130, 150, 50, 'log');
 
 /* ---- Ruinas hundidas ---- */
-put(1170, 1550, 80, 70, 'boulder'); put(1320, 1550, 70, 80, 'stalag');
-put(1190, 1690, 70, 60, 'stalag'); put(1320, 1690, 70, 60, 'boulder');
+put(1258, 1545, 44, 44, 'stalag'); put(1258, 1696, 44, 44, 'boulder');
 
 /* ---- Mausoleo hundido ---- */
-put(330, 1550, 90, 56, 'chest'); put(520, 1550, 56, 56, 'barrel');
-put(330, 1690, 90, 56, 'chest'); put(520, 1690, 56, 56, 'barrel');
+put(405, 1688, 84, 50, 'chest'); put(520, 1694, 40, 40, 'barrel');
 
 /* ---- Orilla de la charca: faroles de pantano y juncos ---- */
-put(1520, 1020, 40, 40, 'lanternpost'); put(2260, 1020, 40, 40, 'lanternpost');
-put(1520, 1420, 40, 40, 'lanternpost'); put(2260, 1420, 40, 40, 'lanternpost');
+put(1470, 1020, 40, 40, 'lanternpost'); put(2310, 1020, 40, 40, 'lanternpost');
+put(1470, 1420, 40, 40, 'lanternpost'); put(2310, 1420, 40, 40, 'lanternpost');
 
 /* ---------------- tareas ---------------- */
 /* Cada una con su objeto propio (kind) y su minijuego (game), de los que ya existen. */
@@ -240,7 +239,7 @@ const TASKS = [
   { name: 'Reparar el casco de la barca', x: 2700, y: 1205, game: 'pipe', kind: 'valve' },
   { name: 'Remendar las redes de pesca', x: 2880, y: 1175, game: 'match', kind: 'clothesline' },
   { name: 'Contar los remos', x: 2650, y: 1345, game: 'count', kind: 'tray' },
-  { name: 'Encender el farol del cobertizo', x: 2790, y: 1275, game: 'order', kind: 'lamp' },
+  { name: 'Encender el farol del cobertizo', x: 2790, y: 1262, game: 'order', kind: 'lamp' },
   // Cueva subterránea
   { name: 'Sellar las goteras de la cueva', x: 2960, y: 1850, game: 'spots', kind: 'filter' },
   { name: 'Recoger cristales luminosos', x: 3200, y: 1860, game: 'sort', kind: 'tray' },
@@ -262,7 +261,7 @@ const TASKS = [
   { name: 'Cambiar las velas de los faroles', x: 2250, y: 975, game: 'seq', kind: 'lamp' },
   // Campo de setas gigantes
   { name: 'Recoger setas luminosas', x: 2750, y: 520, game: 'sort', kind: 'tray' },
-  { name: 'Medir las setas gigantes', x: 3050, y: 420, game: 'slider', kind: 'scale' },
+  { name: 'Medir las setas gigantes', x: 3050, y: 395, game: 'slider', kind: 'scale' },
   { name: 'Polinizar los sombreros', x: 3300, y: 700, game: 'timing', kind: 'lamp' },
   { name: 'Cosechar esporas', x: 2900, y: 800, game: 'harvest', kind: 'tray' },
   { name: 'Regar el micelio', x: 3350, y: 420, game: 'valves', kind: 'valve' },
@@ -273,7 +272,7 @@ const TASKS = [
   { name: 'Encender las balizas', x: 480, y: 1450, game: 'order', kind: 'lamp' },
   { name: 'Contar los cuervos', x: 800, y: 1500, game: 'count', kind: 'tray' },
   { name: 'Marcar el sendero seguro', x: 1000, y: 1750, game: 'route', kind: 'panel' },
-  { name: 'Recoger leña seca', x: 330, y: 1200, game: 'seq', kind: 'crate' },
+  { name: 'Recoger leña seca', x: 365, y: 1225, game: 'seq', kind: 'crate' },
   { name: 'Desenterrar las raíces muertas', x: 700, y: 1700, game: 'timing', kind: 'switchbox' },
   // Raíces gigantes
   { name: 'Cortar las raíces', x: 1930, y: 2080, game: 'timing', kind: 'switchbox' },
@@ -290,7 +289,7 @@ const TASKS = [
   { name: 'Etiquetar los tarros', x: 1560, y: 470, game: 'sort', kind: 'jars' },
   { name: 'Hervir el tónico', x: 1710, y: 465, game: 'brew', kind: 'cauldron' },
   // Atalaya del cenagal
-  { name: 'Encender el faro de señales', x: 2160, y: 450, game: 'order', kind: 'lamp' },
+  { name: 'Encender el faro de señales', x: 2200, y: 470, game: 'order', kind: 'lamp' },
   { name: 'Orientar el catalejo', x: 2300, y: 470, game: 'slider', kind: 'scale' },
   { name: 'Anotar el registro de niebla', x: 2310, y: 560, game: 'scramble', kind: 'terminal' },
   // Choza del ermitaño
@@ -300,16 +299,16 @@ const TASKS = [
   // Madriguera de raíces
   { name: 'Despejar las raíces', x: 2110, y: 2060, game: 'seq', kind: 'crate' },
   { name: 'Medir la humedad', x: 2200, y: 2070, game: 'dose', kind: 'scale' },
-  { name: 'Cavar la salida', x: 2290, y: 2070, game: 'pipe', kind: 'valve' },
+  { name: 'Cavar la salida', x: 2290, y: 2095, game: 'pipe', kind: 'valve' },
   // Ruinas hundidas
-  { name: 'Descifrar las inscripciones', x: 1270, y: 1595, game: 'memory', kind: 'terminal' },
-  { name: 'Recolocar las piedras', x: 1370, y: 1640, game: 'seq', kind: 'crate' },
-  { name: 'Limpiar el altar', x: 1270, y: 1700, game: 'spots', kind: 'filter' },
-  { name: 'Encender el brasero antiguo', x: 1200, y: 1640, game: 'hold', kind: 'hearth' },
+  { name: 'Descifrar las inscripciones', x: 1215, y: 1572, game: 'memory', kind: 'terminal' },
+  { name: 'Recolocar las piedras', x: 1345, y: 1708, game: 'seq', kind: 'crate' },
+  { name: 'Limpiar el altar', x: 1215, y: 1708, game: 'spots', kind: 'filter' },
+  { name: 'Encender el brasero antiguo', x: 1345, y: 1572, game: 'hold', kind: 'hearth' },
   // Mausoleo hundido
-  { name: 'Encender las velas del mausoleo', x: 450, y: 1700, game: 'order', kind: 'lamp' },
-  { name: 'Abrir la losa', x: 400, y: 1620, game: 'code', kind: 'keypad' },
-  { name: 'Contar las urnas', x: 500, y: 1630, game: 'count', kind: 'tray' },
+  { name: 'Encender las velas del mausoleo', x: 350, y: 1700, game: 'order', kind: 'lamp' },
+  { name: 'Abrir la losa', x: 360, y: 1585, game: 'code', kind: 'keypad' },
+  { name: 'Contar las urnas', x: 540, y: 1565, game: 'count', kind: 'tray' },
 ].map((t, id) => ({ id, ...t }));
 
 /* ---------------- rejillas de ventilación ---------------- */
@@ -319,10 +318,10 @@ const VENTS = [
   { id: 2, net: 'A', name: 'Madriguera', x: 2300, y: 2160 },
   { id: 3, net: 'A', name: 'Atalaya', x: 2200, y: 520 },
   { id: 4, net: 'B', name: 'Cueva', x: 2850, y: 1900 },
-  { id: 5, net: 'B', name: 'Mausoleo', x: 335, y: 1655 },
+  { id: 5, net: 'B', name: 'Mausoleo', x: 450, y: 1645 },
   { id: 6, net: 'B', name: 'Orilla', x: 2200, y: 1545 },
   { id: 7, net: 'B', name: 'Herbolario', x: 1700, y: 590 },
-  { id: 8, net: 'B', name: 'Ruinas', x: 1305, y: 1650 },
+  { id: 8, net: 'B', name: 'Ruinas', x: 1280, y: 1640 },
   { id: 9, net: 'C', name: 'Campo', x: 3480, y: 520 },
   { id: 10, net: 'C', name: 'Choza', x: 3535, y: 1255 },
   { id: 11, net: 'C', name: 'Laguna', x: 1160, y: 2230 },
@@ -355,7 +354,7 @@ const lblHit = (a, b) => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1]
     ...DOOR_DEFS.map((d) => [d.box[0] - 20, d.box[1] - 20, d.box[2] + 40, d.box[3] + 40]),
     ...DOOR_OUT.map((d) => around(d[0], d[1], 70)),
   ];
-  const named = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel);
+  const named = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel && !f[7].mapOnly);
   const placed = [];
   const free = (box) => box[0] > 20 && box[1] > 20 && box[0] + box[2] < WORLD.w - 20 && box[1] + box[3] < WORLD.h - 20
     && !blockers.some((b) => lblHit(box, b)) && !placed.some((b) => lblHit(box, b));
@@ -388,7 +387,7 @@ const lblHit = (a, b) => a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1]
   }
 }
 
-const LABELS = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel).map((f) => f[7].label); // rótulos: que ningún objeto los tape
+const LABELS = FLOORS.filter((f) => f[5] && f[7].label && !f[7].noLabel && !f[7].mapOnly).map((f) => f[7].label); // rótulos: que ningún objeto los tape
 const SPOTS = [ // sitios que no se pueden tapar: tareas, rejillas, panel, consolas y botón
   ...TASKS.map((t) => [t.x, t.y]), ...VENTS.map((v) => [v.x, v.y]), [PANEL.x, PANEL.y], [C.x, C.y], ...RPTS.map((p) => [p.x, p.y]),
 ];
@@ -406,6 +405,10 @@ const AISLES = [...TASKS, ...VENTS]
     for (const h of HUBS) { const d = Math.hypot(h[0] - t.x, h[1] - t.y); if (!best || d < best.d) best = { d, h }; }
     return [[t.x, t.y], best.h];
   });
+// columna vertebral de la zona de árboles muertos: un camino garantizado que la cruza de punta a punta
+// (del sendero de la charca al de la laguna), para que ningún reparto de troncos la deje partida en dos
+const MUERTOS_SPINE = [[1180, 1230], [760, 1240], [520, 1380], [560, 1560], [700, 1700], [960, 1890]];
+for (let i = 0; i + 1 < MUERTOS_SPINE.length; i++) AISLES.push([MUERTOS_SPINE[i], MUERTOS_SPINE[i + 1]]);
 function freeAt(x, y, rad, margin = 0, tight = false) {
   for (const b of BUILDINGS) if (inPoly(b, x, y) || polyDist(b, x, y) < (tight ? 40 + rad * 0.4 : 55 + rad * 0.6)) return false;
   for (const w of WATERS) if (inPoly(w, x, y) || polyDist(w, x, y) < 70 + rad * 0.7) return false;

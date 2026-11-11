@@ -764,28 +764,32 @@ export function pantanoDecor(c, floors, r) {
       if (r() > 0.55) reedsAt(c, px, py, r);
     }
   }
-  // muelles: sombra sobre el agua, travesaños y postes con cuerda
-  for (const d of DOCKS) {
-    c.save();
-    c.beginPath();
-    d.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])));
-    c.closePath();
-    c.strokeStyle = 'rgba(2,10,8,.5)';
-    c.lineWidth = 16;
-    c.stroke();
-    c.strokeStyle = 'rgba(255,225,170,.16)';
-    c.lineWidth = 2;
-    c.stroke();
-    c.restore();
-  }
-  for (const d of DOCKS) {
+  // muelles: UN solo contorno para todo el conjunto (sombra sobre el agua + filo de luz); los tramos
+  // que se solapan ya no dibujan sus bordes uno sobre otro
+  masked(c, (t) => {
+    t.lineJoin = 'round';
+    for (const [col, w] of [['rgba(2,10,8,.5)', 16], ['rgba(255,225,170,.16)', 2]]) {
+      t.strokeStyle = col;
+      t.lineWidth = w;
+      for (const d of DOCKS) {
+        t.beginPath();
+        d.forEach((q, i) => (i ? t.lineTo(q[0], q[1]) : t.moveTo(q[0], q[1])));
+        t.closePath();
+        t.stroke();
+      }
+    }
+  }, DOCKS);
+  // postes con cuerda solo en el borde exterior del conjunto: cada ~110 px del perímetro de cada tramo
+  // y nunca dentro de otro tramo (así no hay postes en mitad de la pasarela)
+  DOCKS.forEach((d, di) => {
     const n = d.length;
-    if (n > 5) continue; // los arcos y la plataforma no llevan poste: se verían como puntos sueltos
+    let next = 0; // distancia (a lo largo del perímetro) hasta el siguiente poste
     for (let i = 0; i < n; i++) {
       const [x0, y0] = d[i], [x1, y1] = d[(i + 1) % n];
-      const len = Math.hypot(x1 - x0, y1 - y0);
-      for (let t = 0; t <= len; t += 110) {
-        const px = x0 + ((x1 - x0) * t) / len, py = y0 + ((y1 - y0) * t) / len;
+      const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+      for (; next <= len; next += 110) {
+        const px = x0 + ((x1 - x0) * next) / len, py = y0 + ((y1 - y0) * next) / len;
+        if (DOCKS.some((o, oi) => oi !== di && inPoly(o, px, py))) continue;
         c.fillStyle = 'rgba(0,0,0,.35)';
         c.beginPath(); c.arc(px + 2, py + 3, 8, 0, TAU); c.fill();
         c.fillStyle = '#3a2a1b';
@@ -793,7 +797,20 @@ export function pantanoDecor(c, floors, r) {
         c.fillStyle = '#7a5f3a';
         c.beginPath(); c.arc(px - 1, py - 1, 4.5, 0, TAU); c.fill();
       }
+      next -= len;
     }
+  });
+  // la plataforma del botón: un aro de tablas oscuro para que se lea como un redondel elevado
+  {
+    const cx = ART.CENTER.x, cy = ART.CENTER.y;
+    c.save();
+    c.strokeStyle = 'rgba(40,26,14,.6)';
+    c.lineWidth = 5;
+    c.beginPath(); c.arc(cx, cy, 118, 0, TAU); c.stroke();
+    c.strokeStyle = 'rgba(255,225,170,.18)';
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(cx, cy, 108, 0, TAU); c.stroke();
+    c.restore();
   }
   // el campo de setas: halos de micelio de colores
   const cols = ['255,120,200', '90,230,235', '255,200,110', '170,140,255', '150,240,110'];

@@ -168,7 +168,6 @@
  "Puertas de {name}": "Doors of {name}",
  "Con un sabotaje en marcha no se pueden cerrar puertas.": "Doors can't be closed while a sabotage is going on.",
  "Toca el candado de una sala para cerrar sus puertas 10 s: nadie puede abrirlas antes y tardan 20 s en poder cerrarse otra vez.": "Tap a room's lock to close its doors for 10 s: nobody can open them before then, and it takes 20 s before they can be closed again.",
- "Ves el mapa entero, con el nombre de cada zona.": "You can see the whole map, with the name of each area.",
  "Punto de tu color: tú · amarillos: misiones pendientes · rojo: botón de emergencia": "Dot in your color: you · yellow: pending tasks · red: emergency button",
  "📍 {name}: el jugador que llevas localizado": "📍 {name}: the player you're tracking",
  "Puedes seguir andando con el mapa abierto · se cierra con la M": "You can keep walking with the map open · close it with M",
