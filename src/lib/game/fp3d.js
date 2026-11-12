@@ -77,6 +77,8 @@ export function createFp(canvas) {
   let taskKey = null;
   let tex2 = null;
   let detailTex = null; // grano fino que se repite sobre el suelo: el dibujo del mapa es de baja resolución y de cerca se veía borroso
+  let waterTex = null;  // textura animada del agua (más baja que el suelo)
+  let waterMats = [];
   let tex3 = null;      // copia del suelo para el tablero de los muelles
   let dockMats = [];
   let docks = [];       // polígonos de muelle: se elevan sobre el agua
@@ -148,6 +150,68 @@ export function createFp(canvas) {
     return t;
   }
 
+  // agua de verdad: un hueco en el suelo con un plano más bajo, textura propia que se mueve y orilla con
+  // profundidad; los muelles pasan por encima. Antes era solo el dibujo del agua pintado en el suelo.
+  function makeWaterTex(col) {
+    const N = 256, c = document.createElement('canvas');
+    c.width = c.height = N;
+    const x = c.getContext('2d');
+    const lg = x.createLinearGradient(0, 0, N, N); // base algo más clara que el dibujo plano, con vetas de luz
+    lg.addColorStop(0, col); lg.addColorStop(0.5, col); lg.addColorStop(1, col);
+    x.fillStyle = lg;
+    x.fillRect(0, 0, N, N);
+    x.fillStyle = 'rgba(160,255,220,.16)';
+    x.fillRect(0, 0, N, N);
+    let seed = 11;
+    const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 46; i++) { // ondas largas que cierran en los bordes (la textura se repite)
+      const y0 = r() * N, amp = 2 + r() * 5, ph = r() * 6.3, k = 1 + Math.floor(r() * 2);
+      x.strokeStyle = r() < 0.5 ? 'rgba(220,255,240,.34)' : 'rgba(0,16,20,.34)';
+      x.lineWidth = 1.5 + r() * 2.6;
+      x.beginPath();
+      for (let px = 0; px <= N; px += 4) { const py = y0 + Math.sin((px / N) * 6.2832 * k + ph) * amp; px ? x.lineTo(px, py) : x.moveTo(px, py); }
+      x.stroke();
+    }
+    for (let i = 0; i < 40; i++) { // destellos
+      x.fillStyle = 'rgba(255,255,255,.4)';
+      x.fillRect(r() * N, r() * N, 3 + r() * 5, 1.5);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    return t;
+  }
+  const WATER_Y = -16;
+  function buildWater(g, W, H, polys) {
+    if (waterTex) { waterTex.dispose(); waterTex = null; }
+    for (const m of waterMats) m.dispose();
+    waterMats = [];
+    if (!polys.length) return;
+    const col = polys[0].color || '#2c6b57';
+    waterTex = makeWaterTex(col);
+    waterTex.repeat.set(1 / 150, 1 / 150);
+    const surf = new THREE.MeshBasicMaterial({ map: waterTex });
+    const mud = new THREE.MeshLambertMaterial({ color: 0x232a1c, side: THREE.DoubleSide });
+    const hidden = new THREE.MeshBasicMaterial({ visible: false });
+    waterMats = [surf, mud, hidden];
+    for (const { poly } of polys) {
+      const shape = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const sg = new THREE.ShapeGeometry(shape);
+      sg.rotateX(-Math.PI / 2);
+      sg.translate(0, WATER_Y, 0);
+      const sm = new THREE.Mesh(sg, surf);
+      sm.userData.ownGeo = true;
+      world.add(sm);
+      const wg = new THREE.ExtrudeGeometry(shape, { depth: -WATER_Y + 0.5, bevelEnabled: false }); // la orilla: pared de barro
+      wg.rotateX(-Math.PI / 2);
+      wg.translate(0, WATER_Y, 0);
+      const wm = new THREE.Mesh(wg, [hidden, mud]);
+      wm.userData.ownGeo = true;
+      world.add(wm);
+    }
+  }
+
   // muelles y puentes: antes eran solo el dibujo pegado al suelo. Ahora un tablero con grosor (con la misma
   // textura del mapa en la cara de arriba), postes y cuerda por el borde exterior, y todo lo que pisa encima
   // (jugadores, botón, tareas, cámara) sube con él
@@ -163,7 +227,7 @@ export function createFp(canvas) {
     tex3.repeat.set(1 / W, 1 / H);
     tex3.offset.set(0, 1);
     tex3.needsUpdate = true;
-    const topMat = new THREE.MeshBasicMaterial({ map: tex3 });
+    const topMat = new THREE.MeshBasicMaterial({ map: tex3, alphaTest: 0.5 });
     const sideMat = new THREE.MeshLambertMaterial({ color: 0x3f2c1a });
     dockMats = [topMat, sideMat];
     for (const poly of docks) {
@@ -241,28 +305,50 @@ export function createFp(canvas) {
       c2.getContext('2d').drawImage(src, 0, 0, c2.width, c2.height);
       src = c2;
     }
+    // huecos del agua: se borran del suelo (en una copia, el lienzo del mapa 2D no se toca) y se devuelve el dibujo
+    // original solo bajo los muelles, que son el tablero que pasa por encima
+    const waterPolys = (g.floors || []).filter((f) => f[7] && f[7].water && f[7].poly).map((f) => ({ poly: f[7].poly, color: f[4] }));
+    const dockPolys = (g.floors || []).filter((f) => f[7] && f[7].bridge).map((f) => f[7].poly || [[f[0], f[1]], [f[0] + f[2], f[1]], [f[0] + f[2], f[1] + f[3]], [f[0], f[1] + f[3]]]);
+    if (waterPolys.length) {
+      const k = src.width / W;
+      const c3 = document.createElement('canvas');
+      c3.width = src.width; c3.height = src.height;
+      const x3 = c3.getContext('2d');
+      x3.drawImage(src, 0, 0);
+      const path = (poly) => { x3.beginPath(); poly.forEach(([px, py], i) => (i ? x3.lineTo(px * k, py * k) : x3.moveTo(px * k, py * k))); x3.closePath(); };
+      x3.globalCompositeOperation = 'destination-out';
+      for (const wp of waterPolys) { path(wp.poly); x3.fill(); }
+      x3.globalCompositeOperation = 'source-over';
+      for (const dp of dockPolys) { x3.save(); path(dp); x3.clip(); x3.drawImage(src, 0, 0); x3.restore(); }
+      src = c3;
+    }
     tex2 = new THREE.CanvasTexture(src);
     tex2.colorSpace = THREE.SRGBColorSpace;
     tex2.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     tex2.minFilter = THREE.LinearMipmapLinearFilter;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex2 }));
+    // grano de detalle mezclado en el propio suelo (da textura al verlo de cerca)
+    if (!detailTex) detailTex = makeDetail();
+    const groundMat = new THREE.MeshBasicMaterial({ map: tex2, alphaTest: waterPolys.length ? 0.5 : 0 });
+    const dRep = new THREE.Vector2(W / 200, H / 200), dAmt = { value: env.roof ? 0.55 : 0.8 };
+    groundMat.onBeforeCompile = (sh) => {
+      sh.uniforms.detailMap = { value: detailTex };
+      sh.uniforms.detailRep = { value: dRep };
+      sh.uniforms.detailAmt = dAmt;
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D detailMap; uniform vec2 detailRep; uniform float detailAmt;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\n  vec4 dt = texture2D(detailMap, vMapUv * detailRep); diffuseColor.rgb = mix(diffuseColor.rgb, dt.rgb, dt.a * detailAmt);');
+    };
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(W / 2, 0, H / 2);
     ground.userData.own = true;
     world.add(ground);
-    // grano de detalle encima del dibujo del suelo (da textura al verlo de cerca)
-    if (!detailTex) detailTex = makeDetail();
-    detailTex.repeat.set(W / 200, H / 200);
-    const grain = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: detailTex, transparent: true, opacity: env.roof ? 0.55 : 0.8, depthWrite: false }));
-    grain.rotation.x = -Math.PI / 2;
-    grain.position.set(W / 2, 0.4, H / 2);
-    grain.renderOrder = 1;
-    grain.userData.own = true;
-    world.add(grain);
+    buildWater(g, W, H, waterPolys);
     buildDocks(g, W, H);
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(W * 4, H * 4), new THREE.MeshBasicMaterial({ color: env.sky }));
     outer.rotation.x = -Math.PI / 2;
     outer.position.set(W / 2, -1, H / 2);
+    if (waterPolys.length) outer.position.y = WATER_Y - 30; // que no tape el hueco del agua
     outer.userData.own = true;
     world.add(outer);
     if (env.roof) {
@@ -589,6 +675,7 @@ export function createFp(canvas) {
     lamp.position.set(g.me.x, eye + camLift + 30, g.me.y);
 
     // tareas: las gemas giran
+    if (waterTex) waterTex.offset.set(T * 0.012, T * 0.007);
     ctl.gems.forEach((gm, i) => { gm.rotation.y = T * 2 + i; gm.position.y = 150 + Math.sin(T * 3 + i) * 4; });
     for (const t of ticks) t(T);
 
@@ -695,7 +782,9 @@ export function createFp(canvas) {
     disposeWalls(); disposeKit();
     if (tex3) tex3.dispose();
     if (detailTex) detailTex.dispose();
+    if (waterTex) waterTex.dispose();
     for (const m of dockMats) m.dispose();
+    for (const m of waterMats) m.dispose();
     for (const a of actors.values()) { dropLook(a); a.all.forEach((m) => m.dispose()); }
     geoPlane.dispose();
     for (const a of bodies.values()) a.all.forEach((m) => m.dispose());
