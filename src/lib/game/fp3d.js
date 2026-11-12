@@ -76,6 +76,22 @@ export function createFp(canvas) {
   let doorKey = null;
   let taskKey = null;
   let tex2 = null;
+  let detailTex = null; // grano fino que se repite sobre el suelo: el dibujo del mapa es de baja resolución y de cerca se veía borroso
+  let tex3 = null;      // copia del suelo para el tablero de los muelles
+  let dockMats = [];
+  let docks = [];       // polígonos de muelle: se elevan sobre el agua
+  let camLift = 0;
+  const DOCK_H = 9;
+  const inPolyP = (poly, x, y) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  // altura del suelo en un punto: los muelles son un tablero elevado, el resto va a ras
+  const liftAt = (x, z) => { for (const p of docks) if (inPolyP(p, x, z)) return DOCK_H; return 0; };
   let ticks = [];
   const ctl = { core: null, consoles: [], vents: [], gems: [] };
 
@@ -91,6 +107,117 @@ export function createFp(canvas) {
     }
   };
   const collectTicks = (grp) => grp.traverse((o) => { if (o.userData && typeof o.userData.tick === 'function') ticks.push(o.userData.tick); });
+
+  // Lo que de verdad define el mundo 3D (suelo, muros, objetos, rejillas, botón). Al volver de una reunión la
+  // partida se vuelve a montar y el dibujo 2D (g.mapC) es un lienzo NUEVO, pero idéntico: reconstruir todo
+  // el 3D por eso congelaba la pantalla un buen rato. Si la firma no ha cambiado, no se toca nada.
+  function worldSig(g) {
+    return JSON.stringify([g.map, g.world.w, g.world.h, !!g.lobby, g.floors, g.obst, g.vents, g.btn]);
+  }
+  function worldChanged(g) {
+    if (!built || built.map !== g.map || built.w !== g.world.w || built.h !== g.world.h || built.n !== (g.obst || []).length) return true;
+    if (built.mapC === g.mapC) return false;
+    if (built.sig !== worldSig(g)) return true;
+    built.mapC = g.mapC; // mismo mundo, lienzo nuevo: basta con apuntar al nuevo
+    return false;
+  }
+
+  function makeDetail() {
+    const N = 256, c = document.createElement('canvas');
+    c.width = c.height = N;
+    const x = c.getContext('2d');
+    let seed = 7;
+    const r = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 90; i++) { // manchas suaves
+      const px = r() * N, py = r() * N, rad = 10 + r() * 26, dark = r() < 0.55;
+      const grd = x.createRadialGradient(px, py, 0, px, py, rad);
+      grd.addColorStop(0, dark ? 'rgba(0,0,0,.16)' : 'rgba(255,255,255,.08)');
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = grd;
+      for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.save(); x.translate(ox, oy); x.beginPath(); x.arc(px, py, rad, 0, 6.3); x.fill(); x.restore(); }
+    }
+    for (let i = 0; i < 1400; i++) { // granos
+      x.fillStyle = r() < 0.6 ? 'rgba(0,0,0,.2)' : 'rgba(255,255,255,.12)';
+      const w = 1 + r() * 2.4;
+      x.fillRect(r() * N, r() * N, w, w * (0.6 + r()));
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    return t;
+  }
+
+  // muelles y puentes: antes eran solo el dibujo pegado al suelo. Ahora un tablero con grosor (con la misma
+  // textura del mapa en la cara de arriba), postes y cuerda por el borde exterior, y todo lo que pisa encima
+  // (jugadores, botón, tareas, cámara) sube con él
+  function buildDocks(g, W, H) {
+    if (tex3) { tex3.dispose(); tex3 = null; }
+    for (const m of dockMats) m.dispose();
+    dockMats = [];
+    docks = (g.floors || [])
+      .filter((f) => f[7] && f[7].bridge)
+      .map((f) => f[7].poly || [[f[0], f[1]], [f[0] + f[2], f[1]], [f[0] + f[2], f[1] + f[3]], [f[0], f[1] + f[3]]]);
+    if (!docks.length) return;
+    tex3 = tex2.clone();
+    tex3.repeat.set(1 / W, 1 / H);
+    tex3.offset.set(0, 1);
+    tex3.needsUpdate = true;
+    const topMat = new THREE.MeshBasicMaterial({ map: tex3 });
+    const sideMat = new THREE.MeshLambertMaterial({ color: 0x3f2c1a });
+    dockMats = [topMat, sideMat];
+    for (const poly of docks) {
+      const shape = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: DOCK_H + 20, bevelEnabled: false });
+      geo.rotateX(-Math.PI / 2);
+      geo.translate(0, -20, 0);
+      const m = new THREE.Mesh(geo, [topMat, sideMat]);
+      m.userData.ownGeo = true;
+      world.add(m);
+    }
+    // postes cada ~110 px del perímetro, nunca dentro de otro tramo, unidos por una cuerda
+    const posts = [], ropes = [];
+    docks.forEach((poly, di) => {
+      const n = poly.length;
+      let next = 0, prev = null, first = null;
+      for (let i = 0; i < n; i++) {
+        const [x0, y0] = poly[i], [x1, y1] = poly[(i + 1) % n];
+        const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+        for (; next <= len; next += 110) {
+          const px = x0 + ((x1 - x0) * next) / len, py = y0 + ((y1 - y0) * next) / len;
+          if (docks.some((o, oi) => oi !== di && inPolyP(o, px, py))) { prev = null; continue; }
+          posts.push(px, py);
+          if (prev) ropes.push(prev[0], prev[1], px, py);
+          else if (!first) first = [px, py];
+          prev = [px, py];
+        }
+        next -= len;
+      }
+      if (prev && first && Math.hypot(prev[0] - first[0], prev[1] - first[1]) < 140) ropes.push(prev[0], prev[1], first[0], first[1]);
+    });
+    const dd = new THREE.Object3D();
+    if (posts.length) {
+      const pm = new THREE.InstancedMesh(new THREE.CylinderGeometry(3.2, 4.2, 38, 8), new THREE.MeshLambertMaterial({ color: 0x5b4127 }), posts.length / 2);
+      for (let k = 0; k < posts.length / 2; k++) { dd.position.set(posts[k * 2], DOCK_H + 19, posts[k * 2 + 1]); dd.rotation.set(0, 0, 0); dd.scale.set(1, 1, 1); dd.updateMatrix(); pm.setMatrixAt(k, dd.matrix); }
+      pm.instanceMatrix.needsUpdate = true;
+      pm.userData.own = true;
+      world.add(pm);
+    }
+    if (ropes.length) {
+      const rm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xb59a68 }), ropes.length / 4);
+      for (let k = 0; k < ropes.length / 4; k++) {
+        const [ax, ay, bx, by] = [ropes[k * 4], ropes[k * 4 + 1], ropes[k * 4 + 2], ropes[k * 4 + 3]];
+        dd.position.set((ax + bx) / 2, DOCK_H + 30, (ay + by) / 2);
+        dd.rotation.set(0, -Math.atan2(by - ay, bx - ax), 0);
+        dd.scale.set(Math.hypot(bx - ax, by - ay), 2.4, 2.4);
+        dd.updateMatrix();
+        rm.setMatrixAt(k, dd.matrix);
+      }
+      rm.instanceMatrix.needsUpdate = true;
+      rm.userData.own = true;
+      world.add(rm);
+    }
+  }
 
   function buildWorld(g) {
     disposeGroup(world);
@@ -123,6 +250,16 @@ export function createFp(canvas) {
     ground.position.set(W / 2, 0, H / 2);
     ground.userData.own = true;
     world.add(ground);
+    // grano de detalle encima del dibujo del suelo (da textura al verlo de cerca)
+    if (!detailTex) detailTex = makeDetail();
+    detailTex.repeat.set(W / 200, H / 200);
+    const grain = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: detailTex, transparent: true, opacity: env.roof ? 0.55 : 0.8, depthWrite: false }));
+    grain.rotation.x = -Math.PI / 2;
+    grain.position.set(W / 2, 0.4, H / 2);
+    grain.renderOrder = 1;
+    grain.userData.own = true;
+    world.add(grain);
+    buildDocks(g, W, H);
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(W * 4, H * 4), new THREE.MeshBasicMaterial({ color: env.sky }));
     outer.rotation.x = -Math.PI / 2;
     outer.position.set(W / 2, -1, H / 2);
@@ -143,6 +280,7 @@ export function createFp(canvas) {
     const full = makeGrid(g.world, g.floors, []);
     const { gw, gh, cells } = full;
     const byStyle = new Map();
+    const wallDone = new Set();
     for (let ty = 0; ty < gh; ty++) for (let tx = 0; tx < gw; tx++) {
       if (cells[ty * gw + tx]) continue;
       let near = false;
@@ -156,6 +294,18 @@ export function createFp(canvas) {
       if (style === 'water') continue; // el agua no tiene muro
       if (!byStyle.has(style)) byStyle.set(style, []);
       byStyle.get(style).push(tx, ty);
+      wallDone.add(ty * gw + tx);
+    }
+    // mapas al aire libre: una pared de árboles por todo el borde del mundo, para que ni el agua ni un claro
+    // lleguen nunca a un corte con el vacío (se veía el final del mapa al mirar al otro lado de la laguna)
+    if (!env.roof) {
+      for (let ty = 0; ty < gh; ty++) for (let tx = 0; tx < gw; tx++) {
+        if (tx > 3 && ty > 3 && tx < gw - 4 && ty < gh - 4) continue;
+        const i = ty * gw + tx;
+        if (cells[i] || wallDone.has(i)) continue;
+        if (!byStyle.has('forest')) byStyle.set('forest', []);
+        byStyle.get('forest').push(tx, ty);
+      }
     }
     const d = new THREE.Object3D();
     const col = new THREE.Color();
@@ -209,6 +359,7 @@ export function createFp(canvas) {
     (g.obst || []).forEach((o, i) => {
       const m = buildObstacle(o[4], o[0], o[1], o[2], o[3], i + 1, FRONTAL.has(o[4]) ? facing(o) : 0);
       m.userData.type = o[4];
+      m.position.y += liftAt(o[0] + o[2] / 2, o[1] + o[3] / 2);
       world.add(m);
       if (o[4] === 'core' && !ctl.core) ctl.core = m;
     });
@@ -219,13 +370,14 @@ export function createFp(canvas) {
     // botón de emergencia
     if (!g.lobby && g.btn) {
       const bb = buildButton(g.btn.x, g.btn.y);
+      bb.position.y += liftAt(g.btn.x, g.btn.y);
       // si el botón está sobre un objeto (una máquina, una mesa), se apoya encima
       const under = (g.obst || []).find((o) => g.btn.x >= o[0] && g.btn.x <= o[0] + o[2] && g.btn.y >= o[1] && g.btn.y <= o[1] + o[3]);
       if (under) { bb.position.y = under[4] === 'machine' ? 66 : under[4] === 'table' ? 36 : 48; bb.scale.setScalar(0.6); }
       world.add(bb);
     }
     collectTicks(world);
-    built = { map: g.map, w: W, h: H, mapC: g.mapC, n: (g.obst || []).length };
+    built = { map: g.map, w: W, h: H, mapC: g.mapC, n: (g.obst || []).length, sig: worldSig(g) };
     doorKey = null; taskKey = null;
   }
 
@@ -239,7 +391,7 @@ export function createFp(canvas) {
       const prop = buildProp(t.kind, t.x, t.y, b[2], b[3], i + 1);
       dyn.add(prop);
       const grp = new THREE.Group();
-      grp.position.set(t.x, 0, t.y);
+      grp.position.set(t.x, liftAt(t.x, t.y), t.y);
       const pm = new THREE.Mesh(geoPillar, glowMat(done ? '#4ade80' : '#ffd60a', done ? 0.1 : 0.16));
       pm.position.y = 124;
       pm.scale.y = 1.6;
@@ -366,7 +518,7 @@ export function createFp(canvas) {
       if (a.tag) { a.grp.remove(a.tag); a.tag.material.dispose(); a.tag = null; }
       if (nm) { a.tag = nameSprite(nm, color); a.grp.add(a.tag); }
     }
-    a.grp.position.y = alive ? 0 : 14 + Math.sin(T * 3) * 4;
+    a.grp.position.y = liftAt(a.grp.position.x, a.grp.position.z) + (alive ? 0 : 14 + Math.sin(T * 3) * 4);
   }
 
   const geoPlane = new THREE.PlaneGeometry(1, 1);
@@ -406,7 +558,7 @@ export function createFp(canvas) {
   function render(g, T, dt, w, h) {
     resize(w, h);
     if (!g.world) return;
-    if (!built || built.map !== g.map || built.mapC !== g.mapC || built.w !== g.world.w || built.h !== g.world.h || built.n !== (g.obst || []).length) buildWorld(g);
+    if (worldChanged(g)) buildWorld(g);
     if (taskKey !== keyOfTasks(g)) buildDyn(g);
     if (doorKey !== g.doorKey) buildDoors(g);
     const fp = g.fp;
@@ -430,10 +582,11 @@ export function createFp(canvas) {
     // cámara
     const moving = !!g.me.moving;
     const eye = (g.me.alive ? EYE : EYE + 20 + Math.sin(T * 2) * 3) + (moving && g.me.alive ? Math.sin(T * 12) * 1.6 : 0);
-    camera.position.set(g.me.x, eye, g.me.y);
+    camLift += (liftAt(g.me.x, g.me.y) - camLift) * Math.min(1, dt * 10); // sube al tablero sin dar un salto
+    camera.position.set(g.me.x, eye + camLift, g.me.y);
     camera.rotation.y = -fp.yaw - Math.PI / 2;
     camera.rotation.x = fp.pitch;
-    lamp.position.set(g.me.x, eye + 30, g.me.y);
+    lamp.position.set(g.me.x, eye + camLift + 30, g.me.y);
 
     // tareas: las gemas giran
     ctl.gems.forEach((gm, i) => { gm.rotation.y = T * 2 + i; gm.position.y = 150 + Math.sin(T * 3 + i) * 4; });
@@ -530,7 +683,7 @@ export function createFp(canvas) {
         bodies.set(id, a);
         actorGrp.add(a.grp);
       }
-      a.grp.position.set(x, 0, y);
+      a.grp.position.set(x, liftAt(x, y), y);
     }
     for (const [id, a] of bodies) if (!bs.has(id)) { actorGrp.remove(a.grp); a.all.forEach((m) => m.dispose()); bodies.delete(id); }
 
@@ -540,6 +693,9 @@ export function createFp(canvas) {
   function dispose() {
     disposeGroup(world); disposeGroup(dyn); disposeGroup(doorGrp);
     disposeWalls(); disposeKit();
+    if (tex3) tex3.dispose();
+    if (detailTex) detailTex.dispose();
+    for (const m of dockMats) m.dispose();
     for (const a of actors.values()) { dropLook(a); a.all.forEach((m) => m.dispose()); }
     geoPlane.dispose();
     for (const a of bodies.values()) a.all.forEach((m) => m.dispose());
