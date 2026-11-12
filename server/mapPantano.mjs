@@ -31,12 +31,19 @@ const CAMPO = chaikin([[2500, 260], [3480, 230], [3600, 620], [3520, 1000], [306
 const MUERTOS = chaikin([[210, 1010], [860, 990], [1170, 1200], [1240, 1660], [950, 1860], [430, 1840], [230, 1540]], 2);
 const RAICES = chaikin([[1800, 1800], [2700, 1780], [2720, 2330], [1800, 2330]], 2);
 const SHORE = circle(C.x, C.y, 470, 56);
-const LAGUNA_AREA = chaikin(blob(1450, 2060, 390, 0.5, 0.05, 40), 1);
+// la laguna del sur se quedaba a 80 px del borde del mundo (y el claro ni cabía): se aprieta en vertical para
+// que detrás haya siempre una franja de bosque y no se vea el vacío del final del mapa
+const squashY = (poly, y0, yMax) => {
+  const bot = Math.max(...poly.map((q) => q[1]));
+  const f = bot > yMax ? (yMax - y0) / (bot - y0) : 1;
+  return poly.map(([x, y]) => [x, y0 + (y - y0) * f]);
+};
+const LAGUNA_AREA = squashY(chaikin(blob(1450, 2060, 390, 0.5, 0.05, 40), 1), 1653, 2250);
 const ZONES = [CAMPO, MUERTOS, RAICES, SHORE, LAGUNA_AREA];
 
 // el agua: la charca central, la laguna del sur y una poza entre los árboles muertos
 const POND = chaikin(blob(C.x, C.y, 330, 1.3, 0.05, 40), 1);
-const LAGOON = chaikin(blob(1450, 2060, 240, 2.1, 0.08, 30), 1);
+const LAGOON = squashY(chaikin(blob(1450, 2060, 240, 2.1, 0.08, 30), 1), 1817, 2190);
 const POOLS = [chaikin(blob(650, 1330, 90, 1.9, 0.14, 18), 1)];
 const WATERS = [POND, LAGOON, ...POOLS];
 
@@ -324,7 +331,7 @@ const VENTS = [
   { id: 8, net: 'B', name: 'Ruinas', x: 1280, y: 1640 },
   { id: 9, net: 'C', name: 'Campo', x: 3480, y: 520 },
   { id: 10, net: 'C', name: 'Choza', x: 3535, y: 1255 },
-  { id: 11, net: 'C', name: 'Laguna', x: 1160, y: 2230 },
+  { id: 11, net: 'C', name: 'Laguna', x: 1180, y: 2175 },
   { id: 12, net: 'C', name: 'Charca', x: 1640, y: 880 },
   { id: 13, net: 'C', name: 'Árboles muertos', x: 430, y: 1150 },
 ];
