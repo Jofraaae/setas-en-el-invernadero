@@ -125,7 +125,7 @@ export default function Home() {
 
   const closeConn = useCallback(() => {
     if (connectTimer.current) { clearTimeout(connectTimer.current); connectTimer.current = null; }
-    if (subRef.current) { try { subRef.current.unsubscribe(); } catch (e) { /* ya cerrada */ } subRef.current = null; }
+    if (subRef.current) { try { subRef.current(); } catch (e) { /* ya cerrada */ } subRef.current = null; }
     if (connRef.current) { try { connRef.current.close(); } catch (e) { /* ya cerrada */ } connRef.current = null; }
   }, []);
 
@@ -615,7 +615,7 @@ export default function Home() {
         learnGhost(m.ghost || (m.angel ? 'angel' : ''));
         window.setTimeout(() => {
           setDeath(null);
-          g.inputLock = false;
+          g.inputLock = !!g.miniOpen; // un minijuego abierto durante la animación sigue bloqueando el movimiento
         }, DEATH_MS);
         break;
       }
@@ -770,7 +770,7 @@ export default function Home() {
         break;
       case 'lchat':
         sfx('chat');
-        setLChat((c) => [...c, m]);
+        setLChat((c) => [...c, m].slice(-80)); // el chat de la sala no crece sin límite
         break;
       case 'voted':
         if (m.id !== g.myId) sfx('blip'); // el tuyo ya suena al confirmarlo
@@ -996,7 +996,9 @@ export default function Home() {
       // Si la sala lleva un buen rato sin contestar, la conexión se ha quedado muerta
       // (pestaña suspendida): se rehace con el mismo id, así la sala te reconoce y sigues
       // donde estabas en vez de obligarte a recargar la página.
-      if (performance.now() - aliveAt.current > 20000) {
+      // un socket ya cerrado se rehace en el siguiente latido (4 s) en vez de esperar 20 s de silencio
+      const dead = connRef.current.readyState === WebSocket.CLOSED || connRef.current.readyState === WebSocket.CLOSING;
+      if (dead || performance.now() - aliveAt.current > 20000) {
         aliveAt.current = performance.now();
         dial('join', code);
       }

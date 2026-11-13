@@ -58,7 +58,8 @@ export function connectRoom(roomCode, { id }) {
     send(obj) {
       const s = JSON.stringify(obj);
       if (ws.readyState === WebSocket.OPEN) ws.send(s);
-      else if (ws.readyState === WebSocket.CONNECTING) ws.addEventListener('open', () => { try { ws.send(s); } catch (e) { /* cerrada */ } }, { once: true });
+      // mientras se reconecta no se encolan órdenes de movimiento ni latidos: al abrir llegarían todas de golpe, ya viejas
+      else if (ws.readyState === WebSocket.CONNECTING && obj && obj.t !== 'input' && obj.t !== 'ping') ws.addEventListener('open', () => { try { ws.send(s); } catch (e) { /* cerrada */ } }, { once: true });
     },
     subscribe(fn) {
       subs.add(fn);
