@@ -51,6 +51,7 @@ const WATCH_MS = 15000;
 const SAVE_EVERY_MS = 2500;
 const ROOM_SYNC_MS = 15000;   // cada cuánto se refresca el anuncio de esta sala en el listado
 const LOBBY_CHAT_MAX = 40;
+const TASK_MIN_GAP_MS = 1500; // tiempo mínimo entre dos misiones de un mismo jugador
 
 // [mínimo, máximo, paso]. imps 0 = automático.
 const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30, lantern: 1, lanternR: 250, fp: 0, keymaster: 1, keyCd: 40, blinder: 1, blindCd: 30, blindSec: 5 };
@@ -913,6 +914,9 @@ class GameRoom {
         if (this.phase !== 'playing' || this.frozen(p, now) || (p.blindUntil || 0) > now) return; // los fantasmas también terminan sus misiones; un cegado no ve la misión
         if (!Number.isInteger(msg.id) || !p.tasks.includes(msg.id) || p.done.includes(msg.id) || p.inVent) return;
         if (dist(p, this.m.tasks[msg.id]) > USE_RANGE + 20) return;
+        // un minijuego dura más que esto: un cliente trucado no puede soltar todas sus misiones de golpe
+        if (now - (p.lastTaskAt || 0) < TASK_MIN_GAP_MS) return;
+        p.lastTaskAt = now;
         p.done.push(msg.id);
         if (p.role === 'crew') this.taskDone++; // las tareas del impostor son de mentira
         conn.send({ t: 'taskAck', id: msg.id });
@@ -1323,6 +1327,8 @@ class GameRoom {
     if (this.findByConn(conn.id)) return;
     const code = String(msg.code || '').toUpperCase().trim();
     if (!CODE_RE.test(code)) return conn.send({ t: 'error', msg: 'Código de sala no válido.' });
+    // la sala ya tiene su código (el del socket): crear con otro dejaría la sala anunciada con un código al que nadie podría entrar
+    if (this.code && code !== this.code) return conn.send({ t: 'error', msg: 'Código de sala no válido.' });
     // el registro global dice si otra sala viva tiene ese código
     const other = this.rt.registry.list().find((r) => r.code === code && r.status !== 'gone');
     if (other || this.players.size > 0) return conn.send({ t: 'error', msg: 'Ese código ya está ocupado. Generando otro…' });
@@ -1830,9 +1836,13 @@ class GameRoom {
 
   endMeeting() {
     if (this.phase !== 'meeting' || !this.meeting) return;
+    // un voto a alguien que se ha ido de la sala no cuenta (si no, podía empatar y anular la expulsión)
+    for (const [from, to] of [...this.meeting.votes]) if (to !== 'skip' && !this.players.has(to)) this.meeting.votes.delete(from);
     const votes = [...this.meeting.votes].map(([from, to]) => ({ from, to }));
     // el Juez que ha gastado su sentencia decide la expulsión por encima de los votos
     // con varios jueces decide uno solo, el primero que sentenció: la sentencia de los demás no se gasta
+    // si el señalado se ha ido de la sala, la sentencia no se gasta ni castiga al Juez
+    for (const j of this.players.values()) if (j.judge && j.judgeTarget && !this.players.has(j.judgeTarget)) { j.judgeTarget = null; j.judgeUsed = false; this.sendTo(j, { t: 'judgeRefund' }); }
     const judges = [...this.players.values()].filter((p) => p.judge && p.judgeTarget).sort((a, b) => (a.judgeAt || 0) - (b.judgeAt || 0));
     const judge = judges[0] || null;
     for (const j of judges) if (j !== judge) { j.judgeTarget = null; j.judgeUsed = false; this.sendTo(j, { t: 'judgeRefund' }); }

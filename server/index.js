@@ -24,6 +24,7 @@ const SAVE_DIR = path.join(ROOT, '.saves');
 /* ---------- persistencia en memoria (+ disco, para sobrevivir reinicios) ---------- */
 
 const store = new Map(); // code -> { get, put } por sala
+const diskTimers = new Map(); // code -> escritura a disco pendiente
 
 // Al arrancar se borran los guardados viejos: si el servidor se cae o se reinicia, las salas
 // abandonadas se quedarían en disco para siempre y sus códigos figurarían como ocupados.
@@ -53,10 +54,18 @@ function makeStorage(code) {
     async put(_k, v) {
       const copy = JSON.parse(JSON.stringify(v));
       store.set(code, copy);
-      try {
-        fs.mkdirSync(SAVE_DIR, { recursive: true });
-        fs.writeFileSync(file, JSON.stringify(copy));
-      } catch (e) { /* el disco es un extra: la partida vive en memoria */ }
+      // el disco solo sirve para sobrevivir a un reinicio: se escribe como mucho cada 2 s por sala,
+      // en vez de bloquear el servidor con una escritura síncrona en cada acción de cualquier jugador
+      if (diskTimers.has(code)) return;
+      diskTimers.set(code, setTimeout(() => {
+        diskTimers.delete(code);
+        const cur = store.get(code);
+        if (!cur) return; // la sala se retiró entre medias: no se resucita su archivo
+        try {
+          fs.mkdirSync(SAVE_DIR, { recursive: true });
+          fs.writeFileSync(file, JSON.stringify(cur));
+        } catch (e) { /* el disco es un extra: la partida vive en memoria */ }
+      }, 2000));
     },
   };
 }
@@ -117,6 +126,8 @@ setInterval(() => {
       connsByRoom.delete(code);
       roomAnnounce.delete(code);
       store.delete(code);
+      const dt = diskTimers.get(code);
+      if (dt) { clearTimeout(dt); diskTimers.delete(code); }
       try { fs.unlinkSync(path.join(SAVE_DIR, `${code}.json`)); } catch (e) { /* sin archivo */ }
     }
   }
@@ -186,6 +197,17 @@ const server = http.createServer((req, res) => {
 // Los mensajes del juego son diminutos (el mayor es un chat de 140 letras): por defecto ws admite
 // 100 MB por mensaje, lo que deja a cualquiera llenar la memoria del servidor con un solo envío.
 const MAX_MSG_BYTES = 8 * 1024;
+const MAX_ROOMS = 400;           // salas vivas a la vez: sin tope, abrir conexiones con códigos al azar llena la memoria
+const MAX_CONNS_PER_ROOM = 40;   // 15 jugadores como mucho, el resto es margen para reconexiones
+const MAX_CONNS_PER_IP = 30;
+const IDLE_JOIN_MS = 30000;      // una conexión que no crea ni se une a la sala en este rato se cierra
+const CONN_ID_RE = /^[A-Za-z0-9_-]{8,64}$/; // el id lo elige el cliente (randomUUID): 'bot:…' es de los bots y no se admite
+const ipCount = new Map();
+function clientIp(req) {
+  // detrás de un proxy (Render, Vercel…) la IP real es la última que añadió el proxy en x-forwarded-for
+  const xf = String(req.headers['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return xf.length ? xf[xf.length - 1] : (req.socket && req.socket.remoteAddress) || '?';
+}
 const MAX_MSGS_PER_SEC = 120; // el movimiento manda unas 25 órdenes por segundo: hay mucho margen
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
 
@@ -217,12 +239,30 @@ wss.on('connection', (ws, req) => {
   const q = new URL(req.url, 'http://localhost').searchParams;
   const code = String(q.get('room') || '').toUpperCase().trim();
   const connId = String(q.get('id') || '');
-  if (!CODE_RE.test(code) || !connId) {
+  if (!CODE_RE.test(code) || !CONN_ID_RE.test(connId)) {
     ws.close(4004, 'bad request');
     return;
   }
+  const ip = clientIp(req);
+  if ((ipCount.get(ip) || 0) >= MAX_CONNS_PER_IP) { ws.close(4029, 'too many connections'); return; }
+  if (!rooms.has(code) && rooms.size >= MAX_ROOMS) { ws.close(4013, 'server full'); return; }
   const room = getRoom(code);
   const conns = connsByRoom.get(code);
+  if (!conns.has(connId) && conns.size >= MAX_CONNS_PER_ROOM) { ws.close(4013, 'room full'); return; }
+  ipCount.set(ip, (ipCount.get(ip) || 0) + 1);
+  let counted = true;
+  const uncount = () => { if (counted) { counted = false; const n = (ipCount.get(ip) || 1) - 1; if (n > 0) ipCount.set(ip, n); else ipCount.delete(ip); } };
+  // latido: un socket medio muerto (sin FIN) se detecta y se cierra, y la sala marca al jugador como desconectado
+  let alive = true;
+  ws.on('pong', () => { alive = true; });
+  const beat = setInterval(() => {
+    if (!alive) { try { ws.terminate(); } catch (e) { /* ya muerta */ } return; }
+    alive = false;
+    try { ws.ping(); } catch (e) { /* cerrada */ }
+  }, 20000);
+  // y una conexión que nunca llega a crear ni unirse a la sala no puede ocuparla para siempre
+  let joined = false;
+  const idle = setTimeout(() => { if (!joined && !room.findByConn(connId)) { try { ws.close(4008, 'idle'); } catch (e) { /* ya cerrada */ } } }, IDLE_JOIN_MS);
   // si revive una conexión con el mismo id, la anterior se descuelga
   const prev = conns.get(connId);
   if (prev) { try { prev.raw.terminate(); } catch (e) { /* ya muerta */ } }
@@ -248,9 +288,11 @@ wss.on('connection', (ws, req) => {
     if (++winCount > MAX_MSGS_PER_SEC) { try { ws.close(4008, 'too many messages'); } catch (e) { /* ya cerrada */ } return; }
     let msg;
     try { msg = JSON.parse(buf.toString('utf8')); } catch (e) { return; }
+    if (msg && (msg.t === 'create' || msg.t === 'join')) joined = true;
     guard(() => room.onMessage(conn, msg), 'message');
   });
   ws.on('close', () => {
+    clearInterval(beat); clearTimeout(idle); uncount();
     if (conns.get(connId) === conn) {
       conns.delete(connId);
       guard(() => room.onClose(conn), 'close');
