@@ -10,7 +10,8 @@ const BTN_ALT = 'rounded-xl bg-[#2f5a48] px-4 py-2.5 max-[600px]:px-3 max-[600px
 export default function MeetingScreen({ data, myId, alive, role, mates, roster, chat, gone, interro, judge, judgeUsed, onVote, onSkip, onJudge, onChat }) {
   const { compact, landscape } = useCompact();
   const [sel, setSel] = useState(null);
-  const [voted, setVoted] = useState(!!data.voted?.has(myId));
+  const [votedLocal, setVoted] = useState(!!data.voted?.has(myId));
+  const voted = votedLocal || !!data.voted?.has(myId); // el servidor manda quién ha votado: tras reconectar no se vuelve a pedir
   const [text, setText] = useState('');
   // Sentencia gastada EN ESTA reunión (judgeUsed es de toda la partida: el Juez puede volver
   // a votar normal en las rondas siguientes, lo que ya no puede es volver a sentenciar).

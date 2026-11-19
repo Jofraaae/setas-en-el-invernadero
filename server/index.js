@@ -19,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT || 8787);
 const DIST = path.join(ROOT, 'dist');
-const SAVE_DIR = path.join(ROOT, '.saves');
+const SAVE_DIR = process.env.SAVE_DIR || path.join(ROOT, '.saves'); // SAVE_DIR: las pruebas usan una carpeta temporal
 
 /* ---------- persistencia en memoria (+ disco, para sobrevivir reinicios) ---------- */
 
@@ -203,10 +203,19 @@ const MAX_CONNS_PER_IP = 30;
 const IDLE_JOIN_MS = 30000;      // una conexión que no crea ni se une a la sala en este rato se cierra
 const CONN_ID_RE = /^[A-Za-z0-9_-]{8,64}$/; // el id lo elige el cliente (randomUUID): 'bot:…' es de los bots y no se admite
 const ipCount = new Map();
+const avisadas = new Set(); // IPs que ya han dado el aviso de tope, para no llenar el registro
+// Cuántos saltos hay hasta la IP del cliente dentro de x-forwarded-for, contando desde el final. Con 0 se ignora la cabecera:
+// cualquiera podría mandarla inventada y esquivar el tope por IP. Se cambia con TRUST_PROXY_HOPS.
+// En Render la cabecera termina en «…, IP-del-cliente, IP-del-proxy» (observado por usuarios de Render, no es una garantía documentada),
+// así que el cliente es la penúltima entrada: 2. Con 1 se contaría la IP del proxy, la misma para todo el mundo, y a la conexión 31
+// de TODA la web se le cerraría la puerta. Si en Render salta el aviso «tope por IP alcanzado» con muchas personas distintas, hay que revisar este valor.
+const PROXY_HOPS = process.env.TRUST_PROXY_HOPS !== '' && process.env.TRUST_PROXY_HOPS !== undefined ? Math.max(0, Number(process.env.TRUST_PROXY_HOPS) || 0) : (process.env.RENDER ? 2 : 0);
 function clientIp(req) {
-  // detrás de un proxy (Render, Vercel…) la IP real es la última que añadió el proxy en x-forwarded-for
+  const direct = (req.socket && req.socket.remoteAddress) || '?';
+  if (!PROXY_HOPS) return direct;
+  // cada proxy de confianza añade al final la IP de quien le llegó: la del cliente es la que quedó PROXY_HOPS lugares antes del final
   const xf = String(req.headers['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
-  return xf.length ? xf[xf.length - 1] : (req.socket && req.socket.remoteAddress) || '?';
+  return xf.length >= PROXY_HOPS ? xf[xf.length - PROXY_HOPS] : direct;
 }
 const MAX_MSGS_PER_SEC = 120; // el movimiento manda unas 25 órdenes por segundo: hay mucho margen
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
@@ -244,7 +253,11 @@ wss.on('connection', (ws, req) => {
     return;
   }
   const ip = clientIp(req);
-  if ((ipCount.get(ip) || 0) >= MAX_CONNS_PER_IP) { ws.close(4029, 'too many connections'); return; }
+  if ((ipCount.get(ip) || 0) >= MAX_CONNS_PER_IP) {
+    if (!avisadas.has(ip)) { avisadas.add(ip); console.warn(`⚠ tope por IP alcanzado (${MAX_CONNS_PER_IP}) para ${ip} · saltos de proxy: ${PROXY_HOPS}`); }
+    ws.close(4029, 'too many connections');
+    return;
+  }
   if (!rooms.has(code) && rooms.size >= MAX_ROOMS) { ws.close(4013, 'server full'); return; }
   const room = getRoom(code);
   const conns = connsByRoom.get(code);
@@ -316,4 +329,5 @@ server.on('error', (e) => {
 server.listen(PORT, () => {
   console.log(`🍄 Servidor de "Among Shrooms" escuchando en http://localhost:${PORT}`);
   console.log(`   WebSocket: ws://localhost:${PORT}/ws · Listado: http://localhost:${PORT}/api/rooms`);
+  console.log(`   Tope por IP: ${MAX_CONNS_PER_IP} · saltos de proxy de confianza: ${PROXY_HOPS}`);
 });

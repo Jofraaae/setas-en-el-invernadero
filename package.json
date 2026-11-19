@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test --test-timeout=60000 server/tests/engine.test.mjs server/tests/server.test.mjs",
     "dev": "node scripts/dev.mjs",
     "build": "vite build",
     "lint": "eslint . --quiet",

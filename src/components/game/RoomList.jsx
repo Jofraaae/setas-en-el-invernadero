@@ -41,12 +41,14 @@ export default function RoomList({ onJoin, onClose }) {
 
   useEffect(() => {
     let alive = true;
+    let seq = 0; // una respuesta lenta y vieja no pisa a otra más nueva
     const load = async () => {
+      const mine = ++seq;
       try {
         // El servidor solo devuelve salas públicas y vivas (anuncio con caducidad).
         const raw = await fetchRooms();
         const fresh = raw.filter((r) => !r.updated_date && !r.updated_at ? true : Date.parse(r.updated_at || r.updated_date) >= Date.now() - FRESH_MS);
-        if (!alive) return;
+        if (!alive || mine !== seq) return;
         const seen = new Map();
         for (const r of fresh) {
           if (!r.code || seen.has(r.code)) continue;
@@ -61,15 +63,12 @@ export default function RoomList({ onJoin, onClose }) {
         if (alive) { setRooms((cur) => cur || []); setFailed(true); }
       }
     };
-    load();
+    // subscribeRooms ya sondea cada 3 s (y al abrir lanza el primer sondeo): antes se pedía la lista tres veces
+    // (carga inicial + suscripción + otro intervalo de 5 s), un gasto de datos y batería innecesario en el móvil
     const unsub = subscribeRooms(() => load());
-    // La lista se refresca sola de todas formas: los avisos en vivo pueden no llegar, y
-    // el listado no debe quedarse congelado con lo que hubiera al abrirlo.
-    const poll = setInterval(load, 5000);
     const clock = setInterval(() => setTick((n) => n + 1), 30000); // "hace X min"
     return () => {
       alive = false;
-      clearInterval(poll);
       clearInterval(clock);
       if (pending.current) clearTimeout(pending.current);
       if (typeof unsub === 'function') unsub();

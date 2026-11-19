@@ -131,7 +131,7 @@ export default function Home() {
 
   const startGame = useCallback((m) => {
     // Recuperar la conexión no debe cerrar una misión ni reiniciar el lienzo.
-    if (m.resync && m.phase === 'playing' && screenRef.current === 'playing') {
+    if (m.resync && m.phase === screenRef.current && (m.phase === 'playing' || m.phase === 'meeting' || m.phase === 'result')) {
       g.inSeq = Math.max(g.inSeq, m.seq || 0);
       g.pend = [];
       g.srv.x = m.you[0];
@@ -732,6 +732,11 @@ export default function Home() {
         break;
       }
       case 'meeting':
+        // reconexión en plena reunión: la pantalla ya está, solo se refrescan jugadores y votos (el chat no se pierde)
+        if (screenRef.current === 'meeting') {
+          setMeeting((mt) => (mt ? { ...mt, players: m.players, voted: new Set(m.voted || []), voting: !!m.voting } : mt));
+          break;
+        }
         // una reunión cierra lo que hubiera abierto: un minijuego taparía la votación
         sfx('meeting');
         stopLoop('blackout'); // el zumbido del apagón calla en la votación; si sigue, vuelve al reanudar
@@ -753,7 +758,7 @@ export default function Home() {
         g.alert = null;
         setChat([]);        setMeeting({
           seq: Date.now(), callerId: m.caller, reason: m.reason, bodyName: m.bodyName,
-          players: m.players, voted: new Set(),
+          players: m.players, voted: new Set(m.voted || []),
           voting: !!m.voting, discussMs: m.discussMs || 0, voteMs: m.voteMs || 0,
         });
         setInterro(null); // el informe es de esta reunión: la siguiente empieza limpia
@@ -836,6 +841,7 @@ export default function Home() {
     g.inputLock = true;
     g.mini = ui;
     sendInput(g, send, 0, 0, g.frameT || performance.now());
+    send({ t: 'taskOpen', id: ui.lights ? -1 : ui.id }); // el servidor solo da la misión por hecha si se abrió el minijuego
     setMini(ui);
   }, [g, send]);
 

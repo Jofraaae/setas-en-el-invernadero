@@ -51,7 +51,7 @@ const WATCH_MS = 15000;
 const SAVE_EVERY_MS = 2500;
 const ROOM_SYNC_MS = 15000;   // cada cuánto se refresca el anuncio de esta sala en el listado
 const LOBBY_CHAT_MAX = 40;
-const TASK_MIN_GAP_MS = 1500; // tiempo mínimo entre dos misiones de un mismo jugador
+const TASK_MIN_OPEN_MS = 1500; // un minijuego tiene que llevar abierto al menos esto antes de dar la misión por hecha
 
 // [mínimo, máximo, paso]. imps 0 = automático.
 const DEFAULTS = { imps: 0, killCd: 40, sabCd: 40, reactorCd: 60, btnCd: 20, meetSec: 20, voteSec: 40, tasks: 5, speed: 100, vision: 100, shifter: 1, shiftCd: 40, viper: 1, rotSec: 15, engineer: 1, engCd: 15, alerter: 1, judge: 1, angel: 1, angelCd: 60, scientist: 1, scientistCd: 10, spectre: 1, spectreCd: 40, detective: 1, tracker: 1, trackerMs: 40, trackerCd: 30, lantern: 1, lanternR: 250, fp: 0, keymaster: 1, keyCd: 40, blinder: 1, blindCd: 30, blindSec: 5 };
@@ -914,15 +914,29 @@ class GameRoom {
         if (this.phase !== 'playing' || this.frozen(p, now) || (p.blindUntil || 0) > now) return; // los fantasmas también terminan sus misiones; un cegado no ve la misión
         if (!Number.isInteger(msg.id) || !p.tasks.includes(msg.id) || p.done.includes(msg.id) || p.inVent) return;
         if (dist(p, this.m.tasks[msg.id]) > USE_RANGE + 20) return;
-        // un minijuego dura más que esto: un cliente trucado no puede soltar todas sus misiones de golpe
-        if (now - (p.lastTaskAt || 0) < TASK_MIN_GAP_MS) return;
-        p.lastTaskAt = now;
+        // la misión solo vale si se abrió su minijuego (taskOpen) y lleva abierto un rato: un cliente trucado
+        // no puede soltar todas sus misiones de golpe sin abrirlas
+        if (!p.taskOpen || p.taskOpen.id !== msg.id || now - p.taskOpen.at < TASK_MIN_OPEN_MS) return;
+        p.taskOpen = null;
         p.done.push(msg.id);
         if (p.role === 'crew') this.taskDone++; // las tareas del impostor son de mentira
         conn.send({ t: 'taskAck', id: msg.id });
         const w = this.checkWin();
         if (w) return this.finish(w);
         return this.save();
+      }
+      case 'taskOpen': {
+        // el cliente avisa al abrir un minijuego (id de la misión, o -1 para el cuadro de luces)
+        if (this.phase !== 'playing' || this.frozen(p, now) || p.inVent) return;
+        const id = Number(msg.id);
+        if (id === -1) {
+          if (!this.dark || dist(p, this.m.panel) > USE_RANGE + 20) return;
+        } else {
+          if (!Number.isInteger(id) || !p.tasks.includes(id) || p.done.includes(id)) return;
+          if (dist(p, this.m.tasks[id]) > USE_RANGE + 20) return;
+        }
+        p.taskOpen = { id, at: now };
+        return;
       }
       case 'kill': {
         if (this.phase !== 'playing' || p.role !== 'impostor' || !p.alive || p.inVent || this.frozen(p, now) || now < p.killReadyAt || (p.invisUntil || 0) > now) return;
@@ -1024,6 +1038,8 @@ class GameRoom {
         // el impostor también puede arreglar las luces: le sirve para fingir que ayuda
         if (this.phase !== 'playing' || !p.alive) return;
         if (!this.dark || dist(p, this.m.panel) > USE_RANGE + 20) return;
+        if (!p.taskOpen || p.taskOpen.id !== -1 || now - p.taskOpen.at < TASK_MIN_OPEN_MS) return; // el cuadro también exige abrir su minijuego
+        p.taskOpen = null;
         this.dark = false;
         this.startSabCooldown(now); // al arreglar las luces empieza la espera de TODOS los sabotajes
         return this.save();
@@ -1826,6 +1842,8 @@ class GameRoom {
     return {
       t: 'meeting', caller: callerId, reason, bodyName: bodyName || null,
       voting: now >= m.discussUntil,
+      // quién ya ha votado (o sentenciado): al reconectar en plena reunión no se pierden las marcas
+      voted: this.meeting ? [...this.players.values()].filter((p) => this.meeting.votes.has(p.id) || p.judgeTarget).map((p) => p.id) : [],
       discussMs: Math.max(0, m.discussUntil - now),
       voteMs: this.settings.voteSec * 1000,
       ms: Math.max(0, m.voteUntil - now),
