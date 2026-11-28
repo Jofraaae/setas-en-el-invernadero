@@ -125,13 +125,13 @@ export default function Home() {
 
   const closeConn = useCallback(() => {
     if (connectTimer.current) { clearTimeout(connectTimer.current); connectTimer.current = null; }
-    if (subRef.current) { try { subRef.current.unsubscribe(); } catch (e) { /* ya cerrada */ } subRef.current = null; }
+    if (subRef.current) { try { subRef.current(); } catch (e) { /* ya cerrada */ } subRef.current = null; }
     if (connRef.current) { try { connRef.current.close(); } catch (e) { /* ya cerrada */ } connRef.current = null; }
   }, []);
 
   const startGame = useCallback((m) => {
     // Recuperar la conexión no debe cerrar una misión ni reiniciar el lienzo.
-    if (m.resync && m.phase === 'playing' && screenRef.current === 'playing') {
+    if (m.resync && m.phase === screenRef.current && (m.phase === 'playing' || m.phase === 'meeting' || m.phase === 'result')) {
       g.inSeq = Math.max(g.inSeq, m.seq || 0);
       g.pend = [];
       g.srv.x = m.you[0];
@@ -615,7 +615,7 @@ export default function Home() {
         learnGhost(m.ghost || (m.angel ? 'angel' : ''));
         window.setTimeout(() => {
           setDeath(null);
-          g.inputLock = false;
+          g.inputLock = !!g.miniOpen; // un minijuego abierto durante la animación sigue bloqueando el movimiento
         }, DEATH_MS);
         break;
       }
@@ -732,6 +732,11 @@ export default function Home() {
         break;
       }
       case 'meeting':
+        // reconexión en plena reunión: la pantalla ya está, solo se refrescan jugadores y votos (el chat no se pierde)
+        if (screenRef.current === 'meeting') {
+          setMeeting((mt) => (mt ? { ...mt, players: m.players, voted: new Set(m.voted || []), voting: !!m.voting } : mt));
+          break;
+        }
         // una reunión cierra lo que hubiera abierto: un minijuego taparía la votación
         sfx('meeting');
         stopLoop('blackout'); // el zumbido del apagón calla en la votación; si sigue, vuelve al reanudar
@@ -753,7 +758,7 @@ export default function Home() {
         g.alert = null;
         setChat([]);        setMeeting({
           seq: Date.now(), callerId: m.caller, reason: m.reason, bodyName: m.bodyName,
-          players: m.players, voted: new Set(),
+          players: m.players, voted: new Set(m.voted || []),
           voting: !!m.voting, discussMs: m.discussMs || 0, voteMs: m.voteMs || 0,
         });
         setInterro(null); // el informe es de esta reunión: la siguiente empieza limpia
@@ -770,7 +775,7 @@ export default function Home() {
         break;
       case 'lchat':
         sfx('chat');
-        setLChat((c) => [...c, m]);
+        setLChat((c) => [...c, m].slice(-80)); // el chat de la sala no crece sin límite
         break;
       case 'voted':
         if (m.id !== g.myId) sfx('blip'); // el tuyo ya suena al confirmarlo
@@ -836,6 +841,7 @@ export default function Home() {
     g.inputLock = true;
     g.mini = ui;
     sendInput(g, send, 0, 0, g.frameT || performance.now());
+    send({ t: 'taskOpen', id: ui.lights ? -1 : ui.id }); // el servidor solo da la misión por hecha si se abrió el minijuego
     setMini(ui);
   }, [g, send]);
 
@@ -996,7 +1002,9 @@ export default function Home() {
       // Si la sala lleva un buen rato sin contestar, la conexión se ha quedado muerta
       // (pestaña suspendida): se rehace con el mismo id, así la sala te reconoce y sigues
       // donde estabas en vez de obligarte a recargar la página.
-      if (performance.now() - aliveAt.current > 20000) {
+      // un socket ya cerrado se rehace en el siguiente latido (4 s) en vez de esperar 20 s de silencio
+      const dead = connRef.current.readyState === WebSocket.CLOSED || connRef.current.readyState === WebSocket.CLOSING;
+      if (dead || performance.now() - aliveAt.current > 20000) {
         aliveAt.current = performance.now();
         dial('join', code);
       }

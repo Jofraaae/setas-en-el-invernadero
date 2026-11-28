@@ -570,6 +570,7 @@ export class Brain {
     if (!this.darkAt) { this.darkAt = now; this.darkDelay = rnd(4000, 13000); }
     if (now - this.darkAt < this.darkDelay && !(this.goal && this.goal.kind === 'panel')) return null;
     return this.mk('panel', 'panel', pn.x, pn.y, 50, () => {
+      this.send({ t: 'taskOpen', id: -1 });
       this.startWork('panel', rnd(4500, 8000), () => { this.send({ t: 'fix' }); this.goal = null; });
     }, { urgent: true, valid: () => R.dark });
   }
@@ -682,6 +683,7 @@ export class Brain {
     const ms = (GAME_MS[t.game] || 4500) * rnd(2.4, 4.2); // un minijuego de verdad lleva su rato
     // al llegar mira alrededor un momento antes de ponerse; al terminar, a veces se da una vuelta antes de la siguiente
     this.startWork('look', rnd(500, 2500), () => {
+      this.send({ t: 'taskOpen', id }); // como un jugador: abre el minijuego y lo hace durante un rato
       this.startWork('task', ms, () => {
         this.send({ t: 'task', id }); // el impostor también "hace" la suya: así parece uno más
         this.goal = null;

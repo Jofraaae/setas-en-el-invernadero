@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { sfx } from '@/lib/game/sound';
 import { mapName } from '@/lib/game/maps';
 import { tr } from '@/lib/i18n';
@@ -53,6 +53,48 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
   const trk = g.st.trk || null;
   const trkWho = trk ? (g.roster.get(trk.id) || {}) : {};
 
+  // la capa de suelos solo se vuelve a construir si cambia el mapa, la escala o qué salas tienen la puerta cerrada
+  // (antes se rehacían todos los polígonos con clip-path cada 200 ms mientras el mapa estaba abierto)
+  const shutKey = floors.map((f, i) => (f[5] && leftOf(i) > 0 ? '1' : '0')).join('');
+  const floorsLayer = useMemo(() => floors.map((f, i) => {
+    const [x, y, w, h, col, name] = f;
+    const o = f[7] || {};
+    if (o.carve && !o.water) return null; // solo cierra celdas: no se dibuja
+    const shut = shutKey[i] === '1';
+    // contorno libre (Micelaria): la caja se recorta con el propio polígono
+    const clip = o.poly
+      ? `polygon(${o.poly.map((q) => `${((q[0] - x) / w) * 100}% ${((q[1] - y) / h) * 100}%`).join(',')})`
+      : undefined;
+    // mapLabel: sala cuyo rótulo del juego va fuera del edificio; aquí se pone en su centro
+    const lx = o.mapLabel ? o.mapLabel[0] : o.label ? o.label[0] : x + w / 2;
+    const ly = o.mapLabel ? o.mapLabel[1] - 8 / sc : o.label ? o.label[1] - 40 : y + 4;
+    return (
+      <div key={i}>
+        <div
+          className="absolute"
+          style={{
+            left: x * sc,
+            top: y * sc,
+            width: w * sc,
+            height: h * sc,
+            clipPath: clip,
+            background: shut ? 'rgba(230,57,70,.55)' : fade(col, o.poly ? 0.62 : 0.5),
+            boxShadow: !o.poly ? (shut ? 'inset 0 0 0 5px rgba(230,57,70,.85)' : name ? 'inset 0 0 0 1px rgba(255,255,255,.18)' : 'none') : 'none',
+          }}
+        />
+        {name && !o.noLabel && !o.noMap ? ( // los tramos sin rótulo (senderos, muelles) no repiten el nombre
+          <span
+            className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[12px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
+            style={{ left: lx * sc, top: ly * sc }}
+          >
+            {tr(name)}
+          </span>
+        ) : null}
+      </div>
+    );
+  }), // eslint-disable-next-line react-hooks/exhaustive-deps
+  [floors, sc, shutKey]);
+
   return (
     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/20 p-3">
       <div className="pointer-events-auto flex max-h-full w-full flex-col items-center gap-2 overflow-auto">
@@ -66,43 +108,7 @@ export default function MapOverlay({ g, onClose, onDoors, onUnlock }) {
         </div>
 
         <div className="relative overflow-hidden rounded-xl border-2 border-white/15 bg-[rgba(7,14,10,.35)]" style={{ width: W, height: H }}>
-          {floors.map((f, i) => {
-            const [x, y, w, h, col, name] = f;
-            const o = f[7] || {};
-            if (o.carve && !o.water) return null; // solo cierra celdas: no se dibuja
-            const shut = name ? leftOf(i) > 0 : false;
-            // contorno libre (Micelaria): la caja se recorta con el propio polígono
-            const clip = o.poly
-              ? `polygon(${o.poly.map((q) => `${((q[0] - x) / w) * 100}% ${((q[1] - y) / h) * 100}%`).join(',')})`
-              : undefined;
-            // mapLabel: sala cuyo rótulo del juego va fuera del edificio; aquí se pone en su centro
-            const lx = o.mapLabel ? o.mapLabel[0] : o.label ? o.label[0] : x + w / 2;
-            const ly = o.mapLabel ? o.mapLabel[1] - 8 / sc : o.label ? o.label[1] - 40 : y + 4;
-            return (
-              <div key={i}>
-                <div
-                  className="absolute"
-                  style={{
-                    left: x * sc,
-                    top: y * sc,
-                    width: w * sc,
-                    height: h * sc,
-                    clipPath: clip,
-                    background: shut ? 'rgba(230,57,70,.55)' : fade(col, o.poly ? 0.62 : 0.5),
-                    boxShadow: !o.poly ? (shut ? 'inset 0 0 0 5px rgba(230,57,70,.85)' : name ? 'inset 0 0 0 1px rgba(255,255,255,.18)' : 'none') : 'none',
-                  }}
-                />
-                {name && !o.noLabel && !o.noMap ? ( // los tramos sin rótulo (senderos, muelles) no repiten el nombre
-                  <span
-                    className="absolute -translate-x-1/2 whitespace-nowrap px-1 text-center text-[12px] font-bold leading-tight text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.85)]"
-                    style={{ left: lx * sc, top: ly * sc }}
-                  >
-                    {tr(name)}
-                  </span>
-                ) : null}
-              </div>
-            );
-          })}
+          {floorsLayer}
 
           {doors.filter((d) => closed.has(d.id)).map((d) => (
             <div
